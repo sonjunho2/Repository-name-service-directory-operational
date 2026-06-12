@@ -1,6 +1,146 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>서비스 디렉터리</title><link rel="stylesheet" href="/public/css/style.css"></head><body>
-<header class="top"><b>서비스 디렉터리</b><nav><a href="/">홈</a><% if(me){ %><span><%=me.nickname%></span><a href="/logout">로그아웃</a><% if(me.role==='admin'){%><a href="/admin">관리자</a><%}%><% }else{ %><a href="/login">로그인</a><a href="/join">회원가입</a><% } %></nav></header>
-<section class="hero"><div><p class="eyebrow">운영형 포털 구조</p><h1>배너·업체·후기·회원관리까지 가능한 디렉터리</h1><form class="search"><input name="search" value="<%=query.search||''%>" placeholder="업체명/지역/태그 검색"><select name="category"><option value="">전체 업종</option><% ['카페','뷰티','맛집','교육','기타'].forEach(x=>{ %><option <%=query.category===x?'selected':''%>><%=x%></option><%})%></select><select name="region"><option value="">전체 지역</option><% ['서울','부산','대구','인천','광주','대전','제주'].forEach(x=>{ %><option <%=query.region===x?'selected':''%>><%=x%></option><%})%></select><button>검색</button></form></div><div class="slider"><% banners.forEach((b,i)=>{ %><a class="slide <%=i===0?'on':''%>" href="<%=b.link_url||'#'%>"><% if(b.image_data){%><img src="<%=b.image_data%>"><%}%><small>광고/공지</small><strong><%=b.title%></strong><span><%=b.subtitle||''%></span></a><%})%></div></section>
-<section class="categoryBar"><div><b>★ 업종선택</b><a href="/?category=카페">카페</a><a href="/?category=뷰티">뷰티</a><a href="/?category=맛집">맛집</a><a href="/?region=서울">서울</a><a href="/?region=부산">부산</a></div></section>
-<main class="layout"><section><h2>추천업체</h2><div class="grid"><% vendors.filter(v=>v.is_recommended||v.is_premium).forEach(v=>{ %><a class="card premium" href="/vendor/<%=v.id%>"><em><%=v.is_premium?'PREMIUM':'RECOMMEND'%></em><% if(v.image_data){%><img src="<%=v.image_data%>"><%}%><h3><%=v.name%></h3><p><%=v.region%> · <%=v.category%></p><span><%=v.tags||''%></span></a><%})%></div><h2>일반업체</h2><div class="grid normal"><% vendors.filter(v=>!v.is_recommended&&!v.is_premium).forEach(v=>{ %><a class="card" href="/vendor/<%=v.id%>"><% if(v.image_data){%><img src="<%=v.image_data%>"><%}%><h3><%=v.name%></h3><p><%=v.region%> · <%=v.category%></p><span><%=v.tags||''%></span></a><%})%></div></section><aside><h3>공지</h3><% notices.forEach(n=>{ %><div class="sideitem"><b><%=n.is_pinned?'[필독] ':''%><%=n.title%></b><p><%=n.content%></p></div><%})%><h3>최신 후기</h3><% reviews.forEach(r=>{ %><div class="sideitem"><b><%=r.title%></b><p><%=r.vendor_name%> · ★<%=r.rating%></p></div><%})%></aside></main>
-<script src="/public/js/app.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>서비스 디렉터리</title>
+  <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">서비스 디렉터리</a>
+  <nav>
+    <a href="/">홈</a>
+    <% if(me){ %>
+      <span><%=me.nickname%></span>
+      <a href="/logout">로그아웃</a>
+      <% if(me.role==='admin'){%><a href="/admin">관리자</a><%}%>
+    <% }else{ %>
+      <a href="/login">로그인</a>
+      <a href="/join">회원가입</a>
+    <% } %>
+  </nav>
+</header>
+
+<section class="hero-wrap">
+  <div class="hero-main">
+    <p class="eyebrow">운영형 포털 구조</p>
+    <h1>배너·업체·후기·회원관리까지 가능한 디렉터리</h1>
+    <p class="hero-copy">지역과 업종별 업체를 검색하고, 추천·프리미엄·일반 업체를 한눈에 확인할 수 있습니다.</p>
+    <form class="search">
+      <input name="search" value="<%=query.search||''%>" placeholder="업체명 / 지역 / 태그 검색">
+      <select name="category">
+        <option value="">전체 업종</option>
+        <% ['카페','뷰티','맛집','교육','기타'].forEach(x=>{ %>
+          <option <%=query.category===x?'selected':''%>><%=x%></option>
+        <%})%>
+      </select>
+      <select name="region">
+        <option value="">전체 지역</option>
+        <% ['서울','부산','대구','인천','광주','대전','제주'].forEach(x=>{ %>
+          <option <%=query.region===x?'selected':''%>><%=x%></option>
+        <%})%>
+      </select>
+      <button>검색</button>
+    </form>
+  </div>
+
+  <div class="premium-slider">
+    <% if(banners.length){ %>
+      <% banners.forEach((b,i)=>{ %>
+        <a class="slide <%=i===0?'on':''%>" href="<%=b.link_url||'#'%>">
+          <% if(b.image_data){%><img src="<%=b.image_data%>" alt=""><%}%>
+          <small>광고 / 공지</small>
+          <strong><%=b.title%></strong>
+          <span><%=b.subtitle||'관리자에서 배너 이미지와 문구를 변경할 수 있습니다.'%></span>
+        </a>
+      <%})%>
+    <% } else { %>
+      <div class="slide on">
+        <small>광고 / 공지</small>
+        <strong>프리미엄 배너</strong>
+        <span>관리자에서 이미지 업로드 가능</span>
+      </div>
+    <% } %>
+  </div>
+</section>
+
+<section class="selector-wrap">
+  <div class="selector-head">★ 업종선택</div>
+  <div class="selector-list">
+    <a href="/">전체</a>
+    <% ['카페','뷰티','맛집','교육','기타'].forEach(x=>{ %><a href="/?category=<%=x%>"><%=x%></a><%})%>
+  </div>
+  <div class="selector-head region">▦ 지역선택</div>
+  <div class="selector-list">
+    <a href="/">전체</a>
+    <% ['서울','부산','대구','인천','광주','대전','제주'].forEach(x=>{ %><a href="/?region=<%=x%>"><%=x%></a><%})%>
+  </div>
+</section>
+
+<main class="layout">
+  <section class="content-area">
+    <div class="section-title">
+      <h2>추천업체</h2>
+      <span>프리미엄과 추천 업체를 먼저 보여줍니다.</span>
+    </div>
+    <div class="grid featured-grid">
+      <% vendors.filter(v=>v.is_recommended||v.is_premium).forEach(v=>{ %>
+        <a class="card <%=v.is_premium?'premium':'recommend'%>" href="/vendor/<%=v.id%>">
+          <div class="thumb">
+            <% if(v.image_data){%><img src="<%=v.image_data%>" alt=""><%} else {%><div class="noimg">IMAGE</div><%}%>
+          </div>
+          <em><%=v.is_premium?'PREMIUM':'RECOMMEND'%></em>
+          <h3><%=v.name%></h3>
+          <p><%=v.region%> · <%=v.category%></p>
+          <span><%=v.tags||'등록된 태그가 없습니다.'%></span>
+        </a>
+      <%})%>
+    </div>
+
+    <div class="section-title mt">
+      <h2>일반업체</h2>
+      <span>최근 등록된 일반 업체 목록입니다.</span>
+    </div>
+    <div class="grid normal-grid">
+      <% vendors.filter(v=>!v.is_recommended&&!v.is_premium).forEach(v=>{ %>
+        <a class="card normal-card" href="/vendor/<%=v.id%>">
+          <div class="thumb small">
+            <% if(v.image_data){%><img src="<%=v.image_data%>" alt=""><%} else {%><div class="noimg">IMAGE</div><%}%>
+          </div>
+          <h3><%=v.name%></h3>
+          <p><%=v.region%> · <%=v.category%></p>
+          <span><%=v.tags||''%></span>
+        </a>
+      <%})%>
+    </div>
+  </section>
+
+  <aside class="right-board">
+    <div class="side-box hot">
+      <h3>신규업체</h3>
+      <% vendors.slice(0,6).forEach(v=>{ %>
+        <a class="mini-row" href="/vendor/<%=v.id%>">
+          <b>NEW</b>
+          <span><%=v.name%></span>
+        </a>
+      <%})%>
+    </div>
+    <div class="side-box">
+      <h3>공지사항</h3>
+      <% notices.forEach(n=>{ %>
+        <div class="sideitem"><b><%=n.is_pinned?'[필독] ':''%><%=n.title%></b><p><%=n.content%></p></div>
+      <%})%>
+    </div>
+    <div class="side-box">
+      <h3>최신 후기</h3>
+      <% reviews.forEach(r=>{ %>
+        <div class="sideitem"><b><%=r.title%></b><p><%=r.vendor_name%> · ★<%=r.rating%></p></div>
+      <%})%>
+    </div>
+  </aside>
+</main>
+
+<script src="/public/js/app.js"></script>
+</body>
+</html>
