@@ -76,7 +76,7 @@
     </div>
     <div class="grid featured-grid">
       <% vendors.filter(v=>v.is_recommended||v.is_premium).forEach(v=>{ %>
-        <a class="card <%=v.is_premium?'premium':'recommend'%>" href="/vendor/<%=v.id%>">
+        <a class="card vendor-open <%=v.is_premium?'premium':'recommend'%>" href="/vendor/<%=v.id%>" data-vendor-id="<%=v.id%>">
           <div class="thumb">
             <% if(v.image_data){%><img src="<%=v.image_data%>" alt=""><%} else {%><div class="noimg">IMAGE</div><%}%>
           </div>
@@ -94,7 +94,7 @@
     </div>
     <div class="grid normal-grid">
       <% vendors.filter(v=>!v.is_recommended&&!v.is_premium).forEach(v=>{ %>
-        <a class="card normal-card" href="/vendor/<%=v.id%>">
+        <a class="card vendor-open normal-card" href="/vendor/<%=v.id%>" data-vendor-id="<%=v.id%>">
           <div class="thumb small">
             <% if(v.image_data){%><img src="<%=v.image_data%>" alt=""><%} else {%><div class="noimg">IMAGE</div><%}%>
           </div>
@@ -110,7 +110,7 @@
     <div class="side-box hot">
       <h3>신규업체</h3>
       <% vendors.slice(0,6).forEach(v=>{ %>
-        <a class="mini-row" href="/vendor/<%=v.id%>">
+        <a class="mini-row vendor-open" href="/vendor/<%=v.id%>" data-vendor-id="<%=v.id%>">
           <b>NEW</b>
           <span><%=v.name%></span>
         </a>
@@ -130,6 +130,14 @@
     </div>
   </aside>
 </main>
+
+<div class="vendor-modal" id="vendorModal" aria-hidden="true">
+  <div class="vendor-modal-bg" data-close="1"></div>
+  <div class="vendor-modal-box">
+    <button class="modal-close" type="button" data-close="1">×</button>
+    <div id="vendorModalContent" class="vendor-modal-content">불러오는 중...</div>
+  </div>
+</div>
 
 <script src="/public/js/app.js"></script>
 </body>
