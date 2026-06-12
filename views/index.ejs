@@ -22,50 +22,7 @@
   </nav>
 </header>
 
-<section class="hero-wrap">
-  <div class="hero-main">
-    <p class="eyebrow">운영형 포털 구조</p>
-    <h1>배너·업체·후기·회원관리까지 가능한 디렉터리</h1>
-    <p class="hero-copy">지역과 업종별 업체를 검색하고, 추천·프리미엄·일반 업체를 한눈에 확인할 수 있습니다.</p>
-    <form class="search">
-      <input name="search" value="<%=query.search||''%>" placeholder="업체명 / 지역 / 태그 검색">
-      <select name="category">
-        <option value="">전체 업종</option>
-        <% ['카페','뷰티','맛집','교육','기타'].forEach(x=>{ %>
-          <option <%=query.category===x?'selected':''%>><%=x%></option>
-        <%})%>
-      </select>
-      <select name="region">
-        <option value="">전체 지역</option>
-        <% ['서울','부산','대구','인천','광주','대전','제주'].forEach(x=>{ %>
-          <option <%=query.region===x?'selected':''%>><%=x%></option>
-        <%})%>
-      </select>
-      <button>검색</button>
-    </form>
-  </div>
-
-  <div class="premium-slider">
-    <% if(banners.length){ %>
-      <% banners.forEach((b,i)=>{ %>
-        <a class="promo-slide <%=i===0?'on':''%>" href="<%=b.link_url||'#'%>">
-          <% if(b.image_data){%><img src="<%=b.image_data%>" alt=""><%}%>
-          <small>광고 / 공지</small>
-          <strong><%=b.title%></strong>
-          <span><%=b.subtitle||'관리자에서 배너 이미지와 문구를 변경할 수 있습니다.'%></span>
-        </a>
-      <%})%>
-    <% } else { %>
-      <div class="promo-slide on">
-        <small>광고 / 공지</small>
-        <strong>프리미엄 배너</strong>
-        <span>관리자에서 이미지 업로드 가능</span>
-      </div>
-    <% } %>
-  </div>
-</section>
-
-<section class="selector-wrap">
+<section class="selector-wrap first-block">
   <div class="selector-head">★ 업종선택</div>
   <div class="selector-list">
     <a href="/">전체</a>
@@ -76,6 +33,39 @@
     <a href="/">전체</a>
     <% ['서울','부산','대구','인천','광주','대전','제주'].forEach(x=>{ %><a href="/?region=<%=x%>"><%=x%></a><%})%>
   </div>
+</section>
+
+<section class="promo-search-wrap">
+  <div class="premium-row-slider">
+    <div class="premium-track">
+      <% const loopBanners = banners.length ? banners : [{title:'프리미엄 배너',subtitle:'관리자에서 이미지 업로드 가능',link_url:'#',image_data:null},{title:'이벤트 배너',subtitle:'슬라이드로 노출됩니다',link_url:'#',image_data:null},{title:'광고 배너',subtitle:'여러 개 카드 배너 지원',link_url:'#',image_data:null}]; %>
+      <% loopBanners.concat(loopBanners).forEach((b)=>{ %>
+        <a class="premium-banner-card" href="<%=b.link_url||'#'%>">
+          <% if(b.image_data){%><img src="<%=b.image_data%>" alt=""><%}%>
+          <span>PREMIUM</span>
+          <strong><%=b.title%></strong>
+          <small><%=b.subtitle||'프리미엄 카드 배너'%></small>
+        </a>
+      <%})%>
+    </div>
+  </div>
+
+  <form class="side-search">
+    <input name="search" value="<%=query.search||''%>" placeholder="업체명검색">
+    <select name="category">
+      <option value="">전체업종 선택</option>
+      <% ['카페','뷰티','맛집','교육','기타'].forEach(x=>{ %>
+        <option <%=query.category===x?'selected':''%>><%=x%></option>
+      <%})%>
+    </select>
+    <select name="region">
+      <option value="">전체지역선택</option>
+      <% ['서울','부산','대구','인천','광주','대전','제주'].forEach(x=>{ %>
+        <option <%=query.region===x?'selected':''%>><%=x%></option>
+      <%})%>
+    </select>
+    <button>검색</button>
+  </form>
 </section>
 
 <main class="layout">
