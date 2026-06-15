@@ -35,7 +35,9 @@ async function openVendor(id){
     const v=data.vendor;
     const reviews=data.reviews||[];
     const badge=v.is_premium?'PREMIUM':v.is_recommended?'RECOMMEND':'NORMAL';
-    const reviewHtml=reviews.length?reviews.map(r=>`<article class="review"><b>★${esc(r.rating)} ${esc(r.title)}</b><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join(''):'<p class="empty-text">아직 등록된 후기가 없습니다.</p>';
+    const reviewHtml=reviews.length
+      ? reviews.map(r=>`<article class="review"><b>★${esc(r.rating)} ${esc(r.title)}</b><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join('')
+      : '<p class="empty-text">첫 번째 후기를 작성해보세요.</p>';
     modalContent.innerHTML=`
       <div class="modal-vendor-info">
         <em>${badge}</em>
@@ -45,11 +47,20 @@ async function openVendor(id){
       <div class="modal-vendor-head">
         <div class="modal-vendor-photo">${v.image_data?`<img src="${v.image_data}" alt="${esc(v.name)}">`:'<div class="noimg">IMAGE</div>'}</div>
         <div class="info-list modal-info-list">
-          <div class="modal-info-box"><b>영업시간</b><span>${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span></div>
-          <div class="modal-info-box contact-box"><b>연락처</b><span>${esc(v.phone||'등록된 연락처가 없습니다.')}</span>${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}">전화하기</a>`:''}</div>
+          <div class="modal-info-box">
+            <b>영업시간</b>
+            <span>${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span>
+          </div>
+          <div class="modal-info-box contact-box">
+            <b>연락처</b>
+            <div style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:20px;margin-top:10px;">
+              <span style="font-size:18px;font-weight:700;letter-spacing:.01em;">${esc(v.phone||'등록된 연락처가 없습니다.')}</span>
+              ${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}" style="width:150px;min-width:150px;height:50px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:14px;">전화하기</a>`:''}
+            </div>
+          </div>
         </div>
       </div>
-      <section class="modal-section"><h3>업체소개</h3><p class="vendor-desc modal-desc-box">${esc(v.description||'등록된 업체소개가 없습니다.')}</p></section>
+      <section class="modal-section"><h3>업체소개</h3><p class="vendor-desc" style="background:transparent;border:0;padding:0;line-height:1.8;">${esc(v.description||'등록된 업체소개가 없습니다.')}</p></section>
       <section class="modal-section review-section"><div class="review-title"><h3>⭐⭐⭐⭐⭐ 후기</h3><button type="button" class="review-write-btn">후기 작성하기</button></div>${reviewHtml}</section>
     `;
   }catch(e){
