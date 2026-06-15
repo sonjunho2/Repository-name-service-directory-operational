@@ -40,17 +40,17 @@ async function openVendor(id){
       <div class="modal-vendor-info">
         <em>${badge}</em>
         <h2>${esc(v.name)}</h2>
-        <p>${esc(v.region)} · ${esc(v.category)} · 조회 ${esc(v.views)}</p>
+        <p>📍 ${esc(v.region)} · ${esc(v.category)} · 👁 조회 ${esc(v.views)}</p>
       </div>
       <div class="modal-vendor-head">
         <div class="modal-vendor-photo">${v.image_data?`<img src="${v.image_data}" alt="${esc(v.name)}">`:'<div class="noimg">IMAGE</div>'}</div>
         <div class="info-list modal-info-list">
-          <div><b>영업시간</b><span>${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span></div>
-          <div><b>연락처</b><span>${esc(v.phone||'등록된 연락처가 없습니다.')}</span>${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}">전화하기</a>`:''}</div>
+          <div class="modal-info-box"><b>영업시간</b><span>${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span></div>
+          <div class="modal-info-box contact-box"><b>연락처</b><span>${esc(v.phone||'등록된 연락처가 없습니다.')}</span>${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}">전화하기</a>`:''}</div>
         </div>
       </div>
-      <section class="modal-section"><h3>업체소개</h3><p class="vendor-desc">${esc(v.description||'등록된 업체소개가 없습니다.')}</p></section>
-      <section class="modal-section"><h3>후기</h3>${reviewHtml}</section>
+      <section class="modal-section"><h3>업체소개</h3><p class="vendor-desc modal-desc-box">${esc(v.description||'등록된 업체소개가 없습니다.')}</p></section>
+      <section class="modal-section review-section"><div class="review-title"><h3>⭐⭐⭐⭐⭐ 후기</h3><button type="button" class="review-write-btn">후기 작성하기</button></div>${reviewHtml}</section>
     `;
   }catch(e){
     modalContent.innerHTML='<div class="modal-loading">업체 정보를 불러오지 못했습니다.</div>';
