@@ -55,13 +55,13 @@ async function openVendor(id){
             <b>연락처</b>
             <span style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:20px;margin-top:14px;">
               <span style="font-size:18px;font-weight:800;color:#fff;">${esc(v.phone||'등록된 연락처가 없습니다.')}</span>
-              ${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}" style="width:150px;min-width:150px;height:50px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:14px;">전화하기</a>`:''}
+              ${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}" style="width:130px;min-width:130px;height:44px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;">전화하기</a>`:''}
             </span>
           </div>
         </div>
       </div>
       <section class="modal-section"><h3>업체소개</h3><p class="vendor-desc" style="background:transparent!important;border:0!important;padding:0!important;line-height:1.8;">${esc(v.description||'등록된 업체소개가 없습니다.')}</p></section>
-      <section class="modal-section review-section"><div class="review-title"><h3>⭐⭐⭐⭐⭐ 후기</h3><button type="button" class="review-write-btn">후기 작성하기</button></div>${reviewHtml}</section>
+      <section class="modal-section review-section"><div class="review-title"><h3>⭐⭐⭐⭐⭐ 후기</h3><a href="/vendor/${esc(v.id)}#review" class="review-write-btn" style="display:inline-flex;align-items:center;text-decoration:none;">후기 작성하기</a></div>${reviewHtml}</section>
     `;
   }catch(e){
     modalContent.innerHTML='<div class="modal-loading">업체 정보를 불러오지 못했습니다.</div>';
