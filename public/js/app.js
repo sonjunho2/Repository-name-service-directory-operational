@@ -35,6 +35,7 @@ async function openVendor(id){
     const v=data.vendor;
     const reviews=data.reviews||[];
     const badge=v.is_premium?'PREMIUM':v.is_recommended?'RECOMMEND':'NORMAL';
+    const ratingText=v.review_count>0?`⭐ ${esc(v.avg_rating)} · 후기 ${esc(v.review_count)}개`:'⭐ 평점 없음';
     const reviewHtml=reviews.length
       ? reviews.map(r=>`<article class="review"><b>★${esc(r.rating)} ${esc(r.title)}</b><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join('')
       : '<p class="empty-text">첫 번째 후기를 작성해보세요.</p>';
@@ -42,7 +43,7 @@ async function openVendor(id){
       <div class="modal-vendor-info">
         <em>${badge}</em>
         <h2>${esc(v.name)}</h2>
-        <p>📍 ${esc(v.region)} · ${esc(v.category)} · 👁 조회 ${esc(v.views)}</p>
+        <p>📍 ${esc(v.region)} · ${esc(v.category)} · 👁 조회 ${esc(v.views)} · ${ratingText}</p>
       </div>
       <div class="modal-vendor-head">
         <div class="modal-vendor-photo">${v.image_data?`<img src="${v.image_data}" alt="${esc(v.name)}">`:'<div class="noimg">IMAGE</div>'}</div>
