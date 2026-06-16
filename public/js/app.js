@@ -36,6 +36,7 @@ async function openVendor(id){
     const reviews=data.reviews||[];
     const badge=v.is_premium?'PREMIUM':v.is_recommended?'RECOMMEND':'NORMAL';
     const ratingText=v.review_count>0?`⭐ ${esc(v.avg_rating)} · 후기 ${esc(v.review_count)}개`:'⭐ 평점 없음';
+    const kakaoBtn=v.kakao_url?`<a href="${esc(v.kakao_url)}" target="_blank" rel="noopener" style="width:130px;min-width:130px;height:44px;margin:8px 0 0 0;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;background:#fee500;color:#111;text-decoration:none;font-weight:900;">카카오톡 문의</a>`:'';
     const reviewHtml=reviews.length
       ? reviews.map(r=>`<article class="review"><b>★${esc(r.rating)} ${esc(r.title)}</b><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join('')
       : '<p class="empty-text">첫 번째 후기를 작성해보세요.</p>';
@@ -58,6 +59,7 @@ async function openVendor(id){
               <span style="font-size:18px;font-weight:800;color:#fff;">${esc(v.phone||'등록된 연락처가 없습니다.')}</span>
               ${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}" style="width:130px;min-width:130px;height:44px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;">전화하기</a>`:''}
             </span>
+            <span style="display:flex;justify-content:flex-end;width:100%;">${kakaoBtn}</span>
           </div>
         </div>
       </div>
