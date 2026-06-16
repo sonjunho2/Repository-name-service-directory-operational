@@ -13,6 +13,10 @@ const modalContent=document.getElementById('vendorModalContent');
 function esc(s=''){
   return String(s||'').replace(/[&<>"]/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 }
+function getFavs(){try{return JSON.parse(localStorage.getItem('favoriteVendors')||'[]')}catch(e){return[]}}
+function setFavs(list){localStorage.setItem('favoriteVendors',JSON.stringify(list))}
+function isFav(id){return getFavs().includes(String(id))}
+function toggleFav(id){let list=getFavs();id=String(id);if(list.includes(id)){list=list.filter(x=>x!==id)}else{list.push(id)}setFavs(list);openVendor(id)}
 function openModal(){
   if(!modal) return;
   modal.classList.add('show');
@@ -37,12 +41,17 @@ async function openVendor(id){
     const badge=v.is_premium?'PREMIUM':v.is_recommended?'RECOMMEND':'NORMAL';
     const ratingText=v.review_count>0?`⭐ ${esc(v.avg_rating)} · 후기 ${esc(v.review_count)}개`:'⭐ 평점 없음';
     const kakaoBtn=v.kakao_url?`<a href="${esc(v.kakao_url)}" target="_blank" rel="noopener" style="width:130px;min-width:130px;height:44px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;background:#fee500;color:#111;text-decoration:none;font-weight:900;">카카오톡 문의</a>`:'';
+    const favOn=isFav(v.id);
+    const favBtn=`<button type="button" onclick="toggleFav(${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid ${favOn?'#ffdc4d':'#39466c'};background:${favOn?'#ffdc4d':'#080d18'};color:${favOn?'#111':'#dfe9ff'};font-weight:900;cursor:pointer;">${favOn?'♥ 찜완료':'♡ 찜하기'}</button>`;
     const reviewHtml=reviews.length
       ? reviews.map(r=>`<article class="review"><b>★${esc(r.rating)} ${esc(r.title)}</b><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join('')
       : '<p class="empty-text">첫 번째 후기를 작성해보세요.</p>';
     modalContent.innerHTML=`
       <div class="modal-vendor-info">
-        <em>${badge}</em>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
+          <em>${badge}</em>
+          ${favBtn}
+        </div>
         <h2>${esc(v.name)}</h2>
         <p>📍 ${esc(v.region)} · ${esc(v.category)} · 👁 조회 ${esc(v.views)} · ${ratingText}</p>
       </div>
