@@ -51,8 +51,10 @@ async function openVendor(id){
         <div class="info-list modal-info-list">
           <div class="modal-info-box" style="display:block!important;">
             <b>영업시간</b>
-            <span>${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span>
-            <span style="display:flex;justify-content:flex-end;width:100%;margin-top:14px;">${kakaoBtn}</span>
+            <span style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:20px;margin-top:14px;">
+              <span style="font-size:17px;color:#fff;line-height:1.45;">${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span>
+              ${kakaoBtn}
+            </span>
           </div>
           <div class="modal-info-box contact-box" style="display:block!important;">
             <b>연락처</b>
