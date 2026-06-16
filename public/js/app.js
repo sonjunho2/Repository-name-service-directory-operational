@@ -82,3 +82,7 @@ document.addEventListener('click',(e)=>{
 document.addEventListener('keydown',(e)=>{
   if(e.key==='Escape') closeModal();
 });
+
+const reviewPopupScript=document.createElement('script');
+reviewPopupScript.src='/public/js/review-popup.js';
+document.body.appendChild(reviewPopupScript);
