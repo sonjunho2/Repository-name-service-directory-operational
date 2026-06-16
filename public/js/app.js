@@ -16,7 +16,28 @@ function esc(s=''){
 function getFavs(){try{return JSON.parse(localStorage.getItem('favoriteVendors')||'[]')}catch(e){return[]}}
 function setFavs(list){localStorage.setItem('favoriteVendors',JSON.stringify(list))}
 function isFav(id){return getFavs().includes(String(id))}
-function toggleFav(id){let list=getFavs();id=String(id);if(list.includes(id)){list=list.filter(x=>x!==id)}else{list.push(id)}setFavs(list);openVendor(id)}
+function applyFavFilter(onlyFav){
+  const favs=getFavs();
+  document.querySelectorAll('.vendor-open.card').forEach(card=>{
+    const id=String(card.dataset.vendorId||'');
+    card.style.display=onlyFav&&!favs.includes(id)?'none':'';
+  });
+  document.querySelectorAll('.fav-filter-status').forEach(el=>{
+    el.textContent=onlyFav?`찜한 업체 ${favs.length}개를 보고 있습니다.`:'';
+  });
+}
+function toggleFavFilter(){
+  const on=localStorage.getItem('showOnlyFavs')==='1';
+  localStorage.setItem('showOnlyFavs',on?'0':'1');
+  refreshFavFilterButton();
+  applyFavFilter(!on);
+}
+function refreshFavFilterButton(){
+  const on=localStorage.getItem('showOnlyFavs')==='1';
+  const btn=document.getElementById('favFilterBtn');
+  if(btn) btn.textContent=on?'전체보기':'찜한업체';
+}
+function toggleFav(id){let list=getFavs();id=String(id);if(list.includes(id)){list=list.filter(x=>x!==id)}else{list.push(id)}setFavs(list);refreshFavFilterButton();applyFavFilter(localStorage.getItem('showOnlyFavs')==='1');openVendor(id)}
 function openModal(){
   if(!modal) return;
   modal.classList.add('show');
@@ -89,6 +110,17 @@ document.querySelectorAll('.vendor-open').forEach((el)=>{
     if(id) openVendor(id);
   });
 });
+
+const contentArea=document.querySelector('.content-area');
+if(contentArea){
+  const bar=document.createElement('div');
+  bar.style.cssText='display:flex;align-items:center;gap:10px;margin:0 0 20px;';
+  bar.innerHTML='<button id="favFilterBtn" type="button" style="height:42px;padding:0 18px;border-radius:999px;border:1px solid #ffdc4d;background:#080d18;color:#ffdc4d;font-weight:900;cursor:pointer;">찜한업체</button><span class="fav-filter-status" style="color:#c8d0e8;font-size:14px;"></span>';
+  contentArea.prepend(bar);
+  document.getElementById('favFilterBtn').addEventListener('click',toggleFavFilter);
+  refreshFavFilterButton();
+  applyFavFilter(localStorage.getItem('showOnlyFavs')==='1');
+}
 
 document.addEventListener('click',(e)=>{
   if(e.target?.dataset?.close) closeModal();
