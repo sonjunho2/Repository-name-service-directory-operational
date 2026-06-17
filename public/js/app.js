@@ -8,6 +8,14 @@ if(slides.length>1){
   },2800);
 }
 
+const topNav=document.querySelector('.top nav');
+if(topNav&&!topNav.querySelector('a[href="/advertise"]')){
+  const ad=document.createElement('a'); ad.href='/advertise'; ad.textContent='광고문의';
+  const ap=document.createElement('a'); ap.href='/apply'; ap.textContent='입점신청';
+  const first=topNav.querySelector('a[href="/"]');
+  if(first&&first.nextSibling){topNav.insertBefore(ap,first.nextSibling);topNav.insertBefore(ad,ap)}else{topNav.prepend(ap);topNav.prepend(ad)}
+}
+
 const modal=document.getElementById('vendorModal');
 const modalContent=document.getElementById('vendorModalContent');
 function esc(s=''){
