@@ -21,6 +21,18 @@ const modalContent=document.getElementById('vendorModalContent');
 function esc(s=''){
   return String(s||'').replace(/[&<>"]/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 }
+async function submitFlag(type,targetId){
+  const reason=prompt('신고 사유를 선택/입력해주세요. 예: 허위정보, 부적절한 내용, 광고성, 기타');
+  if(!reason) return;
+  const content=prompt('상세 내용을 입력해주세요. 생략해도 됩니다.')||'';
+  try{
+    const res=await fetch('/api/flag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,target_id:targetId,reason,content})});
+    if(!res.ok) throw new Error('failed');
+    alert('신고가 접수되었습니다. 관리자가 확인하겠습니다.');
+  }catch(e){
+    alert('신고 접수에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }
+}
 function getFavs(){try{return JSON.parse(localStorage.getItem('favoriteVendors')||'[]')}catch(e){return[]}}
 function setFavs(list){localStorage.setItem('favoriteVendors',JSON.stringify(list))}
 function isFav(id){return getFavs().includes(String(id))}
@@ -72,14 +84,15 @@ async function openVendor(id){
     const kakaoBtn=v.kakao_url?`<a href="${esc(v.kakao_url)}" target="_blank" rel="noopener" style="width:130px;min-width:130px;height:44px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;background:#fee500;color:#111;text-decoration:none;font-weight:900;">카카오톡 문의</a>`:'';
     const favOn=isFav(v.id);
     const favBtn=`<button type="button" onclick="toggleFav(${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid ${favOn?'#ffdc4d':'#39466c'};background:${favOn?'#ffdc4d':'#080d18'};color:${favOn?'#111':'#dfe9ff'};font-weight:900;cursor:pointer;">${favOn?'♥ 찜완료':'♡ 찜하기'}</button>`;
+    const flagBtn=`<button type="button" onclick="submitFlag('vendor',${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#c8d0e8;font-weight:900;cursor:pointer;">업체 신고</button>`;
     const reviewHtml=reviews.length
-      ? reviews.map(r=>`<article class="review"><b>★${esc(r.rating)} ${esc(r.title)}</b><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join('')
+      ? reviews.map(r=>`<article class="review"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><b>★${esc(r.rating)} ${esc(r.title)}</b><button type="button" onclick="submitFlag('review',${esc(r.id)})" style="height:30px;padding:0 10px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#c8d0e8;font-weight:800;cursor:pointer;">신고</button></div><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join('')
       : '<p class="empty-text">첫 번째 후기를 작성해보세요.</p>';
     modalContent.innerHTML=`
       <div class="modal-vendor-info">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
           <em>${badge}</em>
-          ${favBtn}
+          <span style="display:flex;gap:8px;align-items:center;">${flagBtn}${favBtn}</span>
         </div>
         <h2>${esc(v.name)}</h2>
         <p>📍 ${esc(v.region)} · ${esc(v.category)} · 👁 조회 ${esc(v.views)} · ${ratingText}</p>
