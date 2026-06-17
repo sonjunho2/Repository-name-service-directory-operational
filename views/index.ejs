@@ -65,6 +65,13 @@
         <option <%=query.region===x?'selected':''%>><%=x%></option>
       <%})%>
     </select>
+    <select name="sort">
+      <option value="default" <%=query.sort==='default'||!query.sort?'selected':''%>>기본순</option>
+      <option value="views" <%=query.sort==='views'?'selected':''%>>조회수 높은순</option>
+      <option value="rating" <%=query.sort==='rating'?'selected':''%>>평점 높은순</option>
+      <option value="reviews" <%=query.sort==='reviews'?'selected':''%>>후기 많은순</option>
+      <option value="latest" <%=query.sort==='latest'?'selected':''%>>최신등록순</option>
+    </select>
     <button>검색</button>
   </form>
 </section>
