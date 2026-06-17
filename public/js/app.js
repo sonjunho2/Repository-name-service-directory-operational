@@ -119,11 +119,41 @@ document.querySelectorAll('.vendor-open').forEach((el)=>{
   });
 });
 
+function buildSortUrl(sort){
+  if(sort==='all') return '/';
+  const params=new URLSearchParams(window.location.search);
+  if(sort==='default') params.delete('sort');
+  else params.set('sort',sort);
+  const q=params.toString();
+  return q?`/?${q}`:'/';
+}
+function sortButton(label,sort,current){
+  const active=(sort==='default'&&(!current||current==='default'))||current===sort;
+  const style=active
+    ? 'background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;border-color:transparent;'
+    : 'background:#080d18;color:#dfe9ff;border-color:#39466c;';
+  return `<a href="${buildSortUrl(sort)}" style="height:42px;padding:0 16px;border-radius:999px;border:1px solid;display:inline-flex;align-items:center;text-decoration:none;font-weight:900;white-space:nowrap;${style}">${label}</a>`;
+}
+
+const oldSortSelect=document.querySelector('.side-search select[name="sort"]');
+if(oldSortSelect) oldSortSelect.remove();
+
 const contentArea=document.querySelector('.content-area');
 if(contentArea){
+  const params=new URLSearchParams(window.location.search);
+  const currentSort=params.get('sort')||'default';
   const bar=document.createElement('div');
-  bar.style.cssText='display:flex;align-items:center;gap:10px;margin:0 0 20px;';
-  bar.innerHTML='<button id="favFilterBtn" type="button" style="height:42px;padding:0 18px;border-radius:999px;border:1px solid #ffdc4d;background:#080d18;color:#ffdc4d;font-weight:900;cursor:pointer;">찜한업체</button><span class="fav-filter-status" style="color:#c8d0e8;font-size:14px;"></span>';
+  bar.style.cssText='display:flex;align-items:center;gap:10px;margin:0 0 20px;flex-wrap:wrap;';
+  bar.innerHTML=`
+    <button id="favFilterBtn" type="button" style="height:42px;padding:0 18px;border-radius:999px;border:1px solid #ffdc4d;background:#080d18;color:#ffdc4d;font-weight:900;cursor:pointer;white-space:nowrap;">찜한업체</button>
+    ${sortButton('전체','all',currentSort)}
+    ${sortButton('기본순','default',currentSort)}
+    ${sortButton('조회수순','views',currentSort)}
+    ${sortButton('평점순','rating',currentSort)}
+    ${sortButton('후기순','reviews',currentSort)}
+    ${sortButton('최신등록순','latest',currentSort)}
+    <span class="fav-filter-status" style="color:#c8d0e8;font-size:14px;"></span>
+  `;
   contentArea.prepend(bar);
   document.getElementById('favFilterBtn').addEventListener('click',toggleFavFilter);
   refreshFavFilterButton();
