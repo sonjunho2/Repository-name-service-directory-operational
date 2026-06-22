@@ -1,1 +1,146 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>로그인</title><link rel="stylesheet" href="/public/css/style.css"></head><body><main class="auth"><form method="post" class="form"><h1><%=mode==='join'?'회원가입':'로그인'%></h1><% if(error){%><p class="err"><%=error%></p><%}%><input name="username" placeholder="아이디" required><input name="password" type="password" placeholder="비밀번호" required><% if(mode==='join'){%><input name="nickname" placeholder="닉네임"><%}%><button><%=mode==='join'?'가입':'로그인'%></button><a href="<%=mode==='join'?'/login':'/join'%>"><%=mode==='join'?'로그인으로':'회원가입으로'%></a></form></main></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%=mode==='join'?'회원가입':'로그인'%></title>
+  <link rel="stylesheet" href="/public/css/style.css">
+  <style>
+    body{
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      background:#050914;
+      box-sizing:border-box;
+    }
+    .auth-wrap{
+      width:100%;
+      max-width:520px;
+    }
+    .auth-card{
+      width:100%;
+      box-sizing:border-box;
+      padding:44px 34px 34px;
+      border:1px solid #29324f;
+      border-radius:24px;
+      background:#101525;
+      box-shadow:0 30px 90px rgba(0,0,0,.35);
+    }
+    .auth-card h1{
+      margin:0 0 28px;
+      font-size:42px;
+      line-height:1.1;
+      letter-spacing:-1.5px;
+      color:#fff;
+    }
+    .auth-form{
+      display:grid;
+      gap:12px;
+    }
+    .auth-form input{
+      width:100%;
+      height:46px;
+      box-sizing:border-box;
+      padding:0 16px;
+      border:1px solid #34405f;
+      border-radius:999px;
+      background:#070b15;
+      color:#fff;
+      font-size:15px;
+      outline:none;
+    }
+    .auth-form input:focus{
+      border-color:#10d9ff;
+      box-shadow:0 0 0 3px rgba(16,217,255,.15);
+    }
+    .auth-form button{
+      width:100%;
+      height:46px;
+      margin-top:2px;
+      border:0;
+      border-radius:999px;
+      background:linear-gradient(90deg,#ff3fb4,#10d9ff);
+      color:#fff;
+      font-weight:900;
+      font-size:16px;
+      cursor:pointer;
+    }
+    .auth-error{
+      margin:0 0 18px;
+      padding:14px 16px;
+      border-radius:12px;
+      background:#681024;
+      color:#fff;
+      font-weight:800;
+      line-height:1.45;
+    }
+    .auth-link{
+      display:inline-block;
+      margin-top:18px;
+      color:#fff;
+      text-decoration:none;
+      font-size:18px;
+      font-weight:900;
+    }
+    .auth-link:hover{
+      color:#10d9ff;
+    }
+    .auth-home{
+      display:block;
+      margin-top:14px;
+      color:#8d98b8;
+      text-decoration:none;
+      font-size:14px;
+    }
+    @media(max-width:640px){
+      body{
+        align-items:flex-start;
+        padding:28px 14px;
+      }
+      .auth-card{
+        padding:34px 24px 28px;
+        border-radius:20px;
+      }
+      .auth-card h1{
+        font-size:36px;
+        margin-bottom:24px;
+      }
+      .auth-link{
+        font-size:16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="auth-wrap">
+    <section class="auth-card">
+      <h1><%=mode==='join'?'회원가입':'로그인'%></h1>
+
+      <% if(error){ %>
+        <div class="auth-error"><%=error%></div>
+      <% } %>
+
+      <% if(mode==='join'){ %>
+        <form method="post" action="/join" class="auth-form">
+          <input name="username" placeholder="아이디" autocomplete="username" required>
+          <input name="password" type="password" placeholder="비밀번호" autocomplete="new-password" required>
+          <input name="nickname" placeholder="닉네임" autocomplete="nickname">
+          <button type="submit">가입</button>
+        </form>
+        <a class="auth-link" href="/login">로그인으로</a>
+      <% }else{ %>
+        <form method="post" action="/login" class="auth-form">
+          <input name="username" placeholder="아이디" autocomplete="username" required>
+          <input name="password" type="password" placeholder="비밀번호" autocomplete="current-password" required>
+          <button type="submit">로그인</button>
+        </form>
+        <a class="auth-link" href="/join">회원가입으로</a>
+      <% } %>
+
+      <a class="auth-home" href="/">사이트 메인으로</a>
+    </section>
+  </main>
+</body>
+</html>
