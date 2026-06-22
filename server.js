@@ -46,7 +46,51 @@ app.post('/admin/inquiries/:id/reject',admin,async(req,res)=>{await q('UPDATE in
 app.get('/admin/inquiry-image/:id/:kind',admin,async(req,res)=>{const col=req.params.kind==='banner'?'banner_image_data':'main_image_data'; const r=await q(`SELECT ${col} image_data FROM inquiries WHERE id=$1`,[req.params.id]); const data=r.rows[0]?.image_data; if(!data)return res.status(404).send('이미지가 없습니다.'); const m=data.match(/^data:(.+);base64,(.+)$/); if(!m)return res.status(400).send('이미지 형식 오류'); res.setHeader('Content-Type',m[1]); res.send(Buffer.from(m[2],'base64'));});
 app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x)return res.redirect('/admin#inquiries'); if(x.type!=='apply')return res.redirect('/admin#inquiries'); await q('INSERT INTO vendors(name,category,region,phone,kakao_url,description,image_data,is_recommended,is_premium,status) VALUES($1,$2,$3,$4,$5,$6,$7,false,false,$8)',[x.company_name,x.category||'기타',x.region||'기타',x.phone,x.kakao,x.content,x.main_image_data,'active']); await q('UPDATE inquiries SET status=$1 WHERE id=$2',['approved',x.id]); res.redirect('/admin#inquiries');});
 app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return res.redirect('/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q('UPDATE inquiries SET banner_status=$1 WHERE id=$2',['approved',x.id]); res.redirect('/admin#inquiries');});
-app.get('/admin',admin,async(req,res)=>{await expireAds();const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,created_at FROM users ORDER BY id DESC'),q('SELECT * FROM vendors ORDER BY id DESC'),q('SELECT * FROM banners ORDER BY sort_order,id DESC'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC'),q('SELECT * FROM events ORDER BY id DESC'),q('SELECT * FROM notices ORDER BY id DESC'),q('SELECT * FROM inquiries ORDER BY id DESC'),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),getSettings()]); res.render('admin',{users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,settings});});
+app.get('/admin',admin,async(req,res)=>{await expireAds();
+  const dashStats={};
+  const norm=x=>(x||'미지정').toString().trim()||'미지정';
+const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,created_at FROM users ORDER BY id DESC'),q('SELECT * FROM vendors ORDER BY id DESC'),q('SELECT * FROM banners ORDER BY sort_order,id DESC'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC'),q('SELECT * FROM events ORDER BY id DESC'),q('SELECT * FROM notices ORDER BY id DESC'),q('SELECT * FROM inquiries ORDER BY id DESC'),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),getSettings()]); 
+  const vendorRows=vendors.rows||[];
+  const reviewRows=reviews.rows||[];
+  const flagRows=flags.rows||[];
+  const favoriteStats=await q('SELECT vendor_id,COUNT(*)::int cnt FROM favorites GROUP BY vendor_id');
+  const favMap=Object.fromEntries(favoriteStats.rows.map(x=>[x.vendor_id,Number(x.cnt||0)]));
+  const reviewMap={};
+  reviewRows.forEach(r=>{
+    const id=r.vendor_id;
+    if(!id)return;
+    reviewMap[id]=reviewMap[id]||{count:0,sum:0};
+    reviewMap[id].count++;
+    reviewMap[id].sum+=Number(r.rating||0);
+  });
+  const flagMap={};
+  flagRows.forEach(f=>{
+    if(f.type==='vendor'&&f.target_id){
+      flagMap[f.target_id]=(flagMap[f.target_id]||0)+1;
+    }
+  });
+  const groupCount=(arr,key)=>Object.entries(arr.reduce((m,x)=>{
+    const k=norm(x[key]);
+    m[k]=(m[k]||0)+1;
+    return m;
+  },{})).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+  const enrichedVendors=vendorRows.map(v=>{
+    const rv=reviewMap[v.id]||{count:0,sum:0};
+    const avg=rv.count?Number((rv.sum/rv.count).toFixed(1)):0;
+    const fav=Number(favMap[v.id]||0);
+    const score=Number(v.views||0)+(fav*20)+(rv.count*10)+(avg*5)+(v.is_premium?30:0)+(v.is_recommended?15:0);
+    return {...v,review_count_calc:rv.count,avg_rating_calc:avg,favorite_count_calc:fav,report_count_calc:Number(flagMap[v.id]||0),popularity_score:score};
+  });
+  const dashboardStats={
+    regions:groupCount(vendorRows,'region'),
+    categories:groupCount(vendorRows,'category'),
+    status:Object.entries(vendorRows.reduce((m,v)=>{const k=v.status||'active';m[k]=(m[k]||0)+1;return m;},{})),
+    popular:enrichedVendors.slice().sort((a,b)=>b.popularity_score-a.popularity_score).slice(0,10),
+    reviewTop:enrichedVendors.slice().sort((a,b)=>b.review_count_calc-a.review_count_calc||b.avg_rating_calc-a.avg_rating_calc).slice(0,10),
+    reportTop:enrichedVendors.slice().sort((a,b)=>b.report_count_calc-a.report_count_calc).slice(0,10)
+  };
+  res.render('admin',{users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,settings,dashboardStats});
+});
 
 app.get('/mypage',login,async(req,res)=>{if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows});});
 
