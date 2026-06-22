@@ -58,7 +58,28 @@ app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>{const r=awa
 
 app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_banner_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); res.redirect('/admin#bannerRequests');});
 
-app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>{const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x)return res.redirect('/admin#adRequests'); const days=parseInt(x.period||30,10)||30; await q(\"UPDATE vendors SET is_premium=true, ad_until=(CURRENT_DATE + ($1 || ' days')::interval)::date WHERE id=$2\",[days,x.vendor_id]); await q('UPDATE vendor_ad_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]); res.redirect('/admin#adRequests');});
+app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>{
+  const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);
+  const x=r.rows[0];
+
+  if(!x){
+    return res.redirect('/admin#adRequests');
+  }
+
+  const days=parseInt(x.period||30,10)||30;
+
+  await q(
+    "UPDATE vendors SET is_premium=true, ad_until=(CURRENT_DATE + ($1 || ' days')::interval)::date WHERE id=$2",
+    [days,x.vendor_id]
+  );
+
+  await q(
+    'UPDATE vendor_ad_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',
+    ['approved',(req.body.admin_memo||'').slice(0,500),x.id]
+  );
+
+  res.redirect('/admin#adRequests');
+});
 
 app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_ad_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); res.redirect('/admin#adRequests');});
 
