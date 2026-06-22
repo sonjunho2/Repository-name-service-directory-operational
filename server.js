@@ -106,13 +106,16 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   await q('DELETE FROM vendor_ad_requests');
   await q('DELETE FROM vendor_banner_requests');
   await q('DELETE FROM vendor_update_requests');
+
   await q('DELETE FROM flags');
   await q('DELETE FROM reviews');
   await q('DELETE FROM banners');
   await q('DELETE FROM inquiries');
+  await q('DELETE FROM notices');
+
   await q('DELETE FROM vendors');
 
-  await q('UPDATE users SET is_vendor=false, vendor_id=NULL WHERE role<>$1',['admin']);
+  await q('DELETE FROM users WHERE role<>$1',['admin']);
 
   res.redirect('/admin#settings');
 });
