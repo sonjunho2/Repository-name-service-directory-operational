@@ -94,7 +94,7 @@
           <h3><%=v.name%></h3>
           <span class="card-rating"><%=v.review_count>0?'⭐ '+v.avg_rating+' · 후기 '+v.review_count+'개':'⭐ 평점 없음'%></span>
           <p><%=v.region%> · <%=v.category%></p>
-          <span><%=v.tags||'등록된 태그가 없습니다.'%></span>
+          <span><%=v.tags||'등록된 태그가 없습니다.'%></span><small>찜 <%=v.favorite_count||0%>개</small>
         </a>
       <%})%>
     </div>
@@ -112,7 +112,7 @@
           <h3><%=v.name%></h3>
           <span class="card-rating"><%=v.review_count>0?'⭐ '+v.avg_rating+' · 후기 '+v.review_count+'개':'⭐ 평점 없음'%></span>
           <p><%=v.region%> · <%=v.category%></p>
-          <span><%=v.tags||''%></span>
+          <span><%=v.tags||''%></span><small>찜 <%=v.favorite_count||0%>개</small>
         </a>
       <%})%>
     </div>
@@ -130,11 +130,11 @@
     </div>
     <div class="side-box hot">
       <h3>인기업체 TOP10</h3>
-      <% vendors.slice().sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,10).forEach((v,idx)=>{ %>
+      <% vendors.slice().sort((a,b)=>((b.views||0)+(b.favorite_count||0)*5)-((a.views||0)+(a.favorite_count||0)*5)).slice(0,10).forEach((v,idx)=>{ %>
         <a class="mini-row vendor-open" href="/vendor/<%=v.id%>" data-vendor-id="<%=v.id%>">
           <b class="popular-rank"><%=idx+1%></b>
           <span><%=v.name%></span>
-          <small class="popular-view">조회 <%=v.views||0%></small>
+          <small class="popular-view">조회 <%=v.views||0%> · 찜 <%=v.favorite_count||0%></small>
         </a>
       <%})%>
     </div>
