@@ -89,6 +89,34 @@ app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>{await q('UPD
 
 app.post('/admin/link-user-vendor',admin,async(req,res)=>{const userId=parseInt(req.body.user_id||0,10); const vendorId=parseInt(req.body.vendor_id||0,10); if(userId&&vendorId){await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]);} res.redirect('/admin#users');});
 
+
+app.post('/admin/settings/reset-data',admin,async(req,res)=>{
+  const password=(req.body.password||'').trim();
+  const confirmText=(req.body.confirm_text||'').trim();
+  const adminUser=await q('SELECT * FROM users WHERE id=$1 AND role=$2',[req.session.user.id,'admin']);
+
+  if(!adminUser.rows[0] || !await bcrypt.compare(password,adminUser.rows[0].password_hash)){
+    return res.redirect('/admin#settings');
+  }
+
+  if(confirmText!=='초기화'){
+    return res.redirect('/admin#settings');
+  }
+
+  await q('DELETE FROM vendor_ad_requests');
+  await q('DELETE FROM vendor_banner_requests');
+  await q('DELETE FROM vendor_update_requests');
+  await q('DELETE FROM flags');
+  await q('DELETE FROM reviews');
+  await q('DELETE FROM banners');
+  await q('DELETE FROM inquiries');
+  await q('DELETE FROM vendors');
+
+  await q('UPDATE users SET is_vendor=false, vendor_id=NULL WHERE role<>$1',['admin']);
+
+  res.redirect('/admin#settings');
+});
+
 app.post('/admin/settings/options',admin,async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).join('\n'); await q("INSERT INTO app_settings(key,value) VALUES('categories',$1) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",[categories]); await q("INSERT INTO app_settings(key,value) VALUES('regions',$1) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",[regions]); res.redirect('/admin#settings');});
 app.post('/admin/settings/admin-account',admin,async(req,res)=>{const username=(req.body.username||'').trim(); const nickname=(req.body.nickname||'관리자').trim(); const password=(req.body.password||'').trim(); if(!username)return res.redirect('/admin#settings'); if(password){const h=await bcrypt.hash(password,10); await q('UPDATE users SET username=$1,nickname=$2,password_hash=$3 WHERE id=$4 AND role=$5',[username,nickname,h,req.session.user.id,'admin']);}else{await q('UPDATE users SET username=$1,nickname=$2 WHERE id=$3 AND role=$4',[username,nickname,req.session.user.id,'admin']);} req.session.user.username=username; req.session.user.nickname=nickname; res.redirect('/admin#settings');});
 app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{let im=img(req.file); if(req.body.id){let p=[req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,req.body.tags,req.body.description,req.body.business_hours,!!req.body.is_recommended,!!req.body.is_premium,req.body.status||'active',req.body.id]; await q(`UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11 ${im?', image_data=$13':''} WHERE id=$12`, im?[...p,im]:p)} else await q('INSERT INTO vendors(name,category,region,phone,kakao_url,tags,description,business_hours,is_recommended,is_premium,image_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,req.body.tags,req.body.description,req.body.business_hours,!!req.body.is_recommended,!!req.body.is_premium,im]); res.redirect('/admin#vendors');});
