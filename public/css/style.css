@@ -13,3 +13,8 @@
 .vendor-card,.card,.panel{box-sizing:border-box}
 .vendor-card img,.banner img{max-width:100%;height:auto}
 button,a,input,select,textarea{box-sizing:border-box}
+.promo-search-wrap{position:relative;z-index:2;overflow:visible}
+.side-search{position:relative;z-index:5;overflow:visible}
+.side-search input,.side-search select,.side-search button{position:relative;z-index:6;box-sizing:border-box;width:100%;min-height:46px}
+.side-search select option{background:#080d18;color:#fff}
+@media(max-width:900px){.promo-search-wrap{display:grid;grid-template-columns:1fr!important}.side-search{width:100%!important}}
