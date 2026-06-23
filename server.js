@@ -28,6 +28,8 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
     await q("INSERT INTO app_settings(key,value) VALUES('general_to_banner_price_krw','100000') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('recommended_to_banner_price_krw','70000') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('default_register_days','30') ON CONFLICT (key) DO NOTHING");
+    await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
   }
 app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public'));
 app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12}}));
@@ -70,7 +72,7 @@ app.post('/inquiry',upload.fields([{name:'main_image',maxCount:1},{name:'banner_
 app.post('/favorite/:id',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){await q('INSERT INTO favorites(user_id,vendor_id) VALUES($1,$2) ON CONFLICT(user_id,vendor_id) DO NOTHING',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
 app.post('/favorite/:id/delete',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){await q('DELETE FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
 
-async function vendorData(req,id){req.session.viewedVendors=req.session.viewedVendors||{}; if(!req.session.viewedVendors[id]){await q('UPDATE vendors SET views=views+1 WHERE id=$1',[id]); req.session.viewedVendors[id]=Date.now();} const v=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE v.id=$1`,[id]); if(v.rows[0]&&req.session.user){const fav=await q('SELECT 1 FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]); v.rows[0].is_favorited=!!fav.rows[0];} const reviews=await q('SELECT r.*,u.nickname FROM reviews r LEFT JOIN users u ON u.id=r.user_id WHERE r.vendor_id=$1 AND r.status=$2 ORDER BY r.id DESC',[id,'visible']); return {vendor:v.rows[0],reviews:reviews.rows};}
+async function vendorData(req,id){req.session.viewedVendors=req.session.viewedVendors||{}; if(!req.session.viewedVendors[id]){await q('UPDATE vendors SET views=views+1 WHERE id=$1',[id]); await q('INSERT INTO vendor_view_logs(vendor_id,user_id) VALUES($1,$2)',[id,req.session.user?.id||null]); req.session.viewedVendors[id]=Date.now();} const v=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE v.id=$1`,[id]); if(v.rows[0]&&req.session.user){const fav=await q('SELECT 1 FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]); v.rows[0].is_favorited=!!fav.rows[0];} const reviews=await q('SELECT r.*,u.nickname FROM reviews r LEFT JOIN users u ON u.id=r.user_id WHERE r.vendor_id=$1 AND r.status=$2 ORDER BY r.id DESC',[id,'visible']); return {vendor:v.rows[0],reviews:reviews.rows};}
 app.get('/api/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.params.id); if(!data.vendor)return res.status(404).json({error:'not found'}); res.json(data);});
 app.post('/api/review',async(req,res)=>{if(!req.session.user)return res.status(401).json({error:'login_required'}); const rating=Math.max(1,Math.min(5,parseInt(req.body.rating||5,10))); await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[req.body.vendor_id,req.session.user.id,req.body.title,req.body.content,rating]); res.json({ok:true});});
 app.post('/api/flag',async(req,res)=>{const type=(req.body.type||'').trim(); const target=parseInt(req.body.target_id||0,10); const reason=(req.body.reason||'기타').slice(0,50); const content=(req.body.content||'').slice(0,1000); if(!['vendor','review'].includes(type)||!target)return res.status(400).json({error:'bad_request'}); await q('INSERT INTO flags(type,target_id,reason,content) VALUES($1,$2,$3,$4)',[type,target,reason,content]); res.json({ok:true});});
@@ -116,7 +118,7 @@ app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('S
 app.get('/admin',admin,async(req,res)=>{await expireAds();
   const dashStats={};
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
-const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC'),q('SELECT * FROM vendors ORDER BY id DESC'),q('SELECT * FROM banners ORDER BY sort_order,id DESC'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC'),q('SELECT * FROM events ORDER BY id DESC'),q('SELECT * FROM notices ORDER BY id DESC'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),getSettings()]); 
+const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC'),q('SELECT * FROM vendors ORDER BY id DESC'),q('SELECT * FROM banners ORDER BY sort_order,id DESC'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC'),q('SELECT * FROM events ORDER BY id DESC'),q('SELECT * FROM notices ORDER BY id DESC'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]); 
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];
@@ -156,7 +158,24 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     reviewTop:enrichedVendors.slice().sort((a,b)=>b.review_count_calc-a.review_count_calc||b.avg_rating_calc-a.avg_rating_calc).slice(0,10),
     reportTop:enrichedVendors.slice().sort((a,b)=>b.report_count_calc-a.report_count_calc).slice(0,10)
   };
-  res.render('admin',{users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,settings,dashboardStats});
+  const paidRows=paymentLogs.rows||[];
+  const now=new Date();
+  const monthKey=now.toISOString().slice(0,7);
+  const todayKey=now.toISOString().slice(0,10);
+  const dateKey=x=>x?new Date(x).toISOString().slice(0,10):'';
+  const monthOf=x=>x?new Date(x).toISOString().slice(0,7):'';
+  const sumKrw=arr=>arr.reduce((s,x)=>s+Number(x.krw_price||0),0);
+  const revenueStats={
+    today:sumKrw(paidRows.filter(x=>dateKey(x.paid_at)===todayKey)),
+    month:sumKrw(paidRows.filter(x=>monthOf(x.paid_at)===monthKey)),
+    total:sumKrw(paidRows),
+    count:paidRows.length,
+    general:paidRows.filter(x=>x.product_type==='general').length,
+    recommended:paidRows.filter(x=>x.product_type==='recommended').length,
+    banner:paidRows.filter(x=>x.product_type==='banner').length,
+    recent:paidRows.slice(0,10)
+  };
+  res.render('admin',{users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
 
 app.get('/mypage',login,async(req,res)=>{if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows});});
@@ -165,7 +184,22 @@ app.get('/vendor-apply',login,async(req,res)=>{const settings=await getSettings(
 
 app.post('/vendor-apply',login,upload.single('image'),async(req,res)=>{try{const im=img(req.file); await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',['apply',req.body.company_name,req.session.user.nickname,req.body.phone,req.body.kakao_url,req.body.email,req.body.category,req.body.region,req.body.content,im,'new',req.session.user.id]); res.render('vendor-apply',{settings:await getSettings(),error:null,done:true});}catch(e){res.render('vendor-apply',{settings:await getSettings(),error:e.message||'신청 실패',done:false});}});
 
-app.get('/vendor-dashboard',login,async(req,res)=>{if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply'); const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]); const requests=await q('SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const bannerRequests=await q('SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const adRequests=await q('SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const stats=await q(`SELECT (SELECT COUNT(*)::int FROM reviews WHERE vendor_id=$1) review_count, (SELECT ROUND(AVG(rating)::numeric,1) FROM reviews WHERE vendor_id=$1) avg_rating, (SELECT COUNT(*)::int FROM favorites WHERE vendor_id=$1) favorite_count, (SELECT COUNT(*)::int FROM flags WHERE type='vendor' AND target_id=$1) report_count`,[req.session.user.vendor_id]); res.render('vendor-dashboard',{vendor:v.rows[0],requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,stats:stats.rows[0],settings:await getSettings(),error:null,done:false});});
+app.get('/vendor-dashboard',login,async(req,res)=>{if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply'); const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]); const requests=await q('SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const bannerRequests=await q('SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const adRequests=await q('SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const stats=await q(`SELECT (SELECT COUNT(*)::int FROM reviews WHERE vendor_id=$1) review_count, (SELECT ROUND(AVG(rating)::numeric,1) FROM reviews WHERE vendor_id=$1) avg_rating, (SELECT COUNT(*)::int FROM favorites WHERE vendor_id=$1) favorite_count, (SELECT COUNT(*)::int FROM flags WHERE type='vendor' AND target_id=$1) report_count`,[req.session.user.vendor_id]); const paymentLogs=await q('SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC',[req.session.user.vendor_id]);
+  const viewStats=await q(`SELECT 
+    (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE) today_views,
+    (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE-INTERVAL '7 days') week_views,
+    (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE-INTERVAL '30 days') month_views`,[req.session.user.vendor_id]);
+  const vendor=v.rows[0];
+  let expiryNotice=null;
+  if(vendor?.expire_at){
+    const today=new Date(); today.setHours(0,0,0,0);
+    const exp=new Date(vendor.expire_at); exp.setHours(0,0,0,0);
+    const daysLeft=Math.ceil((exp-today)/(1000*60*60*24));
+    if(daysLeft<=7){
+      expiryNotice={daysLeft,expire_at:vendor.expire_at};
+    }
+  }
+  res.render('vendor-dashboard',{vendor,requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,paymentLogs:paymentLogs.rows,viewStats:viewStats.rows[0],expiryNotice,stats:stats.rows[0],settings:await getSettings(),error:null,done:false});});
 
 app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply'); const im=img(req.file); await q('INSERT INTO vendor_update_requests(user_id,vendor_id,name,category,region,phone,kakao_url,business_hours,tags,description,image_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[req.session.user.id,req.session.user.vendor_id,req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,req.body.business_hours,req.body.tags,req.body.description,im]); res.redirect('/vendor-dashboard');});
 
@@ -225,6 +259,7 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data]);
   await q('UPDATE vendors SET membership_type=$1,is_recommended=true,is_premium=true,banner_active=true,banner_until=$2,status=$3 WHERE id=$4',['recommended',until,'active',x.vendor_id]);
   await q('UPDATE vendor_banner_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
+  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||'프리미엄배너 입금확인']);
   await logAdmin(req,'배너 입금확인/추천승격','banner_request',x.id,`만기일 ${until}`);
   res.redirect('/admin#bannerRequests');
 });
@@ -236,6 +271,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
 
   await q("UPDATE vendors SET membership_type='recommended',is_recommended=true,status='active',expire_at=COALESCE(expire_at,(CURRENT_DATE + ($1 || ' days')::interval)::date) WHERE id=$2",[days,x.vendor_id]);
   await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
+  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,'recommended','ad_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||'추천등록 입금확인']);
   await logAdmin(req,'추천등록 입금확인/노출','ad_request',x.id,req.body.admin_memo||'');
   res.redirect('/admin#adRequests');
 });
