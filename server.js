@@ -223,7 +223,7 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
 
   const settings=await getSettings();
-  const productType=req.body.product_type||'recommended';
+  const productType=req.body.product_type||'renewal_recommended';
   const period=String(req.body.period||'30');
 
   let price=0;
@@ -233,6 +233,16 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
     price=Number(settings.raw.general_to_banner_price_krw||0);
   }else if(productType==='banner_from_recommended'){
     price=Number(settings.raw.recommended_to_banner_price_krw||0);
+  }else if(productType==='renewal_general'){
+    price=Number(settings.raw.general_register_price_krw||0);
+  }else if(productType==='renewal_recommended'){
+    price=Number(settings.raw.recommended_register_price_krw||settings.raw.ad_price_krw_30||0);
+  }else if(productType==='renewal_banner'){
+    const v=await q('SELECT membership_type FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
+    const membership=v.rows[0]?.membership_type||'general';
+    price=membership==='recommended'
+      ? Number(settings.raw.recommended_to_banner_price_krw||0)
+      : Number(settings.raw.general_to_banner_price_krw||0);
   }else{
     price=Number(settings.raw['ad_price_krw_'+period]||settings.raw.recommended_register_price_krw||settings.raw.ad_price_krw_30||0);
   }
@@ -243,6 +253,9 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
     recommended_upgrade:'일반→추천 업그레이드',
     banner_from_general:'일반→프리미엄배너',
     banner_from_recommended:'추천→프리미엄배너',
+    renewal_general:'일반업체 연장',
+    renewal_recommended:'추천업체 연장',
+    renewal_banner:'프리미엄배너 연장',
     recommended:'추천등록'
   }[productType]||'상품변경';
 
@@ -292,18 +305,22 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   const vendorRes=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
   const vendor=vendorRes.rows[0]||{};
   const days=parseInt(x.period||30,10)||30;
-  const productType=x.product_type||'recommended';
+  const productType=x.product_type||'renewal_recommended';
 
-  if(productType==='banner_from_general'||productType==='banner_from_recommended'){
+  if(productType==='banner_from_general'||productType==='banner_from_recommended'||productType==='renewal_banner'){
     const until=vendor.expire_at||new Date().toISOString().slice(0,10);
     await q("UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,banner_until=$1,status='active' WHERE id=$2",[until,x.vendor_id]);
+  }else if(productType==='renewal_general'){
+    await q("UPDATE vendors SET membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active',expire_at=(CURRENT_DATE + ($1 || ' days')::interval)::date WHERE id=$2",[days,x.vendor_id]);
+  }else if(productType==='renewal_recommended'||productType==='recommended_upgrade'||productType==='recommended'){
+    await q("UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active',expire_at=(CURRENT_DATE + ($1 || ' days')::interval)::date WHERE id=$2",[days,x.vendor_id]);
   }else{
     await q("UPDATE vendors SET membership_type='recommended',is_recommended=true,status='active',expire_at=COALESCE(expire_at,(CURRENT_DATE + ($1 || ' days')::interval)::date) WHERE id=$2",[days,x.vendor_id]);
   }
 
   await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
 
-  const paymentProduct=(productType==='banner_from_general'||productType==='banner_from_recommended')?'banner':'recommended';
+  const paymentProduct=(productType==='banner_from_general'||productType==='banner_from_recommended'||productType==='renewal_banner')?'banner':(productType==='renewal_general'?'general':'recommended');
   await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||x.plan||'상품변경 입금확인']);
 
   await logAdmin(req,'상품변경 입금확인/적용','ad_request',x.id,`${x.plan||productType} 적용`);
