@@ -62,6 +62,57 @@ function calcUsdt(krw,rate){
   if(!k||!r)return '0.00';
   return (k/r).toFixed(2);
 }
+function daysLeftUntil(dateValue){
+  if(!dateValue)return 0;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const end=new Date(dateValue); end.setHours(0,0,0,0);
+  return Math.max(0,Math.ceil((end-today)/(1000*60*60*24)));
+}
+function priceForDays(price30,days){
+  return Math.round(Number(price30||0) * (Number(days||30)/30));
+}
+function proratedUpgradePrice(fromPrice30,toPrice30,remainDays){
+  const diff=Math.max(0,Number(toPrice30||0)-Number(fromPrice30||0));
+  return Math.round(diff * (Number(remainDays||0)/30));
+}
+function calcProductPrice(settings,vendor,productType,period){
+  const days=parseInt(period||30,10)||30;
+  const remainDays=daysLeftUntil(vendor?.expire_at);
+  const general30=Number(settings.raw.general_register_price_krw||0);
+  const recommended30=Number(settings.raw.recommended_register_price_krw||0);
+  const generalToBanner30=Number(settings.raw.general_to_banner_price_krw||0);
+  const recommendedToBanner30=Number(settings.raw.recommended_to_banner_price_krw||0);
+  const isRecommended=(vendor?.membership_type||'general')==='recommended';
+  const hasBanner=!!vendor?.banner_active;
+
+  if(productType==='renewal_general'){
+    return priceForDays(general30,days);
+  }
+  if(productType==='renewal_recommended'){
+    const renewal=priceForDays(recommended30,days);
+    const upgradeNow=!isRecommended ? proratedUpgradePrice(general30,recommended30,remainDays) : 0;
+    return renewal + upgradeNow;
+  }
+  if(productType==='renewal_banner'){
+    const baseBanner=isRecommended ? recommendedToBanner30 : generalToBanner30;
+    const renewal=priceForDays(baseBanner,days);
+    const upgradeNow=hasBanner ? 0 : priceForDays(baseBanner,remainDays);
+    return renewal + upgradeNow;
+  }
+  if(productType==='recommended_upgrade'){
+    return proratedUpgradePrice(general30,recommended30,remainDays);
+  }
+  if(productType==='banner_from_general'){
+    return priceForDays(generalToBanner30,remainDays || days);
+  }
+  if(productType==='banner_from_recommended'){
+    return priceForDays(recommendedToBanner30,remainDays || days);
+  }
+  return priceForDays(recommended30,days);
+}
+function addDaysSqlFromExpire(){
+  return "expire_at=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END";
+}
 
 async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions)};}
 async function homeData(req){ await expireAds(); const search=req.query.search||'', region=req.query.region||'', category=req.query.category||'', sort=req.query.sort||'default'; let where=['status=$1'], p=['active']; if(search){p.push(`%${search}%`); where.push(`(name ILIKE $${p.length} OR tags ILIKE $${p.length} OR description ILIKE $${p.length})`)} if(region){p.push(region); where.push(`region=$${p.length}`)} if(category){p.push(category); where.push(`category=$${p.length}`)} const orderMap={views:'views DESC,is_premium DESC,is_recommended DESC,created_at DESC',rating:'avg_rating DESC NULLS LAST,review_count DESC,is_premium DESC,is_recommended DESC,created_at DESC',reviews:'review_count DESC,avg_rating DESC NULLS LAST,is_premium DESC,is_recommended DESC,created_at DESC',latest:'created_at DESC,is_premium DESC,is_recommended DESC',default:'is_premium DESC,is_recommended DESC,created_at DESC'}; const order=orderMap[sort]||orderMap.default; const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count , (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order}`,p); const banners=await q(`SELECT * FROM banners WHERE is_active=true ORDER BY sort_order, id DESC`); const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`); const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`); const settings=await getSettings(); return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings}; }
@@ -200,7 +251,17 @@ app.get('/vendor-dashboard',login,async(req,res)=>{if(!req.session.user.is_vendo
       expiryNotice={daysLeft,expire_at:vendor.expire_at};
     }
   }
-  res.render('vendor-dashboard',{vendor,requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,paymentLogs:paymentLogs.rows,viewStats:viewStats.rows[0],expiryNotice,stats:stats.rows[0],settings:await getSettings(),error:null,done:false});});
+  const settings=await getSettings();
+  const pricingPreview={
+    renewal_general:calcProductPrice(settings,vendor,'renewal_general','30'),
+    renewal_recommended:calcProductPrice(settings,vendor,'renewal_recommended','30'),
+    renewal_banner:calcProductPrice(settings,vendor,'renewal_banner','30'),
+    recommended_upgrade:calcProductPrice(settings,vendor,'recommended_upgrade','30'),
+    banner_from_general:calcProductPrice(settings,vendor,'banner_from_general','30'),
+    banner_from_recommended:calcProductPrice(settings,vendor,'banner_from_recommended','30'),
+    remainDays:daysLeftUntil(vendor?.expire_at)
+  };
+  res.render('vendor-dashboard',{vendor,requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,paymentLogs:paymentLogs.rows,viewStats:viewStats.rows[0],expiryNotice,pricingPreview,stats:stats.rows[0],settings,error:null,done:false});});
 
 app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply'); const im=img(req.file); await q('INSERT INTO vendor_update_requests(user_id,vendor_id,name,category,region,phone,kakao_url,business_hours,tags,description,image_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[req.session.user.id,req.session.user.vendor_id,req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,req.body.business_hours,req.body.tags,req.body.description,im]); res.redirect('/vendor-dashboard');});
 
@@ -225,37 +286,20 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   const settings=await getSettings();
   const productType=req.body.product_type||'renewal_recommended';
   const period=String(req.body.period||'30');
+  const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
+  const vendor=v.rows[0]||{};
 
-  let price=0;
-  if(productType==='recommended_upgrade'){
-    price=Number(settings.raw.general_to_recommended_price_krw||0);
-  }else if(productType==='banner_from_general'){
-    price=Number(settings.raw.general_to_banner_price_krw||0);
-  }else if(productType==='banner_from_recommended'){
-    price=Number(settings.raw.recommended_to_banner_price_krw||0);
-  }else if(productType==='renewal_general'){
-    price=Number(settings.raw.general_register_price_krw||0);
-  }else if(productType==='renewal_recommended'){
-    price=Number(settings.raw.recommended_register_price_krw||settings.raw.ad_price_krw_30||0);
-  }else if(productType==='renewal_banner'){
-    const v=await q('SELECT membership_type FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
-    const membership=v.rows[0]?.membership_type||'general';
-    price=membership==='recommended'
-      ? Number(settings.raw.recommended_to_banner_price_krw||0)
-      : Number(settings.raw.general_to_banner_price_krw||0);
-  }else{
-    price=Number(settings.raw['ad_price_krw_'+period]||settings.raw.recommended_register_price_krw||settings.raw.ad_price_krw_30||0);
-  }
-
+  const price=calcProductPrice(settings,vendor,productType,period);
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
+
   const label={
-    recommended_upgrade:'일반→추천 업그레이드',
-    banner_from_general:'일반→프리미엄배너',
-    banner_from_recommended:'추천→프리미엄배너',
+    recommended_upgrade:'일반→추천 즉시변경',
+    banner_from_general:'일반→프리미엄배너 즉시변경',
+    banner_from_recommended:'추천→프리미엄배너 즉시변경',
     renewal_general:'일반업체 연장',
-    renewal_recommended:'추천업체 연장',
-    renewal_banner:'프리미엄배너 연장',
+    renewal_recommended:'추천업체 변경/연장',
+    renewal_banner:'프리미엄배너 변경/연장',
     recommended:'추천등록'
   }[productType]||'상품변경';
 
@@ -308,14 +352,13 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   const productType=x.product_type||'renewal_recommended';
 
   if(productType==='banner_from_general'||productType==='banner_from_recommended'||productType==='renewal_banner'){
-    const until=vendor.expire_at||new Date().toISOString().slice(0,10);
-    await q("UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,banner_until=$1,status='active' WHERE id=$2",[until,x.vendor_id]);
+    await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=expire_at WHERE id=$2`,[days,x.vendor_id]);
   }else if(productType==='renewal_general'){
-    await q("UPDATE vendors SET membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active',expire_at=(CURRENT_DATE + ($1 || ' days')::interval)::date WHERE id=$2",[days,x.vendor_id]);
+    await q(`UPDATE vendors SET membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()} WHERE id=$2`,[days,x.vendor_id]);
   }else if(productType==='renewal_recommended'||productType==='recommended_upgrade'||productType==='recommended'){
-    await q("UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active',expire_at=(CURRENT_DATE + ($1 || ' days')::interval)::date WHERE id=$2",[days,x.vendor_id]);
+    await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()} WHERE id=$2`,[days,x.vendor_id]);
   }else{
-    await q("UPDATE vendors SET membership_type='recommended',is_recommended=true,status='active',expire_at=COALESCE(expire_at,(CURRENT_DATE + ($1 || ' days')::interval)::date) WHERE id=$2",[days,x.vendor_id]);
+    await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,status='active', ${addDaysSqlFromExpire()} WHERE id=$2`,[days,x.vendor_id]);
   }
 
   await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
@@ -323,7 +366,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   const paymentProduct=(productType==='banner_from_general'||productType==='banner_from_recommended'||productType==='renewal_banner')?'banner':(productType==='renewal_general'?'general':'recommended');
   await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||x.plan||'상품변경 입금확인']);
 
-  await logAdmin(req,'상품변경 입금확인/적용','ad_request',x.id,`${x.plan||productType} 적용`);
+  await logAdmin(req,'상품변경 입금확인/즉시적용','ad_request',x.id,`${x.plan||productType} 적용`);
   res.redirect('/admin#adRequests');
 });
 app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_banner_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
