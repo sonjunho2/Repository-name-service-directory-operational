@@ -51,8 +51,8 @@ function login(req,res,next){ if(req.session.user) return next(); res.redirect('
 
 
 async function expireAds(){
-  await q("UPDATE vendors SET is_premium=false,banner_active=false WHERE banner_until IS NOT NULL AND banner_until < CURRENT_DATE");
-  await q("UPDATE vendors SET status='hidden',is_recommended=false,is_premium=false,banner_active=false WHERE expire_at IS NOT NULL AND expire_at < CURRENT_DATE");
+  await q("UPDATE vendors SET is_premium=false,banner_active=false,banner_until=NULL WHERE banner_until IS NOT NULL AND banner_until < CURRENT_DATE");
+  await q("UPDATE vendors SET status='expired',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL WHERE expire_at IS NOT NULL AND expire_at < CURRENT_DATE AND status <> 'expired'");
 }
 
 
@@ -115,7 +115,7 @@ function addDaysSqlFromExpire(){
 }
 
 async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions)};}
-async function homeData(req){ await expireAds(); const search=req.query.search||'', region=req.query.region||'', category=req.query.category||'', sort=req.query.sort||'default'; let where=['status=$1'], p=['active']; if(search){p.push(`%${search}%`); where.push(`(name ILIKE $${p.length} OR tags ILIKE $${p.length} OR description ILIKE $${p.length})`)} if(region){p.push(region); where.push(`region=$${p.length}`)} if(category){p.push(category); where.push(`category=$${p.length}`)} const orderMap={views:'views DESC,is_premium DESC,is_recommended DESC,created_at DESC',rating:'avg_rating DESC NULLS LAST,review_count DESC,is_premium DESC,is_recommended DESC,created_at DESC',reviews:'review_count DESC,avg_rating DESC NULLS LAST,is_premium DESC,is_recommended DESC,created_at DESC',latest:'created_at DESC,is_premium DESC,is_recommended DESC',default:'is_premium DESC,is_recommended DESC,created_at DESC'}; const order=orderMap[sort]||orderMap.default; const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count , (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order}`,p); const banners=await q(`SELECT * FROM banners WHERE is_active=true ORDER BY sort_order, id DESC`); const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`); const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`); const settings=await getSettings(); return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings}; }
+async function homeData(req){ await expireAds(); const search=req.query.search||'', region=req.query.region||'', category=req.query.category||'', sort=req.query.sort||'default'; let where=["status=$1 AND (expire_at IS NULL OR expire_at >= CURRENT_DATE)"], p=['active']; if(search){p.push(`%${search}%`); where.push(`(name ILIKE $${p.length} OR tags ILIKE $${p.length} OR description ILIKE $${p.length})`)} if(region){p.push(region); where.push(`region=$${p.length}`)} if(category){p.push(category); where.push(`category=$${p.length}`)} const orderMap={views:'views DESC,is_premium DESC,is_recommended DESC,created_at DESC',rating:'avg_rating DESC NULLS LAST,review_count DESC,is_premium DESC,is_recommended DESC,created_at DESC',reviews:'review_count DESC,avg_rating DESC NULLS LAST,is_premium DESC,is_recommended DESC,created_at DESC',latest:'created_at DESC,is_premium DESC,is_recommended DESC',default:'is_premium DESC,is_recommended DESC,created_at DESC'}; const order=orderMap[sort]||orderMap.default; const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count , (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order}`,p); const banners=await q(`SELECT * FROM banners WHERE is_active=true ORDER BY sort_order, id DESC`); const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`); const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`); const settings=await getSettings(); return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings}; }
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
 app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
 app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
@@ -202,13 +202,25 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     const score=Number(v.views||0)+(fav*20)+(rv.count*10)+(avg*5)+(v.is_premium?30:0)+(v.is_recommended?15:0);
     return {...v,review_count_calc:rv.count,avg_rating_calc:avg,favorite_count_calc:fav,report_count_calc:Number(flagMap[v.id]||0),popularity_score:score};
   });
+  const expiryStats={
+    expired:vendorRows.filter(v=>v.expire_at&&new Date(v.expire_at)<new Date(new Date().toISOString().slice(0,10))).length,
+    expiring7:vendorRows.filter(v=>{
+      if(!v.expire_at)return false;
+      const today=new Date(); today.setHours(0,0,0,0);
+      const exp=new Date(v.expire_at); exp.setHours(0,0,0,0);
+      const d=Math.ceil((exp-today)/(1000*60*60*24));
+      return d>=0&&d<=7;
+    }).length,
+    activePaid:vendorRows.filter(v=>v.status==='active'&&(!v.expire_at||new Date(v.expire_at)>=new Date(new Date().toISOString().slice(0,10)))).length
+  };
   const dashboardStats={
     regions:groupCount(vendorRows,'region'),
     categories:groupCount(vendorRows,'category'),
     status:Object.entries(vendorRows.reduce((m,v)=>{const k=v.status||'active';m[k]=(m[k]||0)+1;return m;},{})),
     popular:enrichedVendors.slice().sort((a,b)=>b.popularity_score-a.popularity_score).slice(0,10),
     reviewTop:enrichedVendors.slice().sort((a,b)=>b.review_count_calc-a.review_count_calc||b.avg_rating_calc-a.avg_rating_calc).slice(0,10),
-    reportTop:enrichedVendors.slice().sort((a,b)=>b.report_count_calc-a.report_count_calc).slice(0,10)
+    reportTop:enrichedVendors.slice().sort((a,b)=>b.report_count_calc-a.report_count_calc).slice(0,10),
+    expiry:expiryStats
   };
   const paidRows=paymentLogs.rows||[];
   const now=new Date();
