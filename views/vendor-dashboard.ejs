@@ -64,25 +64,7 @@
     </aside>
 
     <div class="vendor-content">
-      <% if(pendingPayment&&pendingPayment.row&&pendingPayment.row.status==='new'){ const pay=pendingPayment.row; %>
-        <section class="payment-action-card">
-          <h3>입금 안내</h3>
-          <p>아래 입금주소로 입금 후 입금완료를 눌러주세요. 관리자가 확인하면 광고가 적용됩니다.</p>
-          <div class="payment-action-grid">
-            <div class="payment-action-item"><b>신청상품</b><br><strong><%=pay.plan||pay.title||'-'%></strong></div>
-            <div class="payment-action-item"><b>입금금액</b><br><strong><%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT</strong></div>
-            <div class="payment-action-item"><b>네트워크</b><br><strong><%=settings.raw.usdt_network||'TRC20'%></strong></div>
-            <div class="payment-action-item"><b>상태</b><br><strong><%=pay.payment_status==='waiting'?'입금확인대기':'입금대기'%></strong></div>
-          </div>
-          <div class="payment-address-row">
-            <input id="payAddress" readonly value="<%=settings.raw.usdt_address||'관리자가 입금주소를 설정하지 않았습니다.'%>">
-            <button type="button" class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('payAddress').value).then(()=>alert('입금주소가 복사되었습니다.'))">주소복사</button>
-          </div>
-          <div class="payment-actions">
-            <% if(pay.payment_status!=='waiting'){%>
-              <form method="post" action="/vendor-dashboard/<%=pendingPayment.kind==='ad'?'ad-request':'banner-request'%>/<%=pay.id%>/paid"><button>입금완료</button></form>
-            <%}%>
-            <form method="post" action="/vendor-dashboard/<%=pendingPayment.kind==='ad'?'ad-request':'banner-request'%>/<%=pay.id%>/cancel"><button type="submit">신청취소</button></form>
+<form method="post" action="/vendor-dashboard/<%=pendingPayment.kind==='ad'?'ad-request':'banner-request'%>/<%=pay.id%>/cancel"><button type="submit">신청취소</button></form>
           </div>
         </section>
       <%}%>
@@ -122,7 +104,7 @@
             <div class="quick-list">
               <h4>최근 상품/광고 신청</h4>
               <% (adRequests||[]).slice(0,5).forEach(r=>{%>
-                <div><span><%=r.plan||'-'%></span><b><%=r.status==='approved'?'승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></b></div>
+                <div><span><%=r.plan||'-'%></span><b><%=r.status==='approved'?'승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인중...':'입금대기'%></b></div>
               <%})%>
               <% if(!(adRequests||[]).length){%><div><span>신청내역 없음</span><b>-</b></div><%}%>
             </div>
@@ -186,7 +168,31 @@
             <p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p>
             <code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code>
           </div>
-          <form method="post" action="/vendor-dashboard/ad-request" class="renewal-box">
+          
+          <% const activeAdRequests=(adRequests||[]).filter(r=>r.status==='new'); %>
+          <% if(activeAdRequests.length){%>
+            <div class="payment-action-card">
+              <h3>진행중인 변경/연장 결제</h3>
+              <% activeAdRequests.forEach(pay=>{%>
+                <div class="payment-action-item" style="margin-bottom:12px">
+                  <b><%=pay.plan||'-'%></b><br>
+                  <strong><%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT</strong><br>
+                  <span><%=pay.payment_status==='waiting'?'입금확인중...':'입금대기'%></span>
+                  <div class="payment-address-row">
+                    <input id="adPayAddress<%=pay.id%>" readonly value="<%=settings.raw.usdt_address||'관리자가 입금주소를 설정하지 않았습니다.'%>">
+                    <button type="button" class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('adPayAddress<%=pay.id%>').value).then(()=>alert('입금주소가 복사되었습니다.'))">주소복사</button>
+                  </div>
+                  <div class="payment-actions">
+                    <% if(pay.payment_status!=='waiting'){%>
+                      <form method="post" action="/vendor-dashboard/ad-request/<%=pay.id%>/paid"><button>입금완료</button></form>
+                    <%}%>
+                    <form method="post" action="/vendor-dashboard/ad-request/<%=pay.id%>/cancel"><button>신청취소</button></form>
+                  </div>
+                </div>
+              <%})%>
+            </div>
+          <%}%>
+<form method="post" action="/vendor-dashboard/ad-request" class="renewal-box">
             <div class="renewal-form-grid">
               <select name="product_type">
                 <option value="renewal_general" <%=vendor?.membership_type==='general'?'selected':''%>>일반광고 신청/변경/연장</option>
@@ -220,7 +226,31 @@
             <code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code>
           </div>
 
-          <% if(vendor.banner_active){%>
+          
+          <% const activeBannerRequests=(bannerRequests||[]).filter(r=>r.status==='new'); %>
+          <% if(activeBannerRequests.length){%>
+            <div class="payment-action-card">
+              <h3>진행중인 프리미엄배너 결제</h3>
+              <% activeBannerRequests.forEach(pay=>{%>
+                <div class="payment-action-item" style="margin-bottom:12px">
+                  <b><%=pay.title||'프리미엄배너'%></b><br>
+                  <strong><%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT</strong><br>
+                  <span><%=pay.payment_status==='waiting'?'입금확인중...':'입금대기'%></span>
+                  <div class="payment-address-row">
+                    <input id="bannerPayAddress<%=pay.id%>" readonly value="<%=settings.raw.usdt_address||'관리자가 입금주소를 설정하지 않았습니다.'%>">
+                    <button type="button" class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('bannerPayAddress<%=pay.id%>').value).then(()=>alert('입금주소가 복사되었습니다.'))">주소복사</button>
+                  </div>
+                  <div class="payment-actions">
+                    <% if(pay.payment_status!=='waiting'){%>
+                      <form method="post" action="/vendor-dashboard/banner-request/<%=pay.id%>/paid"><button>입금완료</button></form>
+                    <%}%>
+                    <form method="post" action="/vendor-dashboard/banner-request/<%=pay.id%>/cancel"><button>신청취소</button></form>
+                  </div>
+                </div>
+              <%})%>
+            </div>
+          <%}%>
+<% if(vendor.banner_active){%>
             <form method="post" action="/vendor-dashboard/ad-request" class="renewal-box">
               <div class="renewal-form-grid">
                 <input type="hidden" name="product_type" value="renewal_banner">
@@ -245,8 +275,8 @@
         <section class="box">
           <h3>배너/상품 신청내역</h3><p>신청내역은 조회용입니다. 새로 신청한 건의 입금완료/취소 처리는 신청 직후 표시되는 입금 안내에서 진행합니다.</p>
           <table class="clean-table"><tr><th>구분</th><th>내용</th><th>상태</th><th>메모/처리</th></tr>
-          <% (bannerRequests||[]).forEach(r=>{%><tr><td>배너</td><td><%=r.title%><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%>
-          <% (adRequests||[]).forEach(r=>{%><tr><td>상품/광고</td><td><%=r.plan%> / <%=r.period%>일<br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%>
+          <% (bannerRequests||[]).forEach(r=>{%><tr><td>배너</td><td><%=r.title%><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인중...':'입금대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%>
+          <% (adRequests||[]).forEach(r=>{%><tr><td>상품/광고</td><td><%=r.plan%> / <%=r.period%>일<br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인중...':'입금대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%>
           </table>
         </section>
       </div>
@@ -286,5 +316,16 @@ document.querySelectorAll('.vendor-menu-btn[data-vendor-panel]').forEach(btn=>{
     window.scrollTo({top:0,behavior:'smooth'});
   });
 });
+</script>
+
+<script>
+(function(){
+  const params=new URLSearchParams(location.search);
+  const panel=params.get('panel');
+  if(panel){
+    const btn=document.querySelector('.vendor-menu-btn[data-vendor-panel="'+panel+'"]');
+    if(btn) setTimeout(()=>btn.click(),50);
+  }
+})();
 </script>
 </body></html>
