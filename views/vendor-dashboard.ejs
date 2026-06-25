@@ -26,6 +26,8 @@
 .preview-card img{max-width:180px;border-radius:12px;border:1px solid #29324f}.tag-preview{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.tag-preview span{background:#29324f;border-radius:999px;padding:5px 9px;font-size:12px}
 .clean-table{width:100%;border-collapse:collapse}.clean-table th,.clean-table td{border:1px solid #29324f;padding:10px;text-align:left;vertical-align:top}.clean-table th{background:#171d30}
 @media(max-width:900px){.vendor-layout{grid-template-columns:1fr}.vendor-side{position:static}.home-summary,.vendor-edit-grid{grid-template-columns:1fr}.vendor-edit-grid .full{grid-column:1}.vendor-menu-btn{text-align:center}}
+.payment-action-card{border:1px solid #10d9ff;background:#06111c;border-radius:16px;padding:18px;margin-bottom:18px}
+.payment-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.payment-action-item{background:#070b15;border:1px solid #29324f;border-radius:12px;padding:14px}.payment-address-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.copy-btn{height:42px;border:0;border-radius:10px;padding:0 14px;background:#29324f;color:#fff;font-weight:900}.payment-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.payment-actions form{margin:0}.payment-actions button{height:42px;padding:0 18px}@media(max-width:900px){.payment-action-grid,.payment-address-row{grid-template-columns:1fr}}
 </style></head><body><header class="top"><a class="brand" href="/">서비스 디렉터리</a><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><main class="wrap">
   <% if(vendor&&vendor.status==="expired"){%>
     <div class="expiry-alert">광고 기간이 만료되어 현재 노출이 중지되었습니다. 연장 신청 후 입금확인이 완료되면 다시 노출됩니다.</div>
@@ -62,6 +64,29 @@
     </aside>
 
     <div class="vendor-content">
+      <% if(pendingPayment&&pendingPayment.row&&pendingPayment.row.status==='new'){ const pay=pendingPayment.row; %>
+        <section class="payment-action-card">
+          <h3>입금 안내</h3>
+          <p>아래 입금주소로 입금 후 입금완료를 눌러주세요. 관리자가 확인하면 광고가 적용됩니다.</p>
+          <div class="payment-action-grid">
+            <div class="payment-action-item"><b>신청상품</b><br><strong><%=pay.plan||pay.title||'-'%></strong></div>
+            <div class="payment-action-item"><b>입금금액</b><br><strong><%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT</strong></div>
+            <div class="payment-action-item"><b>네트워크</b><br><strong><%=settings.raw.usdt_network||'TRC20'%></strong></div>
+            <div class="payment-action-item"><b>상태</b><br><strong><%=pay.payment_status==='waiting'?'입금확인대기':'입금대기'%></strong></div>
+          </div>
+          <div class="payment-address-row">
+            <input id="payAddress" readonly value="<%=settings.raw.usdt_address||'관리자가 입금주소를 설정하지 않았습니다.'%>">
+            <button type="button" class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('payAddress').value).then(()=>alert('입금주소가 복사되었습니다.'))">주소복사</button>
+          </div>
+          <div class="payment-actions">
+            <% if(pay.payment_status!=='waiting'){%>
+              <form method="post" action="/vendor-dashboard/<%=pendingPayment.kind==='ad'?'ad-request':'banner-request'%>/<%=pay.id%>/paid"><button>입금완료</button></form>
+            <%}%>
+            <form method="post" action="/vendor-dashboard/<%=pendingPayment.kind==='ad'?'ad-request':'banner-request'%>/<%=pay.id%>/cancel"><button type="submit">신청취소</button></form>
+          </div>
+        </section>
+      <%}%>
+
 
       <div id="vendor-panel-home" class="vendor-panel active">
         <section class="box">
@@ -218,10 +243,10 @@
 
       <div id="vendor-panel-requests" class="vendor-panel">
         <section class="box">
-          <h3>배너/상품 신청내역</h3>
+          <h3>배너/상품 신청내역</h3><p>신청내역은 조회용입니다. 새로 신청한 건의 입금완료/취소 처리는 신청 직후 표시되는 입금 안내에서 진행합니다.</p>
           <table class="clean-table"><tr><th>구분</th><th>내용</th><th>상태</th><th>메모/처리</th></tr>
-          <% (bannerRequests||[]).forEach(r=>{%><tr><td>배너</td><td><%=r.title%><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></td><td><%=r.admin_memo||'-'%><% if(r.status==='new'){%><div class="inline-actions"><% if(r.payment_status!=='waiting'){%><form method="post" action="/vendor-dashboard/banner-request/<%=r.id%>/paid"><button>입금완료</button></form><%}%><form method="post" action="/vendor-dashboard/banner-request/<%=r.id%>/cancel"><button>신청취소</button></form></div><%}%></td></tr><%})%>
-          <% (adRequests||[]).forEach(r=>{%><tr><td>상품/광고</td><td><%=r.plan%> / <%=r.period%>일<br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></td><td><%=r.admin_memo||'-'%><% if(r.status==='new'){%><div class="inline-actions"><% if(r.payment_status!=='waiting'){%><form method="post" action="/vendor-dashboard/ad-request/<%=r.id%>/paid"><button>입금완료</button></form><%}%><form method="post" action="/vendor-dashboard/ad-request/<%=r.id%>/cancel"><button>신청취소</button></form></div><%}%></td></tr><%})%>
+          <% (bannerRequests||[]).forEach(r=>{%><tr><td>배너</td><td><%=r.title%><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%>
+          <% (adRequests||[]).forEach(r=>{%><tr><td>상품/광고</td><td><%=r.plan%> / <%=r.period%>일<br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%>
           </table>
         </section>
       </div>
