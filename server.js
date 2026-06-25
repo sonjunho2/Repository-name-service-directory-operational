@@ -34,7 +34,28 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
   }
 app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public'));
 app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12}}));
-app.use((req,res,next)=>{res.locals.me=req.session.user||null; next();});
+function formatKstDate(value){
+  if(!value)return '-';
+  try{
+    const d=new Date(value);
+    if(Number.isNaN(d.getTime()))return '-';
+    return d.toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'});
+  }catch(e){return '-';}
+}
+function formatKstDateTime(value){
+  if(!value)return '-';
+  try{
+    const d=new Date(value);
+    if(Number.isNaN(d.getTime()))return '-';
+    return d.toLocaleString('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(' ',' ');
+  }catch(e){return '-';}
+}
+app.use((req,res,next)=>{
+  res.locals.me=req.session.user||null;
+  res.locals.fmtDate=formatKstDate;
+  res.locals.fmtDateTime=formatKstDateTime;
+  next();
+});
 function admin(req,res,next){ if(req.session.user?.role==='admin') return next(); res.redirect('/admin/login'); }
 
 async function logAdmin(req,action,targetType,targetId,memo=''){
