@@ -12,7 +12,52 @@
 .current-plan{border:1px solid #10d9ff;background:linear-gradient(135deg,rgba(16,217,255,.15),rgba(255,63,180,.08));border-radius:16px;padding:18px;margin:0 0 18px}.current-plan-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.current-plan-item{background:#070b15;border:1px solid #29324f;border-radius:12px;padding:12px}.current-plan-item b{display:block;color:#8d98b8;margin-bottom:8px}.current-plan-item strong{font-size:22px;color:#10d9ff}@media(max-width:900px){.upgrade-grid,.current-plan-grid{grid-template-columns:1fr}.renewal-form-grid{grid-template-columns:1fr}.renewal-form-grid textarea,.renewal-form-grid button,.renewal-actions{grid-column:1}}
 .pay-status{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:900}.pay-wait{background:#29324f;color:#dfe9ff}.pay-check{background:#3d3412;color:#ffdc4d}.pay-done{background:#123b2b;color:#1fe087}.pay-bad{background:#3b1212;color:#ff6b6b}.inline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.inline-actions form{margin:0}.inline-actions button{height:34px;padding:0 12px}
 .vendor-edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.vendor-edit-grid .full{grid-column:1/3}.preview-card{border:1px solid #10d9ff;background:#06111c;border-radius:16px;padding:16px;margin-top:14px}.preview-card img{max-width:180px;border-radius:12px;border:1px solid #29324f}.tag-preview{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.tag-preview span{background:#29324f;border-radius:999px;padding:5px 9px;font-size:12px}.image-note{color:#8d98b8;font-size:13px;margin-top:6px}@media(max-width:900px){.vendor-edit-grid{grid-template-columns:1fr}.vendor-edit-grid .full{grid-column:1}}
-</style></head><body><header class="top"><a class="brand" href="/">서비스 디렉터리</a><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><main class="wrap"><% if(vendor&&vendor.status==="expired"){%><div class="expiry-alert">광고 기간이 만료되어 현재 노출이 중지되었습니다. 연장 신청 후 입금확인이 완료되면 다시 노출됩니다.</div><%}else if(expiryNotice){%><div class="expiry-alert">노출 만기 <%=expiryNotice.daysLeft%>일 남았습니다. 만기일: <%=fmtDate(expiryNotice.expire_at)%></div><%}%><section class="box"><h2>업체관리</h2><% if(vendor){%>
+.vendor-layout{display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start}
+.vendor-side{position:sticky;top:16px;border:1px solid #29324f;background:#070b15;border-radius:18px;padding:16px}
+.vendor-side h3{margin:0 0 12px}
+.vendor-menu-group{margin-top:14px;padding-top:14px;border-top:1px solid #29324f}
+.vendor-menu-title{font-size:13px;color:#8d98b8;font-weight:900;margin-bottom:8px}
+.vendor-menu-btn{width:100%;height:38px;border:0;border-radius:10px;background:transparent;color:#dfe9ff;text-align:left;padding:0 12px;font-weight:800;cursor:pointer}
+.vendor-menu-btn:hover,.vendor-menu-btn.active{background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff}
+.vendor-panel{display:none}
+.vendor-panel.active{display:block}
+.home-summary{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.quick-list{border:1px solid #29324f;border-radius:14px;background:#070b15;padding:14px}
+.quick-list h4{margin:0 0 10px}
+.quick-list div{display:flex;justify-content:space-between;border-bottom:1px solid #202842;padding:8px 0}
+.quick-list div:last-child{border-bottom:0}
+@media(max-width:900px){.vendor-layout{grid-template-columns:1fr}.vendor-side{position:static}.vendor-menu-group{border-top:1px solid #29324f}.home-summary{grid-template-columns:1fr}.vendor-menu-btn{text-align:center}}
+</style></head><body><header class="top"><a class="brand" href="/">서비스 디렉터리</a><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><main class="wrap">
+  <% if(vendor&&vendor.status==="expired"){%><div class="expiry-alert">광고 기간이 만료되어 현재 노출이 중지되었습니다. 연장 신청 후 입금확인이 완료되면 다시 노출됩니다.</div><%}else if(expiryNotice){%><div class="expiry-alert">노출 만기 <%=expiryNotice.daysLeft%>일 남았습니다. 만기일: <%=fmtDate(expiryNotice.expire_at)%></div><%}%>
+
+  <div class="vendor-layout">
+    <aside class="vendor-side">
+      <h3>업체관리</h3>
+      <button type="button" class="vendor-menu-btn active" data-vendor-panel="home">홈</button>
+
+      <div class="vendor-menu-group">
+        <div class="vendor-menu-title">업체내용 변경</div>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="edit">업체정보 수정</button>
+      </div>
+
+      <div class="vendor-menu-group">
+        <div class="vendor-menu-title">상품신청</div>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="upgrade">업그레이드 신청</button>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="renewal">연장 신청</button>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="banner">프리미엄배너 신청</button>
+      </div>
+
+      <div class="vendor-menu-group">
+        <div class="vendor-menu-title">내역관리</div>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="requests">배너/상품 신청내역</button>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="payments">결제내역</button>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="updateHistory">수정요청내역</button>
+      </div>
+    </aside>
+
+    <div class="vendor-content">
+      <div id="vendor-panel-home" class="vendor-panel active">
+        <section class="box"><h2>업체관리</h2><% if(vendor){%>
 <div class="current-plan">
   <h3>현재 이용 상태</h3>
   <div class="current-plan-grid">
@@ -69,7 +114,41 @@
       </div>
     <%}%>
   </div>
-</section><section class="box"><h3>프리미엄배너 신청</h3><p>프리미엄배너 승인 시 추천업체로 자동 승격되며, 기존 등록 만기일에 맞춰 배너도 함께 종료됩니다.</p><div class="paybox"><b>배너 가격</b><p><%=Number(settings.raw.banner_price_krw||0).toLocaleString()%>원 / <%=((Number(settings.raw.banner_price_krw||0))/(Number(settings.raw.usdt_krw_rate||1400))).toFixed(2)%> USDT</p><p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p><code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code></div><form method="post" action="/vendor-dashboard/banner-request" enctype="multipart/form-data" class="form"><input name="title" placeholder="배너 제목" required><input name="subtitle" placeholder="배너 부제목"><input name="link_url" placeholder="연결 링크 URL"><input type="file" name="image" accept="image/*" required><button>배너 신청하기</button></form></section><section class="box">
+</section>
+        
+        <section class="box">
+          <h3>최근 내역 요약</h3>
+          <div class="home-summary">
+            <div class="quick-list">
+              <h4>최근 상품/광고 신청</h4>
+              <% (adRequests||[]).slice(0,5).forEach(r=>{%>
+                <div><span><%=r.plan||'-'%></span><b><%=r.status==='approved'?'승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></b></div>
+              <%})%>
+            </div>
+            <div class="quick-list">
+              <h4>최근 결제내역</h4>
+              <% (paymentLogs||[]).slice(0,5).forEach(p=>{%>
+                <div><span><%=p.product_type==='banner'?'프리미엄배너':p.product_type==='recommended'?'추천등록':p.product_type==='general'?'일반등록':p.product_type||'-'%></span><b><%=Number(p.krw_price||0).toLocaleString()%>원</b></div>
+              <%})%>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div id="vendor-panel-edit" class="vendor-panel">
+        
+      </div>
+
+      <div id="vendor-panel-upgrade" class="vendor-panel">
+        
+      </div>
+
+      <div id="vendor-panel-renewal" class="vendor-panel">
+        
+      </div>
+
+      <div id="vendor-panel-banner" class="vendor-panel">
+        <section class="box"><h3>프리미엄배너 신청</h3><p>프리미엄배너 승인 시 추천업체로 자동 승격되며, 기존 등록 만기일에 맞춰 배너도 함께 종료됩니다.</p><div class="paybox"><b>배너 가격</b><p><%=Number(settings.raw.banner_price_krw||0).toLocaleString()%>원 / <%=((Number(settings.raw.banner_price_krw||0))/(Number(settings.raw.usdt_krw_rate||1400))).toFixed(2)%> USDT</p><p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p><code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code></div><form method="post" action="/vendor-dashboard/banner-request" enctype="multipart/form-data" class="form"><input name="title" placeholder="배너 제목" required><input name="subtitle" placeholder="배너 부제목"><input name="link_url" placeholder="연결 링크 URL"><input type="file" name="image" accept="image/*" required><button>배너 신청하기</button></form></section><section class="box">
   <h3>광고 연장 신청</h3>
   <% const gPrice=Number(pricingPreview?.renewal_general||0); const rPrice=Number(pricingPreview?.renewal_recommended||0); const bPrice=Number(pricingPreview?.renewal_banner||0); const rate2=Number(settings.raw.usdt_krw_rate||1400); const usdt2=n=>((Number(n||0))/rate2).toFixed(2); %>
   <div class="paybox">
@@ -96,7 +175,11 @@
       <button>연장 신청하기</button>
     </div>
   </form>
-</section><section class="box"><h3>배너/광고 신청 내역</h3><table><tr><th>구분</th><th>내용</th><th>상태</th><th>메모</th></tr><% (bannerRequests||[]).forEach(r=>{%><tr><td>배너</td><td><%=r.title%><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><span class="pay-status <%=r.payment_status==='paid'?'pay-done':r.payment_status==='waiting'?'pay-check':(r.payment_status==='rejected'||r.payment_status==='cancelled'||r.status==='rejected')?'pay-bad':'pay-wait'%>"><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></span></td><td><%=r.admin_memo||'-'%><% if(r.status==='new'){%><div class="inline-actions"><% if(r.payment_status!=='waiting'){%><form method="post" action="/vendor-dashboard/banner-request/<%=r.id%>/paid"><button>입금완료</button></form><%}%><form method="post" action="/vendor-dashboard/banner-request/<%=r.id%>/cancel"><button>신청취소</button></form></div><%}%></td></tr><%})%><% (adRequests||[]).forEach(r=>{%><tr><td>광고연장</td><td><%=r.plan%> / <%=r.period%>일<br><small><%=r.product_type==='recommended_upgrade'?'일반→추천':r.product_type==='banner_from_general'?'일반→배너':r.product_type==='banner_from_recommended'?'추천→배너':r.product_type==='renewal_general'?'일반연장':r.product_type==='renewal_recommended'?'추천연장':r.product_type==='renewal_banner'?'배너연장':r.product_type||''%></small><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><span class="pay-status <%=r.payment_status==='paid'?'pay-done':r.payment_status==='waiting'?'pay-check':(r.payment_status==='rejected'||r.payment_status==='cancelled'||r.status==='rejected')?'pay-bad':'pay-wait'%>"><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></span></td><td><%=r.admin_memo||'-'%><% if(r.status==='new'){%><div class="inline-actions"><% if(r.payment_status!=='waiting'){%><form method="post" action="/vendor-dashboard/ad-request/<%=r.id%>/paid"><button>입금완료</button></form><%}%><form method="post" action="/vendor-dashboard/ad-request/<%=r.id%>/cancel"><button>신청취소</button></form></div><%}%></td></tr><%})%></table></section><section class="box">
+</section>
+      </div>
+
+      <div id="vendor-panel-requests" class="vendor-panel">
+        <section class="box"><h3>배너/광고 신청 내역</h3><table><tr><th>구분</th><th>내용</th><th>상태</th><th>메모</th></tr><% (bannerRequests||[]).forEach(r=>{%><tr><td>배너</td><td><%=r.title%><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><span class="pay-status <%=r.payment_status==='paid'?'pay-done':r.payment_status==='waiting'?'pay-check':(r.payment_status==='rejected'||r.payment_status==='cancelled'||r.status==='rejected')?'pay-bad':'pay-wait'%>"><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></span></td><td><%=r.admin_memo||'-'%><% if(r.status==='new'){%><div class="inline-actions"><% if(r.payment_status!=='waiting'){%><form method="post" action="/vendor-dashboard/banner-request/<%=r.id%>/paid"><button>입금완료</button></form><%}%><form method="post" action="/vendor-dashboard/banner-request/<%=r.id%>/cancel"><button>신청취소</button></form></div><%}%></td></tr><%})%><% (adRequests||[]).forEach(r=>{%><tr><td>광고연장</td><td><%=r.plan%> / <%=r.period%>일<br><small><%=r.product_type==='recommended_upgrade'?'일반→추천':r.product_type==='banner_from_general'?'일반→배너':r.product_type==='banner_from_recommended'?'추천→배너':r.product_type==='renewal_general'?'일반연장':r.product_type==='renewal_recommended'?'추천연장':r.product_type==='renewal_banner'?'배너연장':r.product_type||''%></small><br><small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small></td><td><span class="pay-status <%=r.payment_status==='paid'?'pay-done':r.payment_status==='waiting'?'pay-check':(r.payment_status==='rejected'||r.payment_status==='cancelled'||r.status==='rejected')?'pay-bad':'pay-wait'%>"><%=r.status==='approved'?'입금완료/승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인대기':'입금대기'%></span></td><td><%=r.admin_memo||'-'%><% if(r.status==='new'){%><div class="inline-actions"><% if(r.payment_status!=='waiting'){%><form method="post" action="/vendor-dashboard/ad-request/<%=r.id%>/paid"><button>입금완료</button></form><%}%><form method="post" action="/vendor-dashboard/ad-request/<%=r.id%>/cancel"><button>신청취소</button></form></div><%}%></td></tr><%})%></table></section><section class="box">
   <h3>결제내역</h3>
   <div class="pay-history">
     <table>
@@ -113,4 +196,29 @@
       <%})%>
     </table>
   </div>
-</section><section class="box"><h3>수정요청 내역</h3><table><tr><th>ID</th><th>업체명</th><th>상태</th><th>관리자 메모</th></tr><% requests.forEach(r=>{%><tr><td><%=r.id%></td><td><%=r.name%></td><td><%=r.status==='approved'?'승인':r.status==='rejected'?'반려':'대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%></table></section></main></body></html>
+</section>
+      </div>
+
+      <div id="vendor-panel-payments" class="vendor-panel">
+        
+      </div>
+
+      <div id="vendor-panel-updateHistory" class="vendor-panel">
+        <section class="box"><h3>수정요청 내역</h3><table><tr><th>ID</th><th>업체명</th><th>상태</th><th>관리자 메모</th></tr><% requests.forEach(r=>{%><tr><td><%=r.id%></td><td><%=r.name%></td><td><%=r.status==='approved'?'승인':r.status==='rejected'?'반려':'대기'%></td><td><%=r.admin_memo||'-'%></td></tr><%})%></table></section>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+document.querySelectorAll('.vendor-menu-btn[data-vendor-panel]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.vendor-menu-btn[data-vendor-panel]').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.vendor-panel').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+    const target=document.getElementById('vendor-panel-'+btn.dataset.vendorPanel);
+    if(target) target.classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+});
+</script>
+</body></html>
