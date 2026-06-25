@@ -289,42 +289,93 @@ app.get('/vendor-apply',login,async(req,res)=>{const settings=await getSettings(
 
 app.post('/vendor-apply',login,upload.single('image'),async(req,res)=>{try{const im=img(req.file); await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',['apply',req.body.company_name,req.session.user.nickname,req.body.phone,req.body.kakao_url,req.body.email,req.body.category,req.body.region,req.body.content,im,'new',req.session.user.id]); res.render('vendor-apply',{settings:await getSettings(),error:null,done:true});}catch(e){res.render('vendor-apply',{settings:await getSettings(),error:e.message||'신청 실패',done:false});}});
 
-app.get('/vendor-dashboard',login,async(req,res)=>{if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply'); const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]); const requests=await q('SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const bannerRequests=await q('SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const adRequests=await q('SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]); const stats=await q(`SELECT (SELECT COUNT(*)::int FROM reviews WHERE vendor_id=$1) review_count, (SELECT ROUND(AVG(rating)::numeric,1) FROM reviews WHERE vendor_id=$1) avg_rating, (SELECT COUNT(*)::int FROM favorites WHERE vendor_id=$1) favorite_count, (SELECT COUNT(*)::int FROM flags WHERE type='vendor' AND target_id=$1) report_count`,[req.session.user.vendor_id]); const paymentLogs=await q('SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC',[req.session.user.vendor_id]);
-  const viewStats=await q(`SELECT 
-    (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE) today_views,
-    (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE-INTERVAL '7 days') week_views,
-    (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE-INTERVAL '30 days') month_views`,[req.session.user.vendor_id]);
-  const vendor=v.rows[0];
-  let expiryNotice=null;
-  if(vendor?.expire_at){
-    const today=new Date(); today.setHours(0,0,0,0);
-    const exp=new Date(vendor.expire_at); exp.setHours(0,0,0,0);
-    const daysLeft=Math.ceil((exp-today)/(1000*60*60*24));
-    if(daysLeft<=7){
-      expiryNotice={daysLeft,expire_at:vendor.expire_at};
+app.get('/vendor-dashboard',login,async(req,res)=>{
+  try{
+    await ensureSchema();
+    await expireAds();
+
+    if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
+
+    const settings=await getSettings();
+    const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
+    const vendor=v.rows[0];
+
+    if(!vendor){
+      return res.render('vendor-dashboard',{
+        vendor:null,
+        requests:[],
+        bannerRequests:[],
+        adRequests:[],
+        paymentLogs:[],
+        viewStats:{today_views:0,week_views:0,month_views:0},
+        expiryNotice:null,
+        pricingPreview:{renewal_general:0,renewal_recommended:0,renewal_banner:0,recommended_upgrade:0,banner_from_general:0,banner_from_recommended:0,remainDays:0},
+        pendingPayment:null,
+        stats:{review_count:0,avg_rating:'-',favorite_count:0,report_count:0},
+        settings,
+        error:null,
+        done:false
+      });
     }
-  }
-  const settings=await getSettings();
-  const pricingPreview={
-    renewal_general:calcProductPrice(settings,vendor,'renewal_general','30'),
-    renewal_recommended:calcProductPrice(settings,vendor,'renewal_recommended','30'),
-    renewal_banner:calcProductPrice(settings,vendor,'renewal_banner','30'),
-    recommended_upgrade:calcProductPrice(settings,vendor,'recommended_upgrade','30'),
-    banner_from_general:calcProductPrice(settings,vendor,'banner_from_general','30'),
-    banner_from_recommended:calcProductPrice(settings,vendor,'banner_from_recommended','30'),
-    remainDays:daysLeftUntil(vendor?.expire_at)
-  };
-  let pendingPayment=null;
-  if(req.query.pay&&req.query.id){
-    if(req.query.pay==='ad'){
-      const pr=await q('SELECT * FROM vendor_ad_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
-      if(pr.rows[0])pendingPayment={kind:'ad',row:pr.rows[0]};
-    }else if(req.query.pay==='banner'){
-      const pr=await q('SELECT * FROM vendor_banner_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
-      if(pr.rows[0])pendingPayment={kind:'banner',row:pr.rows[0]};
+
+    const safeRows=async(sql,params=[])=>{
+      try{const r=await q(sql,params); return r.rows||[];}catch(e){console.error('vendor-dashboard safeRows error',e.message); return [];}
+    };
+    const safeOne=async(sql,params=[],fallback={})=>{
+      try{const r=await q(sql,params); return r.rows[0]||fallback;}catch(e){console.error('vendor-dashboard safeOne error',e.message); return fallback;}
+    };
+
+    const requests=await safeRows('SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]);
+    const bannerRequests=await safeRows('SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]);
+    const adRequests=await safeRows('SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]);
+    const paymentLogs=await safeRows('SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC',[req.session.user.vendor_id]);
+
+    const stats=await safeOne(`SELECT
+      (SELECT COUNT(*)::int FROM reviews WHERE vendor_id=$1) review_count,
+      (SELECT ROUND(AVG(rating)::numeric,1) FROM reviews WHERE vendor_id=$1) avg_rating,
+      (SELECT COUNT(*)::int FROM favorites WHERE vendor_id=$1) favorite_count,
+      (SELECT COUNT(*)::int FROM flags WHERE type='vendor' AND target_id=$1) report_count`,[req.session.user.vendor_id],{review_count:0,avg_rating:'-',favorite_count:0,report_count:0});
+
+    const viewStats=await safeOne(`SELECT
+      (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE) today_views,
+      (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE-INTERVAL '7 days') week_views,
+      (SELECT COUNT(*)::int FROM vendor_view_logs WHERE vendor_id=$1 AND created_at>=CURRENT_DATE-INTERVAL '30 days') month_views`,[req.session.user.vendor_id],{today_views:0,week_views:0,month_views:0});
+
+    let expiryNotice=null;
+    if(vendor?.expire_at){
+      const today=new Date(); today.setHours(0,0,0,0);
+      const exp=new Date(vendor.expire_at); exp.setHours(0,0,0,0);
+      const daysLeft=Math.ceil((exp-today)/(1000*60*60*24));
+      if(daysLeft<=7)expiryNotice={daysLeft,expire_at:vendor.expire_at};
     }
+
+    const pricingPreview={
+      renewal_general:calcProductPrice(settings,vendor,'renewal_general','30',false),
+      renewal_recommended:calcProductPrice(settings,vendor,'renewal_recommended','30',false),
+      renewal_banner:calcProductPrice(settings,vendor,'renewal_banner','30',false),
+      recommended_upgrade:0,
+      banner_from_general:0,
+      banner_from_recommended:0,
+      remainDays:daysLeftUntil(vendor?.expire_at)
+    };
+
+    let pendingPayment=null;
+    if(req.query.pay&&req.query.id){
+      if(req.query.pay==='ad'){
+        const pr=await safeRows('SELECT * FROM vendor_ad_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
+        if(pr[0])pendingPayment={kind:'ad',row:pr[0]};
+      }else if(req.query.pay==='banner'){
+        const pr=await safeRows('SELECT * FROM vendor_banner_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
+        if(pr[0])pendingPayment={kind:'banner',row:pr[0]};
+      }
+    }
+
+    res.render('vendor-dashboard',{vendor,requests,bannerRequests,adRequests,paymentLogs,viewStats,expiryNotice,pricingPreview,pendingPayment,stats,settings,error:null,done:false});
+  }catch(e){
+    console.error('vendor-dashboard fatal error',e);
+    res.status(500).send('업체관리 페이지 오류가 발생했습니다. 서버 로그를 확인해주세요.');
   }
-  res.render('vendor-dashboard',{vendor,requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,paymentLogs:paymentLogs.rows,viewStats:viewStats.rows[0],expiryNotice,pricingPreview,pendingPayment,stats:stats.rows[0],settings,error:null,done:false});});
+});
 
 app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
