@@ -533,21 +533,44 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
     return res.redirect('/admin#settings');
   }
 
-  await q('DELETE FROM vendor_ad_requests');
-  await q('DELETE FROM vendor_banner_requests');
-  await q('DELETE FROM vendor_update_requests');
+  await q('BEGIN');
+  try{
+    const tables=[
+      'payment_logs',
+      'vendor_view_logs',
+      'vendor_ad_requests',
+      'vendor_banner_requests',
+      'vendor_update_requests',
+      'flags',
+      'reviews',
+      'favorites',
+      'banners',
+      'inquiries',
+      'notices',
+      'admin_logs',
+      'vendors'
+    ];
 
-  await q('DELETE FROM flags');
-  await q('DELETE FROM reviews');
-  await q('DELETE FROM banners');
-  await q('DELETE FROM inquiries');
-  await q('DELETE FROM notices');
+    for(const table of tables){
+      await q(`DELETE FROM ${table}`);
+    }
 
-  await q('DELETE FROM vendors');
+    await q("DELETE FROM users WHERE role <> 'admin'");
 
-  await q('DELETE FROM users WHERE role<>$1',['admin']);
+    for(const table of tables){
+      await q(`ALTER SEQUENCE IF EXISTS ${table}_id_seq RESTART WITH 1`);
+    }
 
-  await logAdmin(req,'초기화','system','all','관리자 계정과 환경설정을 제외한 운영 데이터 완전 초기화');
+    await q("SELECT setval(pg_get_serial_sequence('users','id'), COALESCE((SELECT MAX(id) FROM users),0)+1, false)");
+
+    await q('COMMIT');
+  }catch(e){
+    await q('ROLLBACK');
+    console.error('reset-data error',e);
+    return res.redirect('/admin#settings');
+  }
+
+  await logAdmin(req,'초기화','system','all','관리자 계정과 환경설정을 제외한 전체 운영 데이터 초기화');
   res.redirect('/admin#settings');
 });
 
