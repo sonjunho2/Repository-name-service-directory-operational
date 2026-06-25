@@ -314,7 +314,17 @@ app.get('/vendor-dashboard',login,async(req,res)=>{if(!req.session.user.is_vendo
     banner_from_recommended:calcProductPrice(settings,vendor,'banner_from_recommended','30'),
     remainDays:daysLeftUntil(vendor?.expire_at)
   };
-  res.render('vendor-dashboard',{vendor,requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,paymentLogs:paymentLogs.rows,viewStats:viewStats.rows[0],expiryNotice,pricingPreview,stats:stats.rows[0],settings,error:null,done:false});});
+  let pendingPayment=null;
+  if(req.query.pay&&req.query.id){
+    if(req.query.pay==='ad'){
+      const pr=await q('SELECT * FROM vendor_ad_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
+      if(pr.rows[0])pendingPayment={kind:'ad',row:pr.rows[0]};
+    }else if(req.query.pay==='banner'){
+      const pr=await q('SELECT * FROM vendor_banner_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
+      if(pr.rows[0])pendingPayment={kind:'banner',row:pr.rows[0]};
+    }
+  }
+  res.render('vendor-dashboard',{vendor,requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,paymentLogs:paymentLogs.rows,viewStats:viewStats.rows[0],expiryNotice,pricingPreview,pendingPayment,stats:stats.rows[0],settings,error:null,done:false});});
 
 app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
@@ -336,8 +346,8 @@ app.post('/vendor-dashboard/banner-request',login,upload.single('image'),async(r
     : Number(settings.raw.general_to_banner_price_krw||0);
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
-  await q('INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[req.session.user.id,req.session.user.vendor_id,req.body.title,req.body.subtitle,req.body.link_url,img(req.file),price,usdt,'unpaid','new']);
-  res.redirect('/vendor-dashboard');
+  const inserted=await q('INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',[req.session.user.id,req.session.user.vendor_id,req.body.title,req.body.subtitle,req.body.link_url,img(req.file),price,usdt,'unpaid','new']);
+  res.redirect('/vendor-dashboard?pay=banner&id='+inserted.rows[0].id);
 });
 app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
@@ -360,12 +370,12 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
     renewal_banner:'프리미엄배너 신청/연장'
   }[productType]||'광고 신청';
 
-  await q(
-    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,krw_price,usdt_amount,payment_status,status,product_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+  const inserted=await q(
+    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,krw_price,usdt_amount,payment_status,status,product_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
     [req.session.user.id,req.session.user.vendor_id,label,period,(req.body.content||'')+(immediateApply?'\n[바로 적용 요청]':''),price,usdt,'unpaid','new',productType]
   );
 
-  res.redirect('/vendor-dashboard');
+  res.redirect('/vendor-dashboard?pay=ad&id='+inserted.rows[0].id);
 });
 
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
