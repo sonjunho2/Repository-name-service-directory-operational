@@ -48,8 +48,8 @@
 
       <div class="vendor-menu-group">
         <div class="vendor-menu-title">상품신청</div>
-        <button type="button" class="vendor-menu-btn" data-vendor-panel="upgrade">상품변경 신청</button>
-        <button type="button" class="vendor-menu-btn" data-vendor-panel="renewal">연장 신청</button>
+        <button type="button" class="vendor-menu-btn" data-vendor-panel="upgrade">변경/연장 신청</button>
+        
         <button type="button" class="vendor-menu-btn" data-vendor-panel="banner">프리미엄배너 신청</button>
       </div>
 
@@ -150,73 +150,29 @@
 
       <div id="vendor-panel-upgrade" class="vendor-panel">
         <section class="box">
-          <h3>상품변경 신청</h3>
-          <p>업그레이드는 입금확인 즉시 적용됩니다. 다운그레이드와 배너 제거는 현재 결제기간을 보장하기 위해 만기일 기준 예약 변경으로 처리됩니다.</p>
-          <% const _rate=Number(settings.raw.usdt_krw_rate||1400); const _membership=vendor?.membership_type||'general'; const _banner=!!vendor?.banner_active; const _fmt=n=>Number(n||0).toLocaleString(); const _usdt=n=>((Number(n||0))/_rate).toFixed(2); const priceRec=Number(pricingPreview?.recommended_upgrade||0); const priceBannerGeneral=Number(pricingPreview?.banner_from_general||0); const priceBannerRec=Number(pricingPreview?.banner_from_recommended||0); %>
+          <h3>변경/연장 신청</h3>
+          <p>일반/추천 변경과 기간 연장을 함께 신청합니다. 일반 → 추천은 바로 적용을 선택하면 남은 기간 차액이 포함됩니다.</p>
+          <% const gPrice=Number(pricingPreview?.renewal_general||0); const rPriceNoImmediate=Number(settings.raw.recommended_register_price_krw||0); const rPriceImmediate=Number(pricingPreview?.renewal_recommended||0); const rate2=Number(settings.raw.usdt_krw_rate||1400); const usdt2=n=>((Number(n||0))/rate2).toFixed(2); %>
           <div class="paybox">
-            <b>현재 상품</b>
-            <p><%=vendor.banner_active?'추천업체 + 프리미엄배너':vendor.membership_type==='recommended'?'추천업체':'일반업체'%></p>
-            <% if(vendor.scheduled_change_at){%><p style="color:#ffdc4d">예약 변경: <%=vendor.scheduled_change_note||'-'%> / 실행일 <%=fmtDate(vendor.scheduled_change_at)%></p><%}%>
-          </div>
-
-          <div class="upgrade-grid">
-            <% if(_membership==='general'){%>
-              <div class="upgrade-card">
-                <h4>일반 → 추천</h4>
-                <p>입금확인 즉시 추천목록으로 변경됩니다.</p>
-                <strong><%=_fmt(priceRec)%>원 / <%=_usdt(priceRec)%> USDT</strong>
-                <form method="post" action="/vendor-dashboard/ad-request">
-                  <input type="hidden" name="product_type" value="recommended_upgrade"><input type="hidden" name="period" value="30">
-                  <textarea name="content" placeholder="요청사항"></textarea><button>추천 변경 신청</button>
-                </form>
-              </div>
-            <%}else{%>
-              <div class="upgrade-card">
-                <h4>추천 → 일반 예약변경</h4>
-                <p>현재 추천기간 만기일까지 추천노출을 유지하고, 만기일에 일반업체로 변경됩니다.</p>
-                <strong>0원</strong>
-                <form method="post" action="/vendor-dashboard/ad-request">
-                  <input type="hidden" name="product_type" value="schedule_to_general"><input type="hidden" name="period" value="0">
-                  <textarea name="content" placeholder="요청사항"></textarea><button>일반 변경 예약</button>
-                </form>
-              </div>
-            <%}%>
-
-            <% if(_banner){%>
-              <div class="upgrade-card">
-                <h4>프리미엄배너 제거 예약</h4>
-                <p>배너 만기일까지 유지하고 만기일에 배너만 제거됩니다. 추천업체는 유지됩니다.</p>
-                <strong>0원</strong>
-                <form method="post" action="/vendor-dashboard/ad-request">
-                  <input type="hidden" name="product_type" value="schedule_remove_banner"><input type="hidden" name="period" value="0">
-                  <textarea name="content" placeholder="요청사항"></textarea><button>배너 제거 예약</button>
-                </form>
-              </div>
-            <%}%>
-          </div>
-        </section>
-      </div>
-
-      <div id="vendor-panel-renewal" class="vendor-panel">
-        <section class="box">
-          <h3>연장 신청</h3>
-          <% const gPrice=Number(pricingPreview?.renewal_general||0); const rPrice=Number(pricingPreview?.renewal_recommended||0); const bPrice=Number(pricingPreview?.renewal_banner||0); const rate2=Number(settings.raw.usdt_krw_rate||1400); const usdt2=n=>((Number(n||0))/rate2).toFixed(2); %>
-          <div class="paybox">
-            <b>연장 상품 가격</b><p>아래 금액은 현재 남은 기간 차액과 30일 연장 기준이 반영된 예상금액입니다.</p>
+            <b>변경/연장 예상금액</b>
             <p>일반업체 30일 <%=gPrice.toLocaleString()%>원 / <%=usdt2(gPrice)%> USDT</p>
-            <p>추천업체 30일 <%=rPrice.toLocaleString()%>원 / <%=usdt2(rPrice)%> USDT</p>
-            <p>프리미엄배너 <%=bPrice.toLocaleString()%>원 / <%=usdt2(bPrice)%> USDT</p>
-            <p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p><code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code>
+            <p>추천업체 30일 <%=rPriceNoImmediate.toLocaleString()%>원 / <%=usdt2(rPriceNoImmediate)%> USDT</p>
+            <% if(vendor.membership_type==='general'){%><p>일반 → 추천 바로 적용 예상금액: <%=rPriceImmediate.toLocaleString()%>원 / <%=usdt2(rPriceImmediate)%> USDT</p><%}%>
+            <p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p>
+            <code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code>
           </div>
           <form method="post" action="/vendor-dashboard/ad-request" class="renewal-box">
             <div class="renewal-form-grid">
               <select name="product_type">
-                <option value="renewal_general">일반업체 연장</option>
-                <option value="renewal_recommended" <%=vendor?.membership_type==='recommended'&&!vendor?.banner_active?'selected':''%>>추천업체 연장</option>
-                <option value="renewal_banner" <%=vendor?.banner_active?'selected':''%>>프리미엄배너 연장</option>
+                <option value="renewal_general" <%=vendor?.membership_type==='general'?'selected':''%>>일반업체 변경/연장</option>
+                <option value="renewal_recommended" <%=vendor?.membership_type==='recommended'&&!vendor?.banner_active?'selected':''%>>추천업체 변경/연장</option>
               </select>
               <select name="period"><option value="30">30일</option><option value="60">60일</option><option value="90">90일</option></select>
-              <textarea name="content" placeholder="요청사항"></textarea><button>연장 신청하기</button>
+              <% if(vendor.membership_type==='general'){%>
+                <label class="full" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="immediate_apply" value="1"> 추천업체로 바로 적용하기</label>
+              <%}%>
+              <textarea name="content" placeholder="요청사항"></textarea>
+              <button>변경/연장 신청하기</button>
             </div>
           </form>
         </section>
@@ -224,13 +180,13 @@
 
       <div id="vendor-panel-banner" class="vendor-panel">
         <section class="box">
-          <h3>프리미엄배너 신청</h3>
-          <p>프리미엄배너는 추천업체 + 배너 노출 상품입니다. 일반업체는 추천승급 비용이 포함되어 가격이 다르게 표시됩니다.</p>
+          <h3>프리미엄배너 신청/연장</h3>
           <% const bannerPrice = vendor.membership_type==='recommended' ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0) : Number(settings.raw.general_to_banner_price_krw||0); const bannerUsdt=((bannerPrice)/(Number(settings.raw.usdt_krw_rate||1400))).toFixed(2); %>
+          <p>프리미엄배너는 추천업체 + 배너 노출 상품입니다. 일반업체는 추천승급 비용이 포함되어 가격이 다르게 표시됩니다.</p>
           <div class="paybox">
-            <b>프리미엄배너 가격</b>
+            <b><%=vendor.banner_active?'프리미엄배너 연장 가격':'프리미엄배너 신청 가격'%></b>
             <% if(vendor.membership_type==='recommended'){%>
-              <p>추천업체 배너 추가: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
+              <p>추천업체 배너 <%=vendor.banner_active?'연장':'추가'%>: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
             <%}else{%>
               <p>일반업체 프리미엄배너: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
               <p>추천업체 승급 + 프리미엄배너 노출이 함께 적용됩니다.</p>
@@ -238,13 +194,25 @@
             <p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p>
             <code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code>
           </div>
-          <form method="post" action="/vendor-dashboard/banner-request" enctype="multipart/form-data" class="form">
-            <input name="title" placeholder="배너 제목" required>
-            <input name="subtitle" placeholder="배너 부제목">
-            <input name="link_url" placeholder="연결 링크 URL">
-            <input type="file" name="image" accept="image/*" required>
-            <button>배너 신청하기</button>
-          </form>
+
+          <% if(vendor.banner_active){%>
+            <form method="post" action="/vendor-dashboard/ad-request" class="renewal-box">
+              <div class="renewal-form-grid">
+                <input type="hidden" name="product_type" value="renewal_banner">
+                <select name="period"><option value="30">30일</option><option value="60">60일</option><option value="90">90일</option></select>
+                <textarea name="content" placeholder="배너 연장 요청사항"></textarea>
+                <button>프리미엄배너 연장 신청하기</button>
+              </div>
+            </form>
+          <%}else{%>
+            <form method="post" action="/vendor-dashboard/banner-request" enctype="multipart/form-data" class="form">
+              <input name="title" placeholder="배너 제목" required>
+              <input name="subtitle" placeholder="배너 부제목">
+              <input name="link_url" placeholder="연결 링크 URL">
+              <input type="file" name="image" accept="image/*" required>
+              <button>배너 신청하기</button>
+            </form>
+          <%}%>
         </section>
       </div>
 
