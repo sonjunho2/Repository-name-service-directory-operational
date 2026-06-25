@@ -229,6 +229,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   const dateKey=x=>x?new Date(x).toISOString().slice(0,10):'';
   const monthOf=x=>x?new Date(x).toISOString().slice(0,7):'';
   const sumKrw=arr=>arr.reduce((s,x)=>s+Number(x.krw_price||0),0);
+  const paymentStatusStats={waiting:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='waiting').length,unpaid:[...bannerRequests.rows,...adRequests.rows].filter(x=>!x.payment_status||x.payment_status==='unpaid').length,paid:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='paid').length,rejected:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='rejected').length,cancelled:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='cancelled').length};
   const revenueStats={
     today:sumKrw(paidRows.filter(x=>dateKey(x.paid_at)===todayKey)),
     month:sumKrw(paidRows.filter(x=>monthOf(x.paid_at)===monthKey)),
@@ -237,7 +238,8 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     general:paidRows.filter(x=>x.product_type==='general').length,
     recommended:paidRows.filter(x=>x.product_type==='recommended').length,
     banner:paidRows.filter(x=>x.product_type==='banner').length,
-    recent:paidRows.slice(0,10)
+    recent:paidRows.slice(0,10),
+    statuses:paymentStatusStats
   };
   res.render('admin',{users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
@@ -337,6 +339,18 @@ app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
 app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>{const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x)return res.redirect('/admin#bannerRequests'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data]); await q('UPDATE vendor_banner_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]); await logAdmin(req,'배너신청 승인','banner_request',x.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
 
 
+
+app.post('/vendor-dashboard/banner-request/:id/cancel',login,async(req,res)=>{
+  if(!req.session.user.is_vendor)return res.redirect('/login');
+  await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(admin_memo,'업체가 취소'),processed_at=now() WHERE id=$1 AND user_id=$2 AND status='new'",[req.params.id,req.session.user.id]);
+  res.redirect('/vendor-dashboard');
+});
+app.post('/vendor-dashboard/ad-request/:id/cancel',login,async(req,res)=>{
+  if(!req.session.user.is_vendor)return res.redirect('/login');
+  await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(admin_memo,'업체가 취소'),processed_at=now() WHERE id=$1 AND user_id=$2 AND status='new'",[req.params.id,req.session.user.id]);
+  res.redirect('/vendor-dashboard');
+});
+
 app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
@@ -381,7 +395,19 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   await logAdmin(req,'상품변경 입금확인/즉시적용','ad_request',x.id,`${x.plan||productType} 적용`);
   res.redirect('/admin#adRequests');
 });
-app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_banner_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
+
+app.post('/admin/banner-requests/:id/cancel',admin,async(req,res)=>{
+  await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  await logAdmin(req,'배너신청 취소','banner_request',req.params.id,req.body.admin_memo||'');
+  res.redirect('/admin#bannerRequests');
+});
+app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
+  await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  await logAdmin(req,'상품/광고신청 취소','ad_request',req.params.id,req.body.admin_memo||'');
+  res.redirect('/admin#adRequests');
+});
+
+app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
 
 app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>{
   const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);
@@ -406,7 +432,7 @@ app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>{
   res.redirect('/admin#adRequests');
 });
 
-app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_ad_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'광고연장 반려','ad_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#adRequests');});
+app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_ad_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'상품/광고신청 반려','ad_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#adRequests');});
 
 app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{const r=await q('SELECT * FROM vendor_update_requests WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x)return res.redirect('/admin#vendorRequests'); const vals=[x.name,x.category,x.region,x.phone,x.kakao_url,x.tags,x.description,x.business_hours,x.vendor_id]; if(x.image_data){await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,image_data=$10 WHERE id=$9',[...vals,x.image_data]);}else{await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8 WHERE id=$9',vals);} await q('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]); await logAdmin(req,'업체수정요청 승인','vendor_update_request',x.id,req.body.admin_memo||''); res.redirect('/admin#vendorRequests');});
 
