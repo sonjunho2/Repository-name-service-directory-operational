@@ -400,11 +400,21 @@ app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
 
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
-  const imageData=vendor.image_data||'';
 
   const inserted=await q(
     'INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
-    [req.session.user.id,req.session.user.vendor_id,req.body.title||vendor.name||'프리미엄배너',req.body.subtitle||'',req.body.link_url||vendor.kakao_url||'',imageData,price,usdt,'unpaid','new']
+    [
+      req.session.user.id,
+      req.session.user.vendor_id,
+      vendor.name||'프리미엄배너',
+      vendor.description||vendor.category||'',
+      vendor.kakao_url||'',
+      vendor.image_data||'',
+      price,
+      usdt,
+      'unpaid',
+      'new'
+    ]
   );
 
   res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+inserted.rows[0].id);
