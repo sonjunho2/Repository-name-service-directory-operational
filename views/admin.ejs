@@ -64,6 +64,19 @@
 .admin-menu-group{margin-top:14px;padding-top:14px;border-top:1px solid #29324f}
 .admin-menu-title{font-size:13px;color:#8d98b8;font-weight:900;margin:0 0 8px 6px}
 .admin-sidebar{overflow:auto}
+.admin-home-summary{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin:0 0 22px}
+.admin-home-box{border:1px solid #29324f;border-radius:18px;background:#101525;padding:20px}
+.admin-home-box h3{margin:0 0 14px}
+.admin-pending-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.admin-pending-card{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid #29324f;background:#070b15;border-radius:14px;padding:14px;text-decoration:none;color:#fff}
+.admin-pending-card:hover{border-color:#10d9ff}
+.admin-pending-card b{font-size:14px;color:#dfe9ff}
+.admin-pending-card strong{font-size:24px;color:#10d9ff}
+.admin-today-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.admin-today-card{border:1px solid #29324f;background:#070b15;border-radius:14px;padding:14px}
+.admin-today-card b{display:block;color:#8d98b8;margin-bottom:8px}
+.admin-today-card strong{font-size:22px;color:#fff}
+@media(max-width:1000px){.admin-home-summary{grid-template-columns:1fr}.admin-pending-grid,.admin-today-grid{grid-template-columns:1fr}}
 </style></head><body><header class="top"><b>관리자</b><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
@@ -106,6 +119,40 @@
     <a href="#settings" data-panel="settings">환경설정</a>
   </div>
 </aside><main class="admin-content"><section id="dashboard" class="panel admin-panel active"><% const _today=new Date().toISOString().slice(0,10); const DS=dashboardStats||{}; const _isToday=x=>x&&x.created_at&&new Date(x.created_at).toISOString().slice(0,10)===_today; const _groupCount=(arr,key)=>Object.entries(arr.reduce((m,x)=>{const raw=x[key];const k=raw&&String(raw).trim()?String(raw).trim():"미지정";m[k]=(m[k]||0)+1;return m;},{})).sort((a,b)=>b[1]-a[1]); const _reviewStats={}; reviews.forEach(r=>{const id=r.vendor_id;if(id){_reviewStats[id]=_reviewStats[id]||{count:0,sum:0,name:r.vendor_name||"업체명 없음"};_reviewStats[id].count++;_reviewStats[id].sum+=Number(r.rating||0);}}); %><h2>대시보드</h2>
+<%
+  const _safeArr=v=>Array.isArray(v)?v:[];
+  const _todayKey=new Date().toISOString().slice(0,10);
+  const _todayItem=x=>x&&x.created_at&&new Date(x.created_at).toISOString().slice(0,10)===_todayKey;
+  const _pendingInquiries=_safeArr(inquiries).filter(x=>x.status!=='approved').length;
+  const _pendingVendorRequests=_safeArr(vendorRequests).filter(x=>x.status==='new').length;
+  const _pendingAdRequests=_safeArr(adRequests).filter(x=>x.status==='new').length;
+  const _pendingBannerRequests=_safeArr(bannerRequests).filter(x=>x.status==='new').length;
+  const _waitingPayments=[..._safeArr(adRequests),..._safeArr(bannerRequests)].filter(x=>x.payment_status==='waiting').length;
+  const _pendingReports=_safeArr(reports).filter(x=>x.status==='new').length;
+%>
+<div class="admin-home-summary">
+  <div class="admin-home-box">
+    <h3>처리 대기</h3>
+    <div class="admin-pending-grid">
+      <a class="admin-pending-card" href="#inquiries" data-panel="inquiries"><b>입점 승인</b><strong><%=_pendingInquiries%></strong></a>
+      <a class="admin-pending-card" href="#vendorRequests" data-panel="vendorRequests"><b>업체 수정요청</b><strong><%=_pendingVendorRequests%></strong></a>
+      <a class="admin-pending-card" href="#adRequests" data-panel="adRequests"><b>변경/연장 신청</b><strong><%=_pendingAdRequests%></strong></a>
+      <a class="admin-pending-card" href="#bannerRequests" data-panel="bannerRequests"><b>프리미엄배너 신청</b><strong><%=_pendingBannerRequests%></strong></a>
+      <a class="admin-pending-card" href="#revenue" data-panel="revenue"><b>입금확인중</b><strong><%=_waitingPayments%></strong></a>
+      <a class="admin-pending-card" href="#reports" data-panel="reports"><b>신고 접수</b><strong><%=_pendingReports%></strong></a>
+    </div>
+  </div>
+
+  <div class="admin-home-box">
+    <h3>오늘 통계</h3>
+    <div class="admin-today-grid">
+      <div class="admin-today-card"><b>오늘 가입</b><strong><%=_safeArr(users).filter(_todayItem).length%>명</strong></div>
+      <div class="admin-today-card"><b>오늘 업체등록</b><strong><%=_safeArr(vendors).filter(_todayItem).length%>개</strong></div>
+      <div class="admin-today-card"><b>오늘 신청</b><strong><%=_safeArr(inquiries).filter(_todayItem).length + _safeArr(adRequests).filter(_todayItem).length + _safeArr(bannerRequests).filter(_todayItem).length%>건</strong></div>
+      <div class="admin-today-card"><b>오늘 매출</b><strong><%=Number(revenueStats?.today||0).toLocaleString()%>원</strong></div>
+    </div>
+  </div>
+</div>
 <div class="dash-grid">
   <a class="dash-card hot" href="#revenue" data-panel="revenue"><b>오늘 매출</b><strong><%=Number(revenueStats?.today||0).toLocaleString()%>원</strong></a>
   <a class="dash-card hot" href="#revenue" data-panel="revenue"><b>이번달 매출</b><strong><%=Number(revenueStats?.month||0).toLocaleString()%>원</strong></a>
