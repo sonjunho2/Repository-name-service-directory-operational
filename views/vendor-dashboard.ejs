@@ -72,7 +72,7 @@
               <div class="current-plan-item"><b>목록 노출</b><strong><%=vendor.ad_type==='none'?'노출안함':vendor.ad_type==='recommended'?'추천목록':'일반목록'%></strong></div>
               <div class="current-plan-item"><b>등록 만기일</b><strong><%=fmtDate(vendor.expire_at)%></strong></div>
               <div class="current-plan-item"><b>남은 기간</b><strong><%=pricingPreview?.remainDays||0%>일</strong></div>
-              <div class="current-plan-item"><b>노출 상태</b><strong><%=vendor.status==="expired"||((pricingPreview?.remainDays||0)<=0&&vendor.expire_at)?"만료/노출중지":vendor.status==="active"?"노출중":vendor.status==="hidden"?"숨김":"검수중"%></strong></div>
+              <div class="current-plan-item"><b>노출 상태</b><strong><%=vendor.ad_type==="none"?"노출안함":vendor.status==="expired"||((pricingPreview?.remainDays||0)<=0&&vendor.expire_at)?"광고만료":vendor.status==="active"?"노출중":vendor.status==="hidden"?"숨김":"검수중"%></strong></div>
             </div>
           </div>
         </section>
@@ -157,7 +157,7 @@
             <b>변경/연장 예상금액</b>
             <p>일반업체 30일 <%=gPrice.toLocaleString()%>원 / <%=usdt2(gPrice)%> USDT</p>
             <p>추천업체 30일 <%=rPriceNoImmediate.toLocaleString()%>원 / <%=usdt2(rPriceNoImmediate)%> USDT</p>
-            <% if(vendor.membership_type==='general'){%><p>일반 → 추천 바로 적용 예상금액: <%=rPriceImmediate.toLocaleString()%>원 / <%=usdt2(rPriceImmediate)%> USDT</p><%}%>
+            <% if(vendor.ad_type==='general'){%><p>일반 → 추천 바로 적용 예상금액: <%=rPriceImmediate.toLocaleString()%>원 / <%=usdt2(rPriceImmediate)%> USDT</p><%}%>
             <p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p>
             <code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code>
           </div>
@@ -168,7 +168,7 @@
                 <option value="renewal_recommended" <%=vendor?.membership_type==='recommended'&&!vendor?.banner_active?'selected':''%>>추천광고 신청/변경/연장</option>
               </select>
               <select name="period"><option value="30">30일</option><option value="60">60일</option><option value="90">90일</option></select>
-              <% if(vendor.membership_type==='general'){%>
+              <% if(vendor.ad_type==='general'){%>
                 <label class="full" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="immediate_apply" value="1"> 추천업체로 바로 적용하기</label>
               <%}%>
               <textarea name="content" placeholder="요청사항"></textarea>
@@ -181,11 +181,11 @@
       <div id="vendor-panel-banner" class="vendor-panel">
         <section class="box">
           <h3>프리미엄배너 신청/연장</h3>
-          <% const bannerPrice = vendor.membership_type==='recommended' ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0) : Number(settings.raw.general_to_banner_price_krw||0); const bannerUsdt=((bannerPrice)/(Number(settings.raw.usdt_krw_rate||1400))).toFixed(2); %>
+          <% const bannerPrice = vendor.ad_type==='recommended' ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0) : Number(settings.raw.general_to_banner_price_krw||0); const bannerUsdt=((bannerPrice)/(Number(settings.raw.usdt_krw_rate||1400))).toFixed(2); %>
           <p>프리미엄배너는 추천광고 + 배너 노출 상품입니다. 일반업체는 추천승급 비용이 포함되어 가격이 다르게 표시됩니다.</p>
           <div class="paybox">
             <b><%=vendor.banner_active?'프리미엄배너 연장 가격':'프리미엄배너 신청 가격'%></b>
-            <% if(vendor.membership_type==='recommended'){%>
+            <% if(vendor.ad_type==='recommended'){%>
               <p>추천광고 업체 배너 <%=vendor.banner_active?'연장':'추가'%>: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
             <%}else{%>
               <p>일반업체 프리미엄배너: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
