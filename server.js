@@ -283,7 +283,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   res.render('admin',{users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
 
-app.get('/mypage',login,async(req,res)=>{if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows});});
+app.get('/mypage',login,async(req,res)=>{if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=upgrade'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows});});
 
 app.get('/vendor-apply',login,async(req,res)=>{const settings=await getSettings(); res.render('vendor-apply',{settings,error:null,done:false});});
 
@@ -347,7 +347,7 @@ app.post('/vendor-dashboard/banner-request',login,upload.single('image'),async(r
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
   const inserted=await q('INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',[req.session.user.id,req.session.user.vendor_id,req.body.title,req.body.subtitle,req.body.link_url,img(req.file),price,usdt,'unpaid','new']);
-  res.redirect('/vendor-dashboard?pay=banner&id='+inserted.rows[0].id);
+  res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+inserted.rows[0].id);
 });
 app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
@@ -375,7 +375,7 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
     [req.session.user.id,req.session.user.vendor_id,label,period,(req.body.content||'')+(immediateApply?'\n[바로 적용 요청]':''),price,usdt,'unpaid','new',productType]
   );
 
-  res.redirect('/vendor-dashboard?pay=ad&id='+inserted.rows[0].id);
+  res.redirect('/vendor-dashboard?panel=upgrade&pay=ad&id='+inserted.rows[0].id);
 });
 
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
