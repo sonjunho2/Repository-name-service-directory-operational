@@ -191,11 +191,15 @@
             <% } else { %>
               <div class="file-guide">현재 등록된 대표 이미지가 없습니다. 업체정보 수정에서 대표 이미지를 먼저 등록하세요.</div>
             <% } %>
+            <div class="file-guide">
+              <b>프리미엄배너 등록 정보</b><br>
+              배너 제목: 업체명 자동 사용<br>
+              배너 설명: 업체소개/업종 자동 사용<br>
+              연결 링크: 등록된 카카오 링크 자동 사용<br>
+              배너 이미지: 대표 이미지/GIF 자동 사용
+            </div>
             <form method="post" action="/vendor-dashboard/banner-request" class="form">
-              <input name="title" placeholder="배너 제목" value="<%=vendor.name||''%>" required>
-              <input name="subtitle" placeholder="배너 부제목">
-              <input name="link_url" placeholder="연결 URL" value="<%=vendor.kakao_url||''%>">
-              <button <%=vendor.image_data?'':'disabled'%>>배너 신청</button>
+              <button <%=vendor.image_data?'':'disabled'%>>현재 업체정보로 배너 신청</button>
             </form>
           <% } %>
         </div>
