@@ -21,6 +21,13 @@
 .table{width:100%;border-collapse:collapse}.table th,.table td{border:1px solid #29324f;padding:9px;text-align:left}.table th{background:#171d30}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.actions form{margin:0}.actions button{height:36px;border:0;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;padding:0 14px}
 @media(max-width:900px){.layout,.grid,.form{grid-template-columns:1fr}.form textarea,.form button{grid-column:1}.side{position:static}.addr{grid-template-columns:1fr}}
+.status-waiting{display:inline-flex;align-items:center;gap:6px;background:#3d3412;color:#ffdc4d;border:1px solid #ffdc4d;border-radius:999px;padding:6px 12px;font-weight:900}
+.status-waiting:before{content:'●';animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+.file-guide{border:1px dashed #10d9ff;background:#06111c;border-radius:12px;padding:12px;margin:10px 0;color:#dfe9ff}
+.file-guide b{color:#10d9ff}
+.banner-preview{display:flex;gap:12px;align-items:center;border:1px solid #29324f;background:#070b15;border-radius:14px;padding:12px;margin:12px 0}
+.banner-preview img{width:120px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #29324f}
 </style>
 </head>
 <body>
@@ -90,6 +97,13 @@
             <input name="business_hours" value="<%=vendor.business_hours||''%>" placeholder="영업시간">
             <textarea name="tags" placeholder="태그"><%=vendor.tags||''%></textarea>
             <textarea name="description" placeholder="소개"><%=vendor.description||''%></textarea>
+            <div class="file-guide">
+              <b>대표 이미지/GIF 권장 규격</b><br>
+              권장 크기: 가로 1200px 이상 / 비율 16:9 또는 4:3<br>
+              권장 용량: 5MB 이하<br>
+              가능 파일: JPG, PNG, WEBP, GIF<br>
+              이 이미지는 일반광고, 추천광고, 프리미엄배너에 공통으로 사용됩니다.
+            </div>
             <input type="file" name="image" accept="image/*">
             <button>수정요청 보내기</button>
           </form>
@@ -104,7 +118,7 @@
             <div class="paybox">
               <b>진행중인 변경/연장 결제</b>
               <% activeAds.forEach(pay=>{ %>
-                <p><b><%=pay.plan%></b> / <%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT / <%=pay.payment_status==='waiting'?'입금확인중...':'입금대기'%></p>
+                <p><b><%=pay.plan%></b> / <%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT / <%- pay.payment_status==='waiting'?'<span class="status-waiting">입금확인중...</span>':'입금대기' %></p>
                 <div class="addr"><input id="adAddr<%=pay.id%>" readonly value="<%=settings.raw.usdt_address||''%>"><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('adAddr<%=pay.id%>').value)">주소복사</button></div>
                 <div class="actions">
                   <% if(pay.payment_status!=='waiting'){ %><form method="post" action="/vendor-dashboard/ad-request/<%=pay.id%>/paid"><button>입금완료</button></form><% } %>
@@ -139,7 +153,7 @@
             <div class="paybox">
               <b>진행중인 프리미엄배너 결제</b>
               <% activeBanners.forEach(pay=>{ %>
-                <p><b><%=pay.title%></b> / <%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT / <%=pay.payment_status==='waiting'?'입금확인중...':'입금대기'%></p>
+                <p><b><%=pay.title%></b> / <%=Number(pay.krw_price||0).toLocaleString()%>원 / <%=pay.usdt_amount||0%> USDT / <%- pay.payment_status==='waiting'?'<span class="status-waiting">입금확인중...</span>':'입금대기' %></p>
                 <div class="addr"><input id="bnAddr<%=pay.id%>" readonly value="<%=settings.raw.usdt_address||''%>"><button type="button" onclick="navigator.clipboard.writeText(document.getElementById('bnAddr<%=pay.id%>').value)">주소복사</button></div>
                 <div class="actions">
                   <% if(pay.payment_status!=='waiting'){ %><form method="post" action="/vendor-dashboard/banner-request/<%=pay.id%>/paid"><button>입금완료</button></form><% } %>
@@ -161,12 +175,27 @@
               <button>배너 연장 신청</button>
             </form>
           <% } else { %>
-            <form method="post" action="/vendor-dashboard/banner-request" enctype="multipart/form-data" class="form">
-              <input name="title" placeholder="배너 제목" required>
+            <div class="file-guide">
+              <b>배너 이미지는 업체 대표 이미지/GIF를 그대로 사용합니다.</b><br>
+              이미지를 바꾸려면 먼저 [업체정보 수정]에서 대표 이미지를 변경 요청하세요.<br>
+              권장 크기: 가로 1200px 이상 / 권장 용량 5MB 이하 / JPG, PNG, WEBP, GIF
+            </div>
+            <% if(vendor.image_data){ %>
+              <div class="banner-preview">
+                <img src="<%=vendor.image_data%>" alt="현재 대표이미지">
+                <div>
+                  <b>현재 배너로 사용될 이미지</b><br>
+                  일반광고/추천광고/프리미엄배너에 공통 사용됩니다.
+                </div>
+              </div>
+            <% } else { %>
+              <div class="file-guide">현재 등록된 대표 이미지가 없습니다. 업체정보 수정에서 대표 이미지를 먼저 등록하세요.</div>
+            <% } %>
+            <form method="post" action="/vendor-dashboard/banner-request" class="form">
+              <input name="title" placeholder="배너 제목" value="<%=vendor.name||''%>" required>
               <input name="subtitle" placeholder="배너 부제목">
-              <input name="link_url" placeholder="연결 URL">
-              <input type="file" name="image" accept="image/*" required>
-              <button>배너 신청</button>
+              <input name="link_url" placeholder="연결 URL" value="<%=vendor.kakao_url||''%>">
+              <button <%=vendor.image_data?'':'disabled'%>>배너 신청</button>
             </form>
           <% } %>
         </div>
@@ -176,8 +205,8 @@
         <div class="box">
           <h2>신청내역</h2>
           <table class="table"><tr><th>구분</th><th>상품</th><th>금액</th><th>상태</th></tr>
-          <% (adRequests||[]).forEach(r=>{ %><tr><td>광고</td><td><%=r.plan%></td><td><%=Number(r.krw_price||0).toLocaleString()%>원</td><td><%=r.status==='approved'?'승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인중...':'입금대기'%></td></tr><% }) %>
-          <% (bannerRequests||[]).forEach(r=>{ %><tr><td>배너</td><td><%=r.title%></td><td><%=Number(r.krw_price||0).toLocaleString()%>원</td><td><%=r.status==='approved'?'승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'입금확인중...':'입금대기'%></td></tr><% }) %>
+          <% (adRequests||[]).forEach(r=>{ %><tr><td>광고</td><td><%=r.plan%></td><td><%=Number(r.krw_price||0).toLocaleString()%>원</td><td><%- r.status==='approved'?'승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'<span class="status-waiting">입금확인중...</span>':'입금대기' %></td></tr><% }) %>
+          <% (bannerRequests||[]).forEach(r=>{ %><tr><td>배너</td><td><%=r.title%></td><td><%=Number(r.krw_price||0).toLocaleString()%>원</td><td><%- r.status==='approved'?'승인':r.status==='rejected'?'반려':r.status==='cancelled'?'취소':r.payment_status==='waiting'?'<span class="status-waiting">입금확인중...</span>':'입금대기' %></td></tr><% }) %>
           </table>
         </div>
       </section>
