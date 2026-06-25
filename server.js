@@ -8,7 +8,16 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS membership_type text DEFAULT 'general'");
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS expire_at date");
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS banner_active boolean DEFAULT false");
-    await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS banner_until date"); await q(`CREATE TABLE IF NOT EXISTS favorites(id SERIAL PRIMARY KEY,user_id int,vendor_id int,created_at timestamp DEFAULT now(),UNIQUE(user_id,vendor_id))`); await q(`CREATE TABLE IF NOT EXISTS admin_logs(id SERIAL PRIMARY KEY,admin_id int,admin_username text,action text,target_type text,target_id text,memo text,created_at timestamp DEFAULT now())`);
+    await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS banner_until date");
+    await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS sns_url text");
+    await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS line_url text");
+    await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS telegram_url text");
+    await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS holiday_info text");
+    await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS image_updated_at timestamp");
+    await q("ALTER TABLE vendor_update_requests ADD COLUMN IF NOT EXISTS sns_url text");
+    await q("ALTER TABLE vendor_update_requests ADD COLUMN IF NOT EXISTS line_url text");
+    await q("ALTER TABLE vendor_update_requests ADD COLUMN IF NOT EXISTS telegram_url text");
+    await q("ALTER TABLE vendor_update_requests ADD COLUMN IF NOT EXISTS holiday_info text"); await q(`CREATE TABLE IF NOT EXISTS favorites(id SERIAL PRIMARY KEY,user_id int,vendor_id int,created_at timestamp DEFAULT now(),UNIQUE(user_id,vendor_id))`); await q(`CREATE TABLE IF NOT EXISTS admin_logs(id SERIAL PRIMARY KEY,admin_id int,admin_username text,action text,target_type text,target_id text,memo text,created_at timestamp DEFAULT now())`);
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS krw_price int");
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS usdt_amount numeric");
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS payment_status text DEFAULT 'unpaid'");
@@ -298,8 +307,15 @@ app.get('/vendor-dashboard',login,async(req,res)=>{if(!req.session.user.is_vendo
   };
   res.render('vendor-dashboard',{vendor,requests:requests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,paymentLogs:paymentLogs.rows,viewStats:viewStats.rows[0],expiryNotice,pricingPreview,stats:stats.rows[0],settings,error:null,done:false});});
 
-app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply'); const im=img(req.file); await q('INSERT INTO vendor_update_requests(user_id,vendor_id,name,category,region,phone,kakao_url,business_hours,tags,description,image_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[req.session.user.id,req.session.user.vendor_id,req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,req.body.business_hours,req.body.tags,req.body.description,im]); res.redirect('/vendor-dashboard');});
-
+app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{
+  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
+  const im=img(req.file);
+  await q(
+    'INSERT INTO vendor_update_requests(user_id,vendor_id,name,category,region,phone,kakao_url,business_hours,tags,description,image_data,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
+    [req.session.user.id,req.session.user.vendor_id,req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,req.body.business_hours,req.body.tags,req.body.description,im,req.body.sns_url,req.body.line_url,req.body.telegram_url,req.body.holiday_info]
+  );
+  res.redirect('/vendor-dashboard');
+});
 
 app.post('/vendor-dashboard/banner-request',login,upload.single('image'),async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
@@ -455,8 +471,23 @@ app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>{
 
 app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_ad_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'상품/광고신청 반려','ad_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#adRequests');});
 
-app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{const r=await q('SELECT * FROM vendor_update_requests WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x)return res.redirect('/admin#vendorRequests'); const vals=[x.name,x.category,x.region,x.phone,x.kakao_url,x.tags,x.description,x.business_hours,x.vendor_id]; if(x.image_data){await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,image_data=$10 WHERE id=$9',[...vals,x.image_data]);}else{await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8 WHERE id=$9',vals);} await q('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]); await logAdmin(req,'업체수정요청 승인','vendor_update_request',x.id,req.body.admin_memo||''); res.redirect('/admin#vendorRequests');});
+app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
+  const r=await q('SELECT * FROM vendor_update_requests WHERE id=$1',[req.params.id]);
+  const x=r.rows[0];
+  if(!x)return res.redirect('/admin#vendorRequests');
 
+  const params=[x.name,x.category,x.region,x.phone,x.kakao_url,x.business_hours,x.tags,x.description,x.sns_url,x.line_url,x.telegram_url,x.holiday_info,x.vendor_id];
+
+  if(x.image_data){
+    await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,business_hours=$6,tags=$7,description=$8,sns_url=$9,line_url=$10,telegram_url=$11,holiday_info=$12,image_data=$14,image_updated_at=now() WHERE id=$13',[...params,x.image_data]);
+  }else{
+    await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,business_hours=$6,tags=$7,description=$8,sns_url=$9,line_url=$10,telegram_url=$11,holiday_info=$12 WHERE id=$13',params);
+  }
+
+  await q('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]);
+  await logAdmin(req,'업체수정요청 승인','vendor_update_request',x.id,req.body.admin_memo||'');
+  res.redirect('/admin#vendorRequests');
+});
 app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'업체수정요청 반려','vendor_update_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#vendorRequests');});
 
 app.post('/admin/link-user-vendor',admin,async(req,res)=>{const userId=parseInt(req.body.user_id||0,10); const vendorId=parseInt(req.body.vendor_id||0,10); if(userId&&vendorId){await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]); await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);} await logAdmin(req,'회원 수정','user',req.body.id,req.body.nickname||''); res.redirect('/admin#users');});
@@ -537,10 +568,10 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
     const params=[
       req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,
       req.body.tags,req.body.description,req.body.business_hours,isRecommended,isPremium,
-      req.body.status||'active',membership,req.body.expire_at||null,bannerActive,req.body.banner_until||null,req.body.id
+      req.body.status||'active',membership,req.body.expire_at||null,bannerActive,req.body.banner_until||null,req.body.id,req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||''
     ];
     if(im){
-      await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11,membership_type=$12,expire_at=$13,banner_active=$14,banner_until=$15,image_data=$17 WHERE id=$16',[...params,im]);
+      await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11,membership_type=$12,expire_at=$13,banner_active=$14,banner_until=$15,sns_url=$18,line_url=$19,telegram_url=$20,holiday_info=$21,image_data=$17,image_updated_at=now() WHERE id=$16',[...params,im]);
     }else{
       await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11,membership_type=$12,expire_at=$13,banner_active=$14,banner_until=$15 WHERE id=$16',params);
     }
