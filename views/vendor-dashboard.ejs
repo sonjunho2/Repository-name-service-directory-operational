@@ -68,8 +68,8 @@
           <h2>현재 이용 상태</h2>
           <div class="current-plan">
             <div class="current-plan-grid">
-              <div class="current-plan-item"><b>현재 등급</b><strong><%=vendor.banner_active?'프리미엄배너':vendor.membership_type==="recommended"?'추천업체':'일반업체'%></strong></div>
-              <div class="current-plan-item"><b>목록 노출</b><strong><%=vendor.membership_type==="recommended"?'추천목록':'일반목록'%></strong></div>
+              <div class="current-plan-item"><b>현재 등급</b><strong><%=vendor.ad_type==='none'?'광고없음':vendor.banner_active?'추천광고+프리미엄배너':vendor.ad_type==='recommended'?'추천광고':'일반광고'%></strong></div>
+              <div class="current-plan-item"><b>목록 노출</b><strong><%=vendor.ad_type==='none'?'노출안함':vendor.ad_type==='recommended'?'추천목록':'일반목록'%></strong></div>
               <div class="current-plan-item"><b>등록 만기일</b><strong><%=fmtDate(vendor.expire_at)%></strong></div>
               <div class="current-plan-item"><b>남은 기간</b><strong><%=pricingPreview?.remainDays||0%>일</strong></div>
               <div class="current-plan-item"><b>노출 상태</b><strong><%=vendor.status==="expired"||((pricingPreview?.remainDays||0)<=0&&vendor.expire_at)?"만료/노출중지":vendor.status==="active"?"노출중":vendor.status==="hidden"?"숨김":"검수중"%></strong></div>
@@ -164,8 +164,8 @@
           <form method="post" action="/vendor-dashboard/ad-request" class="renewal-box">
             <div class="renewal-form-grid">
               <select name="product_type">
-                <option value="renewal_general" <%=vendor?.membership_type==='general'?'selected':''%>>일반업체 변경/연장</option>
-                <option value="renewal_recommended" <%=vendor?.membership_type==='recommended'&&!vendor?.banner_active?'selected':''%>>추천업체 변경/연장</option>
+                <option value="renewal_general" <%=vendor?.membership_type==='general'?'selected':''%>>일반광고 신청/변경/연장</option>
+                <option value="renewal_recommended" <%=vendor?.membership_type==='recommended'&&!vendor?.banner_active?'selected':''%>>추천광고 신청/변경/연장</option>
               </select>
               <select name="period"><option value="30">30일</option><option value="60">60일</option><option value="90">90일</option></select>
               <% if(vendor.membership_type==='general'){%>
@@ -182,14 +182,14 @@
         <section class="box">
           <h3>프리미엄배너 신청/연장</h3>
           <% const bannerPrice = vendor.membership_type==='recommended' ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0) : Number(settings.raw.general_to_banner_price_krw||0); const bannerUsdt=((bannerPrice)/(Number(settings.raw.usdt_krw_rate||1400))).toFixed(2); %>
-          <p>프리미엄배너는 추천업체 + 배너 노출 상품입니다. 일반업체는 추천승급 비용이 포함되어 가격이 다르게 표시됩니다.</p>
+          <p>프리미엄배너는 추천광고 + 배너 노출 상품입니다. 일반업체는 추천승급 비용이 포함되어 가격이 다르게 표시됩니다.</p>
           <div class="paybox">
             <b><%=vendor.banner_active?'프리미엄배너 연장 가격':'프리미엄배너 신청 가격'%></b>
             <% if(vendor.membership_type==='recommended'){%>
-              <p>추천업체 배너 <%=vendor.banner_active?'연장':'추가'%>: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
+              <p>추천광고 업체 배너 <%=vendor.banner_active?'연장':'추가'%>: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
             <%}else{%>
               <p>일반업체 프리미엄배너: <%=bannerPrice.toLocaleString()%>원 / <%=bannerUsdt%> USDT</p>
-              <p>추천업체 승급 + 프리미엄배너 노출이 함께 적용됩니다.</p>
+              <p>추천광고 전환 + 프리미엄배너 노출이 함께 적용됩니다.</p>
             <%}%>
             <p>네트워크: <%=settings.raw.usdt_network||"TRC20"%></p>
             <code><%=settings.raw.usdt_address||"관리자가 입금주소를 설정하지 않았습니다."%></code>
