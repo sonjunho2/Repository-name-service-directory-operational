@@ -123,7 +123,7 @@ function proratedUpgradePrice(fromPrice30,toPrice30,remainDays){
   const diff=Math.max(0,Number(toPrice30||0)-Number(fromPrice30||0));
   return Math.round(diff * (Number(remainDays||0)/30));
 }
-function calcProductPrice(settings,vendor,productType,period){
+function calcProductPrice(settings,vendor,productType,period,immediateApply=false){
   const days=parseInt(period||30,10)||30;
   const remainDays=daysLeftUntil(vendor?.expire_at);
   const general30=Number(settings.raw.general_register_price_krw||0);
@@ -134,25 +134,22 @@ function calcProductPrice(settings,vendor,productType,period){
   const hasBanner=!!vendor?.banner_active;
 
   if(productType==='renewal_general') return priceForDays(general30,days);
+
   if(productType==='renewal_recommended'){
     const renewal=priceForDays(recommended30,days);
-    const upgradeNow=!isRecommended ? proratedUpgradePrice(general30,recommended30,remainDays) : 0;
+    const upgradeNow=(!isRecommended && immediateApply) ? proratedUpgradePrice(general30,recommended30,remainDays) : 0;
     return renewal + upgradeNow;
   }
+
   if(productType==='renewal_banner'){
     const baseBanner=isRecommended ? recommendedToBanner30 : generalToBanner30;
     const renewal=priceForDays(baseBanner,days);
-    const upgradeNow=hasBanner ? 0 : priceForDays(baseBanner,remainDays);
-    return renewal + upgradeNow;
+    const addNow=hasBanner ? 0 : priceForDays(baseBanner,remainDays || days);
+    return renewal + addNow;
   }
-  if(productType==='recommended_upgrade') return proratedUpgradePrice(general30,recommended30,remainDays);
+
   if(productType==='banner_from_general') return priceForDays(generalToBanner30,remainDays || days);
   if(productType==='banner_from_recommended') return priceForDays(recommendedToBanner30,remainDays || days);
-
-  // 예약 변경은 이미 결제한 기간을 끝까지 보장하므로 추가 결제 없음
-  if(productType==='schedule_to_general') return 0;
-  if(productType==='schedule_remove_banner') return 0;
-  if(productType==='schedule_to_recommended') return 0;
 
   return priceForDays(recommended30,days);
 }
@@ -336,54 +333,14 @@ app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(r
 app.post('/vendor-dashboard/banner-request',login,upload.single('image'),async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
   const settings=await getSettings();
-  const price=Number(settings.raw.banner_price_krw||0);
-  const rate=Number(settings.raw.usdt_krw_rate||1400);
-  const usdt=calcUsdt(price,rate);
-  const im=img(req.file);
-  await q(
-    'INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-    [req.session.user.id,req.session.user.vendor_id,req.body.title,req.body.subtitle,req.body.link_url,im,price,usdt,'unpaid','new']
-  );
-  res.redirect('/vendor-dashboard');
-});
-
-app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
-  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
-
-  const settings=await getSettings();
-  const productType=req.body.product_type||'renewal_recommended';
-  const period=String(req.body.period||'30');
   const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
   const vendor=v.rows[0]||{};
-
-  const price=calcProductPrice(settings,vendor,productType,period);
+  const price=(vendor.membership_type==='recommended')
+    ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0)
+    : Number(settings.raw.general_to_banner_price_krw||0);
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
-
-  const label={
-    recommended_upgrade:'일반→추천 즉시변경',
-    banner_from_general:'일반→프리미엄배너 즉시변경',
-    banner_from_recommended:'추천→프리미엄배너 즉시변경',
-    renewal_general:'일반업체 연장',
-    renewal_recommended:'추천업체 변경/연장',
-    renewal_banner:'프리미엄배너 변경/연장',
-    schedule_to_general:'만기 후 일반업체로 변경 예약',
-    schedule_remove_banner:'만기 후 프리미엄배너 제거 예약',
-    schedule_to_recommended:'만기 후 추천업체 유지 예약',
-    recommended:'추천등록'
-  }[productType]||'상품변경';
-
-  await q(
-    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,krw_price,usdt_amount,payment_status,status,product_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-    [req.session.user.id,req.session.user.vendor_id,label,period,req.body.content,price,usdt,price>0?'unpaid':'waiting','new',productType]
-  );
-
-  res.redirect('/vendor-dashboard');
-});
-
-app.post('/vendor-dashboard/banner-request/:id/paid',login,async(req,res)=>{
-  if(!req.session.user.is_vendor)return res.redirect('/login');
-  await q('UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3',['waiting',req.params.id,req.session.user.id]);
+  await q('INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[req.session.user.id,req.session.user.vendor_id,req.body.title,req.body.subtitle,req.body.link_url,img(req.file),price,usdt,'unpaid','new']);
   res.redirect('/vendor-dashboard');
 });
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
@@ -431,32 +388,28 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   const vendorRes=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
   const vendor=vendorRes.rows[0]||{};
   const days=parseInt(x.period||30,10)||30;
-  const productType=x.product_type||'renewal_recommended';
+  const productType=x.product_type||'renewal_general';
+  const wantsImmediate=(x.content||'').includes('[바로 적용 요청]');
+  const oldExpire=vendor.expire_at||null;
 
-  if(productType==='schedule_to_general'){
-    await q("UPDATE vendors SET scheduled_membership_type='general',scheduled_banner_active=false,scheduled_change_at=expire_at,scheduled_change_note=$1 WHERE id=$2",[x.plan,x.vendor_id]);
-  }else if(productType==='schedule_remove_banner'){
-    await q("UPDATE vendors SET scheduled_membership_type='recommended',scheduled_banner_active=false,scheduled_change_at=COALESCE(banner_until,expire_at),scheduled_change_note=$1 WHERE id=$2",[x.plan,x.vendor_id]);
-  }else if(productType==='schedule_to_recommended'){
-    await q("UPDATE vendors SET scheduled_membership_type='recommended',scheduled_banner_active=false,scheduled_change_at=expire_at,scheduled_change_note=$1 WHERE id=$2",[x.plan,x.vendor_id]);
-  }else if(productType==='banner_from_general'||productType==='banner_from_recommended'||productType==='renewal_banner'){
-    await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=expire_at, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
-  }else if(productType==='renewal_general'){
+  if(productType==='renewal_general'){
     await q(`UPDATE vendors SET membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
-  }else if(productType==='renewal_recommended'||productType==='recommended_upgrade'||productType==='recommended'){
-    await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
-  }else{
-    await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,status='active', ${addDaysSqlFromExpire()} WHERE id=$2`,[days,x.vendor_id]);
+  }else if(productType==='renewal_recommended'){
+    if((vendor.membership_type||'general')==='general' && !wantsImmediate && oldExpire){
+      await q(`UPDATE vendors SET status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type='recommended', scheduled_banner_active=false, scheduled_change_at=$3, scheduled_change_note=$4 WHERE id=$2`,[days,x.vendor_id,oldExpire,'일반 기간 종료 후 추천업체로 변경']);
+    }else{
+      await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+    }
+  }else if(productType==='renewal_banner'){
+    await q(`UPDATE vendors SET membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=expire_at, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
   }
 
   await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
 
-  const paymentProduct=(productType==='banner_from_general'||productType==='banner_from_recommended'||productType==='renewal_banner')?'banner':(productType==='renewal_general'?'general':productType.startsWith('schedule_')?'schedule':'recommended');
-  if(Number(x.krw_price||0)>0){
-    await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||x.plan||'상품변경 입금확인']);
-  }
+  const paymentProduct=productType==='renewal_banner'?'banner':(productType==='renewal_general'?'general':'recommended');
+  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||x.plan||'변경/연장 입금확인']);
 
-  await logAdmin(req,productType.startsWith('schedule_')?'예약변경 승인':'상품변경 입금확인/즉시적용','ad_request',x.id,`${x.plan||productType} 적용`);
+  await logAdmin(req,'변경/연장 입금확인','ad_request',x.id,`${x.plan||productType} 적용`);
   res.redirect('/admin#adRequests');
 });
 app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
