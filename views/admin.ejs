@@ -120,15 +120,24 @@
   </div>
 </aside><main class="admin-content"><section id="dashboard" class="panel admin-panel active"><% const _today=new Date().toISOString().slice(0,10); const DS=dashboardStats||{}; const _isToday=x=>x&&x.created_at&&new Date(x.created_at).toISOString().slice(0,10)===_today; const _groupCount=(arr,key)=>Object.entries(arr.reduce((m,x)=>{const raw=x[key];const k=raw&&String(raw).trim()?String(raw).trim():"미지정";m[k]=(m[k]||0)+1;return m;},{})).sort((a,b)=>b[1]-a[1]); const _reviewStats={}; reviews.forEach(r=>{const id=r.vendor_id;if(id){_reviewStats[id]=_reviewStats[id]||{count:0,sum:0,name:r.vendor_name||"업체명 없음"};_reviewStats[id].count++;_reviewStats[id].sum+=Number(r.rating||0);}}); %><h2>대시보드</h2>
 <%
-  const _safeArr=v=>Array.isArray(v)?v:[];
-  const _todayKey=new Date().toISOString().slice(0,10);
-  const _todayItem=x=>x&&x.created_at&&new Date(x.created_at).toISOString().slice(0,10)===_todayKey;
-  const _pendingInquiries=_safeArr(inquiries).filter(x=>x.status!=='approved').length;
-  const _pendingVendorRequests=_safeArr(vendorRequests).filter(x=>x.status==='new').length;
-  const _pendingAdRequests=_safeArr(adRequests).filter(x=>x.status==='new').length;
-  const _pendingBannerRequests=_safeArr(bannerRequests).filter(x=>x.status==='new').length;
-  const _waitingPayments=[..._safeArr(adRequests),..._safeArr(bannerRequests)].filter(x=>x.payment_status==='waiting').length;
-  const _pendingReports=_safeArr(reports).filter(x=>x.status==='new').length;
+  const _safeList=v=>Array.isArray(v)?v:[];
+  const _usersList=(typeof users!=='undefined')?_safeList(users):[];
+  const _vendorsList=(typeof vendors!=='undefined')?_safeList(vendors):[];
+  const _inquiriesList=(typeof inquiries!=='undefined')?_safeList(inquiries):[];
+  const _vendorRequestsList=(typeof vendorRequests!=='undefined')?_safeList(vendorRequests):[];
+  const _adRequestsList=(typeof adRequests!=='undefined')?_safeList(adRequests):[];
+  const _bannerRequestsList=(typeof bannerRequests!=='undefined')?_safeList(bannerRequests):[];
+  const _reportsList=(typeof reports!=='undefined')?_safeList(reports):((typeof flags!=='undefined')?_safeList(flags):[]);
+  const _revenueStats=(typeof revenueStats!=='undefined'&&revenueStats)?revenueStats:{};
+  const _todayKey2=new Date().toISOString().slice(0,10);
+  const _isToday2=x=>x&&x.created_at&&new Date(x.created_at).toISOString().slice(0,10)===_todayKey2;
+
+  const _pendingInquiries=_inquiriesList.filter(x=>x.status!=='approved').length;
+  const _pendingVendorRequests=_vendorRequestsList.filter(x=>x.status==='new').length;
+  const _pendingAdRequests=_adRequestsList.filter(x=>x.status==='new').length;
+  const _pendingBannerRequests=_bannerRequestsList.filter(x=>x.status==='new').length;
+  const _waitingPayments=[..._adRequestsList,..._bannerRequestsList].filter(x=>x.payment_status==='waiting').length;
+  const _pendingReports=_reportsList.filter(x=>!x.status||x.status==='new').length;
 %>
 <div class="admin-home-summary">
   <div class="admin-home-box">
@@ -146,10 +155,10 @@
   <div class="admin-home-box">
     <h3>오늘 통계</h3>
     <div class="admin-today-grid">
-      <div class="admin-today-card"><b>오늘 가입</b><strong><%=_safeArr(users).filter(_todayItem).length%>명</strong></div>
-      <div class="admin-today-card"><b>오늘 업체등록</b><strong><%=_safeArr(vendors).filter(_todayItem).length%>개</strong></div>
-      <div class="admin-today-card"><b>오늘 신청</b><strong><%=_safeArr(inquiries).filter(_todayItem).length + _safeArr(adRequests).filter(_todayItem).length + _safeArr(bannerRequests).filter(_todayItem).length%>건</strong></div>
-      <div class="admin-today-card"><b>오늘 매출</b><strong><%=Number(revenueStats?.today||0).toLocaleString()%>원</strong></div>
+      <div class="admin-today-card"><b>오늘 가입</b><strong><%=_usersList.filter(_isToday2).length%>명</strong></div>
+      <div class="admin-today-card"><b>오늘 업체등록</b><strong><%=_vendorsList.filter(_isToday2).length%>개</strong></div>
+      <div class="admin-today-card"><b>오늘 신청</b><strong><%=_inquiriesList.filter(_isToday2).length + _adRequestsList.filter(_isToday2).length + _bannerRequestsList.filter(_isToday2).length%>건</strong></div>
+      <div class="admin-today-card"><b>오늘 매출</b><strong><%=Number(_revenueStats.today||0).toLocaleString()%>원</strong></div>
     </div>
   </div>
 </div>
