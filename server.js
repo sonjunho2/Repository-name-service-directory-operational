@@ -132,14 +132,14 @@ function calcProductPrice(settings,vendor,productType,period,immediateApply=fals
   const recommended30=Number(settings.raw.recommended_register_price_krw||0);
   const generalToBanner30=Number(settings.raw.general_to_banner_price_krw||0);
   const recommendedToBanner30=Number(settings.raw.recommended_to_banner_price_krw||0);
-  const isRecommended=(vendor?.membership_type||'general')==='recommended';
+  const isRecommended=(vendor?.ad_type||'none')==='recommended';
   const hasBanner=!!vendor?.banner_active;
 
   if(productType==='renewal_general') return priceForDays(general30,days);
 
   if(productType==='renewal_recommended'){
     const renewal=priceForDays(recommended30,days);
-    const upgradeNow=(!isRecommended && immediateApply) ? proratedUpgradePrice(general30,recommended30,remainDays) : 0;
+    const upgradeNow=((vendor?.ad_type||'none')!=='recommended' && immediateApply) ? proratedUpgradePrice(general30,recommended30,remainDays) : 0;
     return renewal + upgradeNow;
   }
 
@@ -149,9 +149,6 @@ function calcProductPrice(settings,vendor,productType,period,immediateApply=fals
     const addNow=hasBanner ? 0 : priceForDays(baseBanner,remainDays || days);
     return renewal + addNow;
   }
-
-  if(productType==='banner_from_general') return priceForDays(generalToBanner30,remainDays || days);
-  if(productType==='banner_from_recommended') return priceForDays(recommendedToBanner30,remainDays || days);
 
   return priceForDays(recommended30,days);
 }
@@ -334,7 +331,7 @@ app.post('/vendor-dashboard/banner-request',login,upload.single('image'),async(r
   const settings=await getSettings();
   const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
   const vendor=v.rows[0]||{};
-  const price=(vendor.membership_type==='recommended')
+  const price=(vendor.ad_type==='recommended')
     ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0)
     : Number(settings.raw.general_to_banner_price_krw||0);
   const rate=Number(settings.raw.usdt_krw_rate||1400);
@@ -342,6 +339,35 @@ app.post('/vendor-dashboard/banner-request',login,upload.single('image'),async(r
   await q('INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',[req.session.user.id,req.session.user.vendor_id,req.body.title,req.body.subtitle,req.body.link_url,img(req.file),price,usdt,'unpaid','new']);
   res.redirect('/vendor-dashboard');
 });
+app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
+  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
+
+  const settings=await getSettings();
+  const productType=req.body.product_type||'renewal_general';
+  const period=String(req.body.period||'30');
+  const immediateApply=!!req.body.immediate_apply;
+
+  const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
+  const vendor=v.rows[0]||{};
+
+  const price=calcProductPrice(settings,vendor,productType,period,immediateApply);
+  const rate=Number(settings.raw.usdt_krw_rate||1400);
+  const usdt=calcUsdt(price,rate);
+
+  const label={
+    renewal_general:'일반광고 신청/변경/연장',
+    renewal_recommended: immediateApply ? '추천광고 즉시변경/연장' : '추천광고 신청/변경/연장',
+    renewal_banner:'프리미엄배너 신청/연장'
+  }[productType]||'광고 신청';
+
+  await q(
+    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,krw_price,usdt_amount,payment_status,status,product_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+    [req.session.user.id,req.session.user.vendor_id,label,period,(req.body.content||'')+(immediateApply?'\n[바로 적용 요청]':''),price,usdt,'unpaid','new',productType]
+  );
+
+  res.redirect('/vendor-dashboard');
+});
+
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
   await q('UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3',['waiting',req.params.id,req.session.user.id]);
