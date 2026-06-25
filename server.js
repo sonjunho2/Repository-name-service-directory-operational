@@ -387,48 +387,28 @@ app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(r
   res.redirect('/vendor-dashboard');
 });
 
-app.post('/vendor-dashboard/banner-request',login,upload.single('image'),async(req,res)=>{
+app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
+
   const settings=await getSettings();
   const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
   const vendor=v.rows[0]||{};
+
   const price=(vendor.ad_type==='recommended')
     ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0)
     : Number(settings.raw.general_to_banner_price_krw||0);
+
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
-  const inserted=await q('INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',[req.session.user.id,req.session.user.vendor_id,req.body.title,req.body.subtitle,req.body.link_url,img(req.file),price,usdt,'unpaid','new']);
-  res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+inserted.rows[0].id);
-});
-app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
-  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
-
-  const settings=await getSettings();
-  const productType=req.body.product_type||'renewal_general';
-  const period=String(req.body.period||'30');
-  const immediateApply=!!req.body.immediate_apply;
-
-  const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
-  const vendor=v.rows[0]||{};
-
-  const price=calcProductPrice(settings,vendor,productType,period,immediateApply);
-  const rate=Number(settings.raw.usdt_krw_rate||1400);
-  const usdt=calcUsdt(price,rate);
-
-  const label={
-    renewal_general:'일반광고 신청/변경/연장',
-    renewal_recommended: immediateApply ? '추천광고 즉시변경/연장' : '추천광고 신청/변경/연장',
-    renewal_banner:'프리미엄배너 신청/연장'
-  }[productType]||'광고 신청';
+  const imageData=vendor.image_data||'';
 
   const inserted=await q(
-    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,krw_price,usdt_amount,payment_status,status,product_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
-    [req.session.user.id,req.session.user.vendor_id,label,period,(req.body.content||'')+(immediateApply?'\n[바로 적용 요청]':''),price,usdt,'unpaid','new',productType]
+    'INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
+    [req.session.user.id,req.session.user.vendor_id,req.body.title||vendor.name||'프리미엄배너',req.body.subtitle||'',req.body.link_url||vendor.kakao_url||'',imageData,price,usdt,'unpaid','new']
   );
 
-  res.redirect('/vendor-dashboard?panel=upgrade&pay=ad&id='+inserted.rows[0].id);
+  res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+inserted.rows[0].id);
 });
-
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
   await q('UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3',['waiting',req.params.id,req.session.user.id]);
