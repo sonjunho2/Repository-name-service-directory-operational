@@ -157,7 +157,40 @@ function addDaysSqlFromExpire(){
 }
 
 async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions)};}
-async function homeData(req){ await expireAds(); const search=req.query.search||'', region=req.query.region||'', category=req.query.category||'', sort=req.query.sort||'default'; let where=["status=$1 AND ad_type <> 'none' AND expire_at IS NOT NULL AND expire_at >= CURRENT_DATE"], p=['active']; if(search){p.push(`%${search}%`); where.push(`(name ILIKE $${p.length} OR tags ILIKE $${p.length} OR description ILIKE $${p.length})`)} if(region){p.push(region); where.push(`region=$${p.length}`)} if(category){p.push(category); where.push(`category=$${p.length}`)} const orderMap={views:'views DESC,is_premium DESC,is_recommended DESC,created_at DESC',rating:'avg_rating DESC NULLS LAST,review_count DESC,is_premium DESC,is_recommended DESC,created_at DESC',reviews:'review_count DESC,avg_rating DESC NULLS LAST,is_premium DESC,is_recommended DESC,created_at DESC',latest:'created_at DESC,is_premium DESC,is_recommended DESC',default:'is_premium DESC,is_recommended DESC,created_at DESC'}; const order=orderMap[sort]||orderMap.default; const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count , (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order}`,p); const banners=await q(`SELECT * FROM banners WHERE is_active=true ORDER BY sort_order, id DESC`); const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`); const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`); const settings=await getSettings(); return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings}; }
+async function homeData(req){
+  await expireAds();
+  const search=req.query.search||'', region=req.query.region||'', category=req.query.category||'', sort=req.query.sort||'default';
+  const where=["v.status=$1 AND v.ad_type <> 'none' AND v.expire_at IS NOT NULL AND v.expire_at >= CURRENT_DATE"];
+  const params=['active'];
+
+  if(search){
+    params.push(`%${search}%`);
+    where.push(`(v.name ILIKE $${params.length} OR v.tags ILIKE $${params.length} OR v.description ILIKE $${params.length})`);
+  }
+  if(region){
+    params.push(region);
+    where.push(`v.region=$${params.length}`);
+  }
+  if(category){
+    params.push(category);
+    where.push(`v.category=$${params.length}`);
+  }
+
+  const orderMap={
+    views:'v.views DESC,v.is_premium DESC,v.is_recommended DESC,v.created_at DESC',
+    rating:'avg_rating DESC NULLS LAST,review_count DESC,v.is_premium DESC,v.is_recommended DESC,v.created_at DESC',
+    reviews:'review_count DESC,avg_rating DESC NULLS LAST,v.is_premium DESC,v.is_recommended DESC,v.created_at DESC',
+    latest:'v.created_at DESC,v.is_premium DESC,v.is_recommended DESC',
+    default:'v.is_premium DESC,v.is_recommended DESC,v.created_at DESC'
+  };
+  const order=orderMap[sort]||orderMap.default;
+  const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order}`,params);
+  const banners=await q(`SELECT * FROM banners WHERE is_active=true ORDER BY sort_order, id DESC`);
+  const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`);
+  const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
+  const settings=await getSettings();
+  return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings};
+}
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
 app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
 app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
@@ -487,6 +520,7 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
   if(!x)return res.redirect('/admin#bannerRequests');
+  if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#bannerRequests');
 
   const v=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
   const vendor=v.rows[0];
@@ -503,6 +537,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
   if(!x)return res.redirect('/admin#adRequests');
+  if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#adRequests');
 
   const vendorRes=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
   const vendor=vendorRes.rows[0]||{};
@@ -580,6 +615,19 @@ app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>{await q('UPD
 app.post('/admin/link-user-vendor',admin,async(req,res)=>{const userId=parseInt(req.body.user_id||0,10); const vendorId=parseInt(req.body.vendor_id||0,10); if(userId&&vendorId){await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]); await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);} await logAdmin(req,'회원 수정','user',req.body.id,req.body.nickname||''); res.redirect('/admin#users');});
 
 
+
+
+app.post('/admin/banner-requests/:id/cancel',admin,async(req,res)=>{
+  await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  await logAdmin(req,'배너신청 취소','banner_request',req.params.id,req.body.admin_memo||'관리자 취소');
+  res.redirect('/admin#bannerRequests');
+});
+
+app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
+  await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  await logAdmin(req,'상품/광고신청 취소','ad_request',req.params.id,req.body.admin_memo||'관리자 취소');
+  res.redirect('/admin#adRequests');
+});
 
 app.get('/admin/backup.json',admin,async(req,res)=>{
   const tables=['users','vendors','banners','reviews','notices','inquiries','flags','vendor_update_requests','vendor_banner_requests','vendor_ad_requests','favorites','app_settings'];
