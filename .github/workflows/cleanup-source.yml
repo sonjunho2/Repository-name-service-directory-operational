@@ -1,0 +1,121 @@
+name: Cleanup source files
+
+on:
+  push:
+    paths:
+      - '.github/workflows/cleanup-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Apply permanent source cleanup
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+
+          server = Path('server.js')
+          source = server.read_text()
+
+          fixed_home_data = """async function homeData(req){
+            await expireAds();
+            const search=req.query.search||'', region=req.query.region||'', category=req.query.category||'', sort=req.query.sort||'default';
+            const where=[\"v.status=$1 AND v.ad_type <> 'none' AND v.expire_at IS NOT NULL AND v.expire_at >= CURRENT_DATE\"];
+            const params=['active'];
+
+            if(search){
+              params.push(`%${search}%`);
+              where.push(`(v.name ILIKE $${params.length} OR v.tags ILIKE $${params.length} OR v.description ILIKE $${params.length})`);
+            }
+            if(region){
+              params.push(region);
+              where.push(`v.region=$${params.length}`);
+            }
+            if(category){
+              params.push(category);
+              where.push(`v.category=$${params.length}`);
+            }
+
+            const orderMap={
+              views:'v.views DESC,v.is_premium DESC,v.is_recommended DESC,v.created_at DESC',
+              rating:'avg_rating DESC NULLS LAST,review_count DESC,v.is_premium DESC,v.is_recommended DESC,v.created_at DESC',
+              reviews:'review_count DESC,avg_rating DESC NULLS LAST,v.is_premium DESC,v.is_recommended DESC,v.created_at DESC',
+              latest:'v.created_at DESC,v.is_premium DESC,v.is_recommended DESC',
+              default:'v.is_premium DESC,v.is_recommended DESC,v.created_at DESC'
+            };
+            const order=orderMap[sort]||orderMap.default;
+            const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order}`,params);
+            const banners=await q(`SELECT * FROM banners WHERE is_active=true ORDER BY sort_order, id DESC`);
+            const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`);
+            const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
+            const settings=await getSettings();
+            return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings};
+          }"""
+
+          start = source.index('async function homeData(req)')
+          end_marker = "app.get('/',async(req,res)=>"
+          end = source.index(end_marker, start)
+          source = source[:start] + fixed_home_data + '\n' + source[end:]
+
+          source = source.replace(
+            """app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{\n  const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]);\n  const x=r.rows[0];\n  if(!x)return res.redirect('/admin#bannerRequests');\n\n  const v=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);""",
+            """app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{\n  const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]);\n  const x=r.rows[0];\n  if(!x)return res.redirect('/admin#bannerRequests');\n  if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#bannerRequests');\n\n  const v=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);"""
+          )
+          source = source.replace(
+            """app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{\n  const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);\n  const x=r.rows[0];\n  if(!x)return res.redirect('/admin#adRequests');\n\n  const vendorRes=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);""",
+            """app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{\n  const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);\n  const x=r.rows[0];\n  if(!x)return res.redirect('/admin#adRequests');\n  if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#adRequests');\n\n  const vendorRes=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);"""
+          )
+
+          if "/admin/banner-requests/:id/cancel" not in source:
+              routes = """
+          app.post('/admin/banner-requests/:id/cancel',admin,async(req,res)=>{
+            await q(\"UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'\",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+            await logAdmin(req,'배너신청 취소','banner_request',req.params.id,req.body.admin_memo||'관리자 취소');
+            res.redirect('/admin#bannerRequests');
+          });
+
+          app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
+            await q(\"UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'\",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+            await logAdmin(req,'상품/광고신청 취소','ad_request',req.params.id,req.body.admin_memo||'관리자 취소');
+            res.redirect('/admin#adRequests');
+          });
+
+          """
+              marker = "app.get('/admin/backup.json',admin,async(req,res)=>"
+              source = source.replace(marker, routes + marker)
+
+          server.write_text(source)
+
+          pkg = Path('package.json')
+          data = json.loads(pkg.read_text())
+          data['scripts']['start'] = 'node server.js'
+          pkg.write_text(json.dumps(data, ensure_ascii=False, separators=(',', ':')) + '\n')
+
+          for name in ['patch-and-start.js', 'start-runtime.js', 'start-fixed.js']:
+              p = Path(name)
+              if p.exists():
+                  p.unlink()
+
+          Path('.github/workflows/cleanup-source.yml').unlink(missing_ok=True)
+          PY
+          node --check server.js
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No cleanup changes to commit"
+          else
+            git commit -m "Clean server source and remove runtime patches"
+            git push
+          fi
