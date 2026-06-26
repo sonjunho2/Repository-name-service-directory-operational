@@ -419,6 +419,42 @@ app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
 
   res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+inserted.rows[0].id);
 });
+
+app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
+  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
+
+  const settings=await getSettings();
+  const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
+  const vendor=v.rows[0]||{};
+
+  const productType=req.body.product_type||'renewal_general';
+  const period=req.body.period||'30';
+  const immediateApply=!!req.body.immediate_apply;
+
+  const price=calcProductPrice(settings,vendor,productType,period,immediateApply);
+  const rate=Number(settings.raw.usdt_krw_rate||1400);
+  const usdt=calcUsdt(price,rate);
+
+  const productLabel=productType==='renewal_banner'
+    ? '프리미엄배너 신청/연장'
+    : productType==='renewal_recommended'
+      ? '추천광고 신청/변경/연장'
+      : '일반광고 신청/변경/연장';
+
+  const content=[
+    req.body.content||'',
+    immediateApply?'[바로 적용 요청]':''
+  ].filter(Boolean).join('\n');
+
+  const inserted=await q(
+    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,status,payment_status,product_type,krw_price,usdt_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
+    [req.session.user.id,req.session.user.vendor_id,productLabel,period,content,'new','unpaid',productType,price,usdt]
+  );
+
+  const panel=productType==='renewal_banner'?'banner':'plan';
+  res.redirect('/vendor-dashboard?panel='+panel+'&pay=ad&id='+inserted.rows[0].id);
+});
+
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
   await q('UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3',['waiting',req.params.id,req.session.user.id]);
@@ -428,6 +464,13 @@ app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
 app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>{const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x)return res.redirect('/admin#bannerRequests'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data]); await q('UPDATE vendor_banner_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]); await logAdmin(req,'배너신청 승인','banner_request',x.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
 
 
+
+
+app.post('/vendor-dashboard/banner-request/:id/paid',login,async(req,res)=>{
+  if(!req.session.user.is_vendor)return res.redirect('/login');
+  await q('UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status=$4',['waiting',req.params.id,req.session.user.id,'new']);
+  res.redirect('/vendor-dashboard?panel=banner');
+});
 
 app.post('/vendor-dashboard/banner-request/:id/cancel',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
