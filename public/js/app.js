@@ -183,3 +183,38 @@ document.addEventListener('keydown',(e)=>{
 const reviewPopupScript=document.createElement('script');
 reviewPopupScript.src='/public/js/review-popup.js';
 document.body.appendChild(reviewPopupScript);
+
+// 2026-06 사용성 보강: 필터 상태 표시, 이미지 로딩 최적화, 중복 클릭 방지
+(function(){
+  const params=new URLSearchParams(window.location.search);
+  const currentCategory=params.get('category')||'';
+  const currentRegion=params.get('region')||'';
+  document.querySelectorAll('.selector-wrap').forEach((wrap,idx)=>{
+    const key=idx===0?'category':'region';
+    const value=key==='category'?currentCategory:currentRegion;
+    wrap.querySelectorAll('a').forEach(a=>{
+      try{
+        const u=new URL(a.href,location.origin);
+        const target=u.searchParams.get(key)||'';
+        if(value&&target===value){
+          a.classList.add('active');
+          a.setAttribute('aria-current','page');
+        }
+      }catch(e){}
+    });
+  });
+  document.querySelectorAll('img').forEach(img=>{
+    if(!img.hasAttribute('loading')) img.loading='lazy';
+    if(!img.hasAttribute('decoding')) img.decoding='async';
+  });
+  document.querySelectorAll('form').forEach(form=>{
+    form.addEventListener('submit',()=>{
+      const btn=form.querySelector('button[type="submit"],button:not([type])');
+      if(btn&&!btn.dataset.keepActive){
+        btn.disabled=true;
+        btn.dataset.originalText=btn.textContent;
+        btn.textContent='처리중...';
+      }
+    });
+  });
+})();
