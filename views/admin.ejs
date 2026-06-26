@@ -119,6 +119,14 @@
 .ad-kind-banner{background:#3b1230;color:#ff7adf}
 .ad-center-row.hide{display:none}
 @media(max-width:1000px){.ad-center-summary{grid-template-columns:1fr 1fr}}
+.revenue-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:0 0 18px}
+.revenue-card{border:1px solid #29324f;background:#070b15;border-radius:14px;padding:14px}
+.revenue-card b{display:block;color:#8d98b8;margin-bottom:8px}
+.revenue-card strong{font-size:24px;color:#10d9ff}
+.revenue-card.hot{border-color:#10d9ff}
+.revenue-card.month{border-color:#ffdc4d}
+.revenue-card.total{border-color:#1fe087}
+@media(max-width:1100px){.revenue-summary{grid-template-columns:1fr 1fr}}
 </style></head><body><header class="top"><b>관리자</b><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
@@ -359,6 +367,23 @@
 </div>
 <div class="integrated-tools"><div class="integrated-card"><b>전체 신청</b><strong><%=(adRequests||[]).length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=(adRequests||[]).filter(x=>x.status==='new').length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=(adRequests||[]).filter(x=>x.status==='approved').length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=(adRequests||[]).filter(x=>x.status==='rejected').length%></strong></div></div><table><tr><th>ID</th><th>업체</th><th>상품</th><th>상품구분</th><th>기간</th><th>결제</th><th>내용</th><th>상태</th><th>처리</th></tr><% (adRequests||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.vendor_name||x.vendor_id%><br><small><%=x.username||''%></small></td><td><%=x.plan||'-'%></td><td><%=x.product_type==="recommended_upgrade"?"일반→추천":x.product_type==="banner_from_general"?"일반→배너":x.product_type==="banner_from_recommended"?"추천→배너":x.product_type==="renewal_general"?"일반연장":x.product_type==="renewal_recommended"?"추천연장":x.product_type==="renewal_banner"?"배너신청/연장":x.product_type==="schedule_to_general"?"일반변경/연장":x.product_type==="schedule_remove_banner"?"배너제거예약":x.product_type==="schedule_to_recommended"?"추천변경/연장":x.product_type||"추천등록"%></td><td><%=x.period||'-'%>일</td><td><%=Number(x.krw_price||0).toLocaleString()%>원<br><%=x.usdt_amount||0%> USDT<br><small><%=x.payment_status==='paid'?'입금완료':x.payment_status==='waiting'?'입금확인대기':x.payment_status==='rejected'?'반려':x.payment_status==='cancelled'?'취소':'입금대기'%></small></td><td class="memo"><%=x.content||'-'%></td><td><span class="<%=x.status==='approved'?'done':x.status==='rejected'?'rejected':'pending'%>"><%=x.status==='approved'?'승인':x.status==='rejected'?'반려':'대기'%></span><br><small><%=x.admin_memo||''%></small></td><td><% if(x.status==='new'){%><% if(x.payment_status==='waiting'){%><form method="post" action="/admin/ad-requests/<%=x.id%>/payment-confirm" class="report-done-form"><input name="admin_memo" placeholder="입금확인 메모"><button class="approve-btn">입금확인</button></form><%}else{%><span class="pending">입금대기</span><%}%><form method="post" action="/admin/ad-requests/<%=x.id%>/reject" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="반려 사유"><button class="reject-btn">반려</button></form><form method="post" action="/admin/ad-requests/<%=x.id%>/cancel" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="취소 메모"><button class="cancel-edit">취소</button></form><%}else{%>처리완료<%}%></td></tr><%})%></table></section><section id="revenue" class="panel admin-panel">
   <h2>매출관리</h2>
+<%
+  const _paymentSafe=(typeof paymentLogs!=='undefined'&&Array.isArray(paymentLogs))?paymentLogs:((typeof payments!=='undefined'&&Array.isArray(payments))?payments:[]);
+  const _revStats=(typeof revenueStats!=='undefined'&&revenueStats)?revenueStats:{};
+  const _todayRevenue=Number(_revStats.today||0);
+  const _monthRevenue=Number(_revStats.month||0);
+  const _totalRevenue=Number(_revStats.total||0);
+  const _paymentCount=Number(_revStats.count||_paymentSafe.length||0);
+  const _usdtTotal=_paymentSafe.reduce((s,x)=>s+Number(x.usdt_amount||0),0);
+%>
+<div class="revenue-summary">
+  <div class="revenue-card hot"><b>오늘 매출</b><strong><%=_todayRevenue.toLocaleString()%>원</strong></div>
+  <div class="revenue-card month"><b>이번달 매출</b><strong><%=_monthRevenue.toLocaleString()%>원</strong></div>
+  <div class="revenue-card total"><b>누적 매출</b><strong><%=_totalRevenue.toLocaleString()%>원</strong></div>
+  <div class="revenue-card"><b>결제 건수</b><strong><%=_paymentCount%>건</strong></div>
+  <div class="revenue-card"><b>USDT 합계</b><strong><%=_usdtTotal.toFixed(2)%></strong></div>
+</div>
+
   <div class="dash-grid">
     <div class="dash-card hot"><b>오늘 매출</b><strong><%=Number(revenueStats?.today||0).toLocaleString()%>원</strong></div>
     <div class="dash-card hot"><b>이번달 매출</b><strong><%=Number(revenueStats?.month||0).toLocaleString()%>원</strong></div>
