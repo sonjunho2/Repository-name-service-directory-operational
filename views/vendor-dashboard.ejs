@@ -28,6 +28,18 @@
 .file-guide b{color:#10d9ff}
 .banner-preview{display:flex;gap:12px;align-items:center;border:1px solid #29324f;background:#070b15;border-radius:14px;padding:12px;margin:12px 0}
 .banner-preview img{width:120px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #29324f}
+.vendor-home-section{margin-top:18px}
+.vendor-status-list{display:grid;gap:10px}
+.vendor-status-item{border:1px solid #29324f;background:#070b15;border-radius:14px;padding:14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+.vendor-status-item b{display:block;color:#fff;margin-bottom:4px}
+.vendor-status-item small{color:#8d98b8}
+.vendor-status-badge{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:999px;font-size:13px;font-weight:900}
+.vendor-status-unpaid{background:#29324f;color:#dfe9ff}
+.vendor-status-waiting{background:#3d3412;color:#ffdc4d;border:1px solid #ffdc4d}
+.vendor-status-approved{background:#123b2b;color:#1fe087}
+.vendor-status-rejected,.vendor-status-cancelled{background:#3b1212;color:#ff6b6b}
+.vendor-empty{border:1px dashed #29324f;background:#070b15;border-radius:14px;padding:16px;color:#8d98b8}
+@media(max-width:900px){.vendor-status-item{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -74,7 +86,53 @@
             <div class="card"><b>노출 상태</b><strong><%=exposeLabel%></strong></div>
           </div>
         </div>
-        <div class="box">
+
+        <div class="box vendor-home-section">
+          <h2>진행중인 신청</h2>
+          <%
+            const activeAdsHome=(adRequests||[]).filter(r=>r.status==='new').map(r=>Object.assign({},r,{_kind:'광고',_title:r.plan||'변경/연장 신청'}));
+            const activeBannersHome=(bannerRequests||[]).filter(r=>r.status==='new').map(r=>Object.assign({},r,{_kind:'배너',_title:r.title||'프리미엄배너 신청'}));
+            const activeRequestsHome=[...activeAdsHome,...activeBannersHome];
+            const payStatusLabelHome=s=>s==='waiting'?'입금확인중':s==='paid'?'입금완료':s==='rejected'?'반려':s==='cancelled'?'취소':'입금대기';
+            const payStatusClassHome=s=>s==='waiting'?'vendor-status-waiting':s==='paid'?'vendor-status-approved':s==='rejected'?'vendor-status-rejected':s==='cancelled'?'vendor-status-cancelled':'vendor-status-unpaid';
+          %>
+          <% if(activeRequestsHome.length){ %>
+            <div class="vendor-status-list">
+              <% activeRequestsHome.slice(0,5).forEach(r=>{ %>
+                <div class="vendor-status-item">
+                  <div>
+                    <b><%=r._kind%> · <%=r._title%></b>
+                    <small><%=Number(r.krw_price||0).toLocaleString()%>원 / <%=r.usdt_amount||0%> USDT</small>
+                  </div>
+                  <span class="vendor-status-badge <%=payStatusClassHome(r.payment_status)%>"><%=payStatusLabelHome(r.payment_status)%></span>
+                </div>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <div class="vendor-empty">진행중인 신청이 없습니다.</div>
+          <% } %>
+        </div>
+
+        <div class="box vendor-home-section">
+          <h2>최근 결제</h2>
+          <% if((paymentLogs||[]).length){ %>
+            <div class="vendor-status-list">
+              <% (paymentLogs||[]).slice(0,5).forEach(p=>{ %>
+                <div class="vendor-status-item">
+                  <div>
+                    <b><%=p.product_type==='banner'?'프리미엄배너':p.product_type==='recommended'?'추천광고':p.product_type==='general'?'일반광고':p.product_type||'결제'%></b>
+                    <small><%=Number(p.krw_price||0).toLocaleString()%>원 / <%=p.usdt_amount||0%> USDT</small>
+                  </div>
+                  <span class="vendor-status-badge vendor-status-approved"><%=fmtDateTime(p.paid_at)%></span>
+                </div>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <div class="vendor-empty">최근 결제내역이 없습니다.</div>
+          <% } %>
+        </div>
+
+        <div class="box vendor-home-section">
           <h2>업체 통계</h2>
           <div class="grid">
             <div class="card"><b>오늘 조회</b><strong><%=viewStats.today_views||0%></strong></div>
