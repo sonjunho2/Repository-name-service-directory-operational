@@ -139,20 +139,16 @@
 .vendor-ad-status small{color:#8d98b8}
 .vendor-filter-note{color:#8d98b8;font-size:13px;margin:-8px 0 14px}
 @media(max-width:1100px){.vendor-summary{grid-template-columns:1fr 1fr}}
-.vendor-detail-card{display:none;margin:0 0 18px;border:1px solid #10d9ff;background:#06111c;border-radius:18px;padding:18px}
-.vendor-detail-card.active{display:block}
-.vendor-detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
-.vendor-detail-head h3{margin:0;font-size:22px}
-.vendor-detail-close{height:34px!important;padding:0 12px!important;background:#222b43!important}
-.vendor-detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.vendor-detail-item{border:1px solid #29324f;background:#070b15;border-radius:14px;padding:14px}
-.vendor-detail-item b{display:block;color:#8d98b8;margin-bottom:8px}
-.vendor-detail-item strong{font-size:18px;color:#fff}
-.vendor-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.vendor-detail-actions a{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 14px;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}
-.quick-view-btn{background:#222b43!important}
-@media(max-width:1000px){.vendor-detail-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:700px){.vendor-detail-grid{grid-template-columns:1fr}}
+.vendor-form-box{border:1px solid #29324f;background:#070b15;border-radius:16px;padding:16px;margin:0 0 14px}
+.vendor-form-box h3{margin:0 0 12px;font-size:17px;color:#10d9ff}
+.vendor-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.vendor-form-grid.two{grid-template-columns:repeat(2,1fr)}
+.vendor-form-grid textarea{grid-column:1/-1;min-height:90px}
+.vendor-form-help{color:#8d98b8;font-size:13px;margin:8px 0 0;line-height:1.5}
+.vendor-form-submit{display:grid;grid-template-columns:1fr 140px;gap:10px;margin-top:10px}
+.vendor-form-submit button{height:42px}
+@media(max-width:1100px){.vendor-form-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.vendor-form-grid,.vendor-form-grid.two,.vendor-form-submit{grid-template-columns:1fr}}
 </style></head><body><header class="top"><b>관리자</b><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
@@ -265,30 +261,58 @@
   <div class="vendor-summary-card expire"><b>7일 이내 만료</b><strong><%=_vExpiring%></strong></div>
 </div>
 <p class="vendor-filter-note">업체목록은 광고상태, 노출상태, 만기상태를 기준으로 빠르게 확인할 수 있습니다.</p>
-<form id="vendorForm" method="post" action="/admin/vendor" enctype="multipart/form-data" class="gridform"><input type="hidden" name="id"><input name="name" placeholder="업체명" required><select name="category" required><% (settings?.categories||[]).forEach(x=>{%><option value="<%=x%>"><%=x%></option><%})%></select><select name="region" required><% (settings?.regions||[]).forEach(x=>{%><option value="<%=x%>"><%=x%></option><%})%></select><input name="phone" placeholder="연락처"><input name="kakao_url" placeholder="카카오톡 문의 링크"><input name="business_hours" placeholder="영업시간"><input name="tags" placeholder="태그"><select name="status"><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select><select name="ad_type"><option value="none">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option></select><input name="expire_at" type="date" placeholder="만기일"><label><input type="checkbox" name="banner_active"> 배너활성</label><input name="banner_until" type="date" placeholder="배너만기일"><label><input type="checkbox" name="is_recommended">추천업체</label><label><input type="checkbox" name="is_premium">프리미엄</label><input type="file" name="image" accept="image/*"><div class="img-preview" id="vendorImagePreview"><img alt="업체 이미지 미리보기"><div><b>업체 이미지 미리보기</b><span>선택한 이미지가 표시됩니다.</span></div></div><textarea name="description" placeholder="업체소개"></textarea><div class="form-actions"><button id="vendorSubmitBtn">업체 등록</button><button type="button" id="cancelVendorEdit" class="cancel-edit" style="display:none">취소</button></div></form><div class="vendor-admin-filter"><input id="vendorSearch" placeholder="업체명 검색"><select id="vendorTypeFilter"><option value="all">전체 광고</option><option value="noad">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option><option value="banner">프리미엄배너</option><option value="expiring">7일 이내 만료</option></select><select id="vendorStatusFilter"><option value="all">전체 상태</option><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select><select id="vendorSortFilter"><option value="default">기본순</option><option value="views">조회수순</option><option value="reviews">후기순</option><option value="rating">평점순</option><option value="latest">최신등록순</option></select><button type="button" id="vendorFilterReset">초기화</button></div>
-<div id="vendorQuickDetail" class="vendor-detail-card">
-  <div class="vendor-detail-head">
-    <div>
-      <h3 id="vendorDetailName">업체 상세</h3>
-      <p id="vendorDetailSub" style="color:#8d98b8;margin:6px 0 0">업체 상태를 빠르게 확인합니다.</p>
+<form id="vendorForm" method="post" action="/admin/vendor" enctype="multipart/form-data">
+  <input type="hidden" name="id">
+
+  <div class="vendor-form-box">
+    <h3>기본정보</h3>
+    <div class="vendor-form-grid">
+      <input name="name" placeholder="업체명" required>
+      <select name="category" required><% (settings?.categories||[]).forEach(x=>{%><option value="<%=x%>"><%=x%></option><%})%></select>
+      <select name="region" required><% (settings?.regions||[]).forEach(x=>{%><option value="<%=x%>"><%=x%></option><%})%></select>
+      <input name="phone" placeholder="연락처">
+      <input name="kakao_url" placeholder="카카오톡 문의 링크">
+      <input name="tags" placeholder="태그">
     </div>
-    <button type="button" id="vendorDetailClose" class="vendor-detail-close">닫기</button>
+    <p class="vendor-form-help">업체명, 업종, 지역은 메인페이지 검색과 목록 노출에 사용됩니다.</p>
   </div>
-  <div class="vendor-detail-grid">
-    <div class="vendor-detail-item"><b>광고상품</b><strong id="vendorDetailAd">-</strong></div>
-    <div class="vendor-detail-item"><b>배너상태</b><strong id="vendorDetailBanner">-</strong></div>
-    <div class="vendor-detail-item"><b>광고만기</b><strong id="vendorDetailExpire">-</strong></div>
-    <div class="vendor-detail-item"><b>노출상태</b><strong id="vendorDetailStatus">-</strong></div>
-    <div class="vendor-detail-item"><b>조회수</b><strong id="vendorDetailViews">-</strong></div>
-    <div class="vendor-detail-item"><b>후기</b><strong id="vendorDetailReviews">-</strong></div>
-    <div class="vendor-detail-item"><b>평점</b><strong id="vendorDetailRating">-</strong></div>
-    <div class="vendor-detail-item"><b>배너만기</b><strong id="vendorDetailBannerUntil">-</strong></div>
+
+  <div class="vendor-form-box">
+    <h3>영업 / 소개</h3>
+    <div class="vendor-form-grid two">
+      <input name="business_hours" placeholder="영업시간">
+      <textarea name="description" placeholder="업체소개"></textarea>
+    </div>
   </div>
-  <div class="vendor-detail-actions">
-    <a href="#adCenter" data-panel="adCenter">광고센터 보기</a>
-    <a href="#revenue" data-panel="revenue">결제내역 보기</a>
+
+  <div class="vendor-form-box">
+    <h3>광고 / 노출 설정</h3>
+    <div class="vendor-form-grid">
+      <select name="status"><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select>
+      <select name="ad_type"><option value="none">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option></select>
+      <input name="expire_at" type="date" placeholder="광고 만기일">
+      <input name="banner_until" type="date" placeholder="배너 만기일">
+      <label><input type="checkbox" name="banner_active"> 배너활성</label>
+      <label><input type="checkbox" name="is_recommended"> 추천업체</label>
+      <label><input type="checkbox" name="is_premium"> 프리미엄</label>
+    </div>
+    <p class="vendor-form-help">광고/결제 처리는 광고센터에서 관리하고, 여기서는 업체의 현재 노출 상태만 수정합니다.</p>
   </div>
-</div>
+
+  <div class="vendor-form-box">
+    <h3>대표 이미지</h3>
+    <div class="vendor-form-grid two">
+      <input type="file" name="image" accept="image/*">
+      <div class="img-preview" id="vendorImagePreview"><img alt="업체 이미지 미리보기"><div><b>업체 이미지 미리보기</b><span>선택한 이미지가 표시됩니다.</span></div></div>
+    </div>
+    <p class="vendor-form-help">대표 이미지는 일반목록, 추천목록, 프리미엄배너에 공통으로 사용됩니다.</p>
+  </div>
+
+  <div class="vendor-form-submit">
+    <button id="vendorSubmitBtn">업체 등록</button>
+    <button type="button" id="cancelVendorEdit" class="cancel-edit" style="display:none">취소</button>
+  </div>
+</form><div class="vendor-admin-filter"><input id="vendorSearch" placeholder="업체명 검색"><select id="vendorTypeFilter"><option value="all">전체 광고</option><option value="noad">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option><option value="banner">프리미엄배너</option><option value="expiring">7일 이내 만료</option></select><select id="vendorStatusFilter"><option value="all">전체 상태</option><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select><select id="vendorSortFilter"><option value="default">기본순</option><option value="views">조회수순</option><option value="reviews">후기순</option><option value="rating">평점순</option><option value="latest">최신등록순</option></select><button type="button" id="vendorFilterReset">초기화</button></div>
 <table><tr><th>ID</th><th>구분</th><th>업체명</th><th>지역/업종</th><th>조회</th><th>후기</th><th>평점</th><th>만기상태</th><th>영업시간</th><th>상태</th><th>관리</th></tr><% vendors.forEach(v=>{ const t=v.is_premium?'premium':v.is_recommended?'recommend':'normal'; const st=vendorReviewStats[v.id]||{count:0,sum:0}; const avg=st.count?(st.sum/st.count).toFixed(1):'-'; %><tr class="vendor-row" data-id="<%=v.id%>" data-views="<%=v.views||0%>" data-reviews="<%=st.count%>" data-rating="<%=avg==='-'?0:avg%>" data-ad-type="<%=v.ad_type||'none'%>" data-membership="<%=v.ad_type||'none'%>" data-expire="<%=v.expire_at||''%>" data-banner-active="<%=v.banner_active?'1':'0'%>" data-banner-until="<%=v.banner_until?fmtDate(v.banner_until):''%>" data-name="<%=String(v.name||'').toLowerCase()%>" data-type="<%=(!v.ad_type||v.ad_type==='none')?'noad':v.banner_active?'banner':v.ad_type==='recommended'?'recommended':'general'%>" data-expiring="<% const _dlFilter=(v.expire_at?Math.ceil((new Date(v.expire_at).setHours(0,0,0,0)-new Date().setHours(0,0,0,0))/(1000*60*60*24)):9999); %><%=_dlFilter>=0&&_dlFilter<=7?'1':'0'%>" data-status="<%=v.status%>" data-region="<%=v.region||''%>" data-category="<%=v.category||''%>" data-vendor-name="<%=v.name||''%>" data-business-hours="<%=v.business_hours||''%>"><td><%=v.id%></td><td>
   <div class="vendor-ad-status">
     <%- v.banner_active?'<span class="ad-badge ad-banner">추천광고 + 프리미엄배너</span>':v.ad_type==='recommended'?'<span class="ad-badge ad-recommended">추천광고</span>':v.ad_type==='general'?'<span class="ad-badge ad-general">일반광고</span>':'<span class="ad-badge ad-none">광고없음</span>' %>
@@ -299,7 +323,7 @@
   <% const _todayVendor=new Date(); _todayVendor.setHours(0,0,0,0); let _daysLeft=null; if(v.expire_at){ const _exp=new Date(v.expire_at); _exp.setHours(0,0,0,0); _daysLeft=Math.ceil((_exp-_todayVendor)/(1000*60*60*24)); } %>
   <% if(!v.expire_at){%><span class="expiry-badge expiry-empty">만기없음</span><%}else if(_daysLeft<0||v.status==='expired'){%><span class="expiry-badge expiry-expired">만료</span><%}else if(_daysLeft<=7){%><span class="expiry-badge expiry-soon"><%=_daysLeft%>일 남음</span><%}else{%><span class="expiry-badge expiry-ok"><%=_daysLeft%>일 남음</span><%}%>
   <br><small><%=fmtDate(v.expire_at)%></small>
-</td><td><%=v.business_hours||'-'%></td><td>업체상태: <%=v.status==="active"?"운영중":v.status==="pending"?"검수중":v.status==="hidden"?"숨김":v.status==="expired"?"광고만료":"-"%><br>광고상품: <%=v.ad_type==="recommended"?"추천광고":v.ad_type==="general"?"일반광고":"광고없음"%><br><div class="expire-ko">광고만기: <b><%=fmtDate(v.expire_at)%></b></div><br><div class="expire-ko">배너상태: <b><%=v.banner_active?'사용중':'사용안함'%></b> <% if(v.banner_until){%> / 배너만기: <b><%=fmtDate(v.banner_until)%></b><%}%></div></td><td><span class="<%=v.status==='pending'?'status-pending':v.status==='active'?'status-on':'status-off'%>"><%=v.status==='pending'?'검수중':v.status==='active'?'노출':v.status==='expired'?'만료':'숨김'%></span></td><td><div class="row-actions"><button type="button" class="quick-view-btn vendor-quick-view" data-id="<%=v.id%>">상세</button><button type="button" class="edit-vendor-btn" data-id="<%=v.id%>">수정</button><form method="post" action="/admin/delete/vendors/<%=v.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></div></td></tr><%})%></table></section><section id="banners" class="panel admin-panel"><h2>배너 관리</h2><form id="bannerForm" method="post" action="/admin/banner" enctype="multipart/form-data" class="gridform"><input type="hidden" name="id"><input name="title" placeholder="배너 제목" required><input name="subtitle" placeholder="부제목"><input name="link_url" placeholder="링크 URL"><input name="sort_order" type="number" placeholder="정렬순서" value="0"><select name="position"><option value="premium">프리미엄</option><option value="main">메인</option></select><label><input type="checkbox" name="is_active" checked>노출</label><input type="file" name="image" accept="image/*"><div class="img-preview" id="bannerImagePreview"><img alt="배너 이미지 미리보기"><div><b>배너 이미지 미리보기</b><span>선택한 이미지가 표시됩니다.</span></div></div><div class="form-actions"><button id="bannerSubmitBtn">배너 등록</button><button type="button" id="cancelBannerEdit" class="cancel-edit" style="display:none">취소</button></div></form><div class="banner-admin-filter"><input id="bannerSearch" placeholder="배너 제목 검색"><select id="bannerPositionFilter"><option value="all">전체 위치</option><option value="premium">프리미엄</option><option value="main">메인</option></select><select id="bannerStatusFilter"><option value="all">전체 상태</option><option value="active">노출</option><option value="hidden">숨김</option></select><select id="bannerSortFilter"><option value="default">기본순</option><option value="order">정렬순서</option><option value="active">노출 우선</option><option value="latest">최신등록순</option></select><button type="button" id="bannerFilterReset">초기화</button></div><table><tr><th>ID</th><th>제목</th><th>위치</th><th>노출상태</th><th>정렬순서</th><th>관리</th></tr><% banners.forEach(b=>{%><tr class="banner-row" data-id="<%=b.id%>" data-order="<%=b.sort_order||0%>" data-title="<%=String(b.title||'').toLowerCase()%>" data-position="<%=b.position%>" data-active="<%=b.is_active?'active':'hidden'%>"><td><%=b.id%></td><td><%=b.title%></td><td><%=b.position%></td><td><span class="<%=b.is_active?'status-on':'status-off'%>"><%=b.is_active?'● 노출':'● 숨김'%></span></td><td><%=b.sort_order%></td><td><div class="row-actions"><button type="button" class="edit-banner-btn" data-id="<%=b.id%>">수정</button><form method="post" action="/admin/delete/banners/<%=b.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></div></td></tr><%})%></table></section><section id="users" class="panel admin-panel"><h2>회원 관리</h2>
+</td><td><%=v.business_hours||'-'%></td><td>업체상태: <%=v.status==="active"?"운영중":v.status==="pending"?"검수중":v.status==="hidden"?"숨김":v.status==="expired"?"광고만료":"-"%><br>광고상품: <%=v.ad_type==="recommended"?"추천광고":v.ad_type==="general"?"일반광고":"광고없음"%><br><div class="expire-ko">광고만기: <b><%=fmtDate(v.expire_at)%></b></div><br><div class="expire-ko">배너상태: <b><%=v.banner_active?'사용중':'사용안함'%></b> <% if(v.banner_until){%> / 배너만기: <b><%=fmtDate(v.banner_until)%></b><%}%></div></td><td><span class="<%=v.status==='pending'?'status-pending':v.status==='active'?'status-on':'status-off'%>"><%=v.status==='pending'?'검수중':v.status==='active'?'노출':v.status==='expired'?'만료':'숨김'%></span></td><td><div class="row-actions"><button type="button" class="edit-vendor-btn" data-id="<%=v.id%>">수정</button><form method="post" action="/admin/delete/vendors/<%=v.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></div></td></tr><%})%></table></section><section id="banners" class="panel admin-panel"><h2>배너 관리</h2><form id="bannerForm" method="post" action="/admin/banner" enctype="multipart/form-data" class="gridform"><input type="hidden" name="id"><input name="title" placeholder="배너 제목" required><input name="subtitle" placeholder="부제목"><input name="link_url" placeholder="링크 URL"><input name="sort_order" type="number" placeholder="정렬순서" value="0"><select name="position"><option value="premium">프리미엄</option><option value="main">메인</option></select><label><input type="checkbox" name="is_active" checked>노출</label><input type="file" name="image" accept="image/*"><div class="img-preview" id="bannerImagePreview"><img alt="배너 이미지 미리보기"><div><b>배너 이미지 미리보기</b><span>선택한 이미지가 표시됩니다.</span></div></div><div class="form-actions"><button id="bannerSubmitBtn">배너 등록</button><button type="button" id="cancelBannerEdit" class="cancel-edit" style="display:none">취소</button></div></form><div class="banner-admin-filter"><input id="bannerSearch" placeholder="배너 제목 검색"><select id="bannerPositionFilter"><option value="all">전체 위치</option><option value="premium">프리미엄</option><option value="main">메인</option></select><select id="bannerStatusFilter"><option value="all">전체 상태</option><option value="active">노출</option><option value="hidden">숨김</option></select><select id="bannerSortFilter"><option value="default">기본순</option><option value="order">정렬순서</option><option value="active">노출 우선</option><option value="latest">최신등록순</option></select><button type="button" id="bannerFilterReset">초기화</button></div><table><tr><th>ID</th><th>제목</th><th>위치</th><th>노출상태</th><th>정렬순서</th><th>관리</th></tr><% banners.forEach(b=>{%><tr class="banner-row" data-id="<%=b.id%>" data-order="<%=b.sort_order||0%>" data-title="<%=String(b.title||'').toLowerCase()%>" data-position="<%=b.position%>" data-active="<%=b.is_active?'active':'hidden'%>"><td><%=b.id%></td><td><%=b.title%></td><td><%=b.position%></td><td><span class="<%=b.is_active?'status-on':'status-off'%>"><%=b.is_active?'● 노출':'● 숨김'%></span></td><td><%=b.sort_order%></td><td><div class="row-actions"><button type="button" class="edit-banner-btn" data-id="<%=b.id%>">수정</button><form method="post" action="/admin/delete/banners/<%=b.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></div></td></tr><%})%></table></section><section id="users" class="panel admin-panel"><h2>회원 관리</h2>
 <%
   const _usersSafe=(typeof users!=='undefined'&&Array.isArray(users))?users:[];
   const _adminUsers=_usersSafe.filter(u=>u.role==='admin').length;
@@ -748,38 +772,5 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
 })();
 </script>
 
-<script>
-(function(){
-  const card=document.getElementById('vendorQuickDetail');
-  if(!card)return;
-  const close=document.getElementById('vendorDetailClose');
-  const set=(id,val)=>{const el=document.getElementById(id); if(el)el.textContent=val||'-';};
-  const adLabel=row=>{
-    if(row.dataset.bannerActive==='1')return '추천광고 + 프리미엄배너';
-    if(row.dataset.adType==='recommended')return '추천광고';
-    if(row.dataset.adType==='general')return '일반광고';
-    return '광고없음';
-  };
-  const statusLabel=s=>s==='active'?'운영중':s==='pending'?'검수중':s==='hidden'?'숨김':s==='expired'?'광고만료':(s||'-');
-  document.querySelectorAll('.vendor-quick-view').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const row=btn.closest('.vendor-row');
-      if(!row)return;
-      set('vendorDetailName',row.dataset.vendorName||row.children[2]?.textContent||'업체 상세');
-      set('vendorDetailSub',(row.dataset.region||'-')+' / '+(row.dataset.category||'-'));
-      set('vendorDetailAd',adLabel(row));
-      set('vendorDetailBanner',row.dataset.bannerActive==='1'?'사용중':'사용안함');
-      set('vendorDetailExpire',row.dataset.expire||'-');
-      set('vendorDetailStatus',statusLabel(row.dataset.status));
-      set('vendorDetailViews',row.dataset.views||'0');
-      set('vendorDetailReviews',row.dataset.reviews||'0');
-      set('vendorDetailRating',row.dataset.rating&&row.dataset.rating!=='0'?'★ '+row.dataset.rating:'-');
-      set('vendorDetailBannerUntil',row.dataset.bannerUntil||'-');
-      card.classList.add('active');
-      card.scrollIntoView({behavior:'smooth',block:'start'});
-    });
-  });
-  if(close)close.addEventListener('click',()=>card.classList.remove('active'));
-})();
-</script>
+
 </body></html>
