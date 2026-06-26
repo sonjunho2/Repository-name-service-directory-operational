@@ -186,8 +186,8 @@
     <div class="admin-pending-grid">
       <a class="admin-pending-card" href="#inquiries" data-panel="inquiries"><b>입점 승인</b><strong><%=_pendingInquiries%></strong></a>
       <a class="admin-pending-card" href="#vendorRequests" data-panel="vendorRequests"><b>업체 수정요청</b><strong><%=_pendingVendorRequests%></strong></a>
-      <a class="admin-pending-card" href="#adCenter" data-panel="adCenter"><b>광고 신청</b><strong><%=_pendingAdRequests%></strong></a>
-      <a class="admin-pending-card" href="#adCenter" data-panel="adCenter"><b>프리미엄 신청</b><strong><%=_pendingBannerRequests%></strong></a>
+      <a class="admin-pending-card" href="#adRequests" data-panel="adRequests"><b>변경/연장 신청</b><strong><%=_pendingAdRequests%></strong></a>
+      <a class="admin-pending-card" href="#bannerRequests" data-panel="bannerRequests"><b>프리미엄배너 신청</b><strong><%=_pendingBannerRequests%></strong></a>
       <a class="admin-pending-card" href="#revenue" data-panel="revenue"><b>입금확인중</b><strong><%=_waitingPayments%></strong></a>
       <a class="admin-pending-card" href="#reports" data-panel="reports"><b>신고 접수</b><strong><%=_pendingReports%></strong></a>
     </div>
@@ -246,8 +246,7 @@
 </div>
 <div class="integrated-tools"><div class="integrated-card"><b>전체 신청</b><strong><%=(bannerRequests||[]).length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=(bannerRequests||[]).filter(x=>x.status==='new').length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=(bannerRequests||[]).filter(x=>x.status==='approved').length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=(bannerRequests||[]).filter(x=>x.status==='rejected').length%></strong></div></div><table><tr><th>ID</th><th>업체</th><th>제목</th><th>결제</th><th>링크</th><th>이미지</th><th>상태</th><th>처리</th></tr><% (bannerRequests||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.vendor_name||x.vendor_id%><br><small><%=x.username||''%></small></td><td><b><%=x.title%></b><br><%=x.subtitle||''%></td><td><%=Number(x.krw_price||0).toLocaleString()%>원<br><%=x.usdt_amount||0%> USDT<br><small><%=x.payment_status==='paid'?'입금완료':x.payment_status==='waiting'?'입금확인대기':x.payment_status==='rejected'?'반려':x.payment_status==='cancelled'?'취소':'입금대기'%></small></td><td><%=x.link_url||'-'%></td><td><%=x.image_data?'이미지 있음':'-'%></td><td><span class="<%=x.status==='approved'?'done':x.status==='rejected'?'rejected':'pending'%>"><%=x.status==='approved'?'승인':x.status==='rejected'?'반려':'대기'%></span><br><small><%=x.admin_memo||''%></small></td><td><% if(x.status==='new'){%><% if(x.payment_status==='waiting'){%><form method="post" action="/admin/banner-requests/<%=x.id%>/payment-confirm" class="report-done-form"><input name="admin_memo" placeholder="입금확인 메모"><button class="approve-btn">입금확인</button></form><%}else{%><span class="pending">입금대기</span><%}%><form method="post" action="/admin/banner-requests/<%=x.id%>/reject" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="반려 사유"><button class="reject-btn">반려</button></form><form method="post" action="/admin/banner-requests/<%=x.id%>/cancel" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="취소 메모"><button class="cancel-edit">취소</button></form><%}else{%>처리완료<%}%></td></tr><%})%></table></section>
 <section id="adCenter" class="panel admin-panel">
-<h2>광고센터 통합관리</h2>
-<p style="color:#8d98b8;margin-top:-6px">일반광고, 추천광고, 프리미엄배너 신청을 이 화면에서 한 번에 관리합니다.</p>
+<h2>광고센터</h2>
 <%
   const _centerAds=(typeof adRequests!=='undefined'&&Array.isArray(adRequests)?adRequests:[]).map(x=>Object.assign({},x,{_kind:'ad',_kindLabel:'변경/연장',_product:x.plan||x.product_type||'-'}));
   const _centerBanners=(typeof bannerRequests!=='undefined'&&Array.isArray(bannerRequests)?bannerRequests:[]).map(x=>Object.assign({},x,{_kind:'banner',_kindLabel:'프리미엄배너',_product:x.title||'프리미엄배너'}));
