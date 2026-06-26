@@ -149,6 +149,16 @@
 .vendor-form-submit button{height:42px}
 @media(max-width:1100px){.vendor-form-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.vendor-form-grid,.vendor-form-grid.two,.vendor-form-submit{grid-template-columns:1fr}}
+.vendor-toolbar{display:flex;justify-content:flex-end;gap:10px;margin:0 0 14px}
+.vendor-add-open{height:42px!important;padding:0 22px!important}
+.vendor-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;align-items:flex-start;justify-content:center;padding:32px 18px;overflow:auto}
+.vendor-modal.active{display:flex}
+.vendor-modal-box{width:min(1180px,100%);background:#101525;border:1px solid #29324f;border-radius:18px;padding:22px;box-shadow:0 20px 70px rgba(0,0,0,.45)}
+.vendor-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px}
+.vendor-modal-head h3{margin:0;font-size:22px}
+.vendor-modal-close{height:34px!important;padding:0 12px!important;background:#222b43!important}
+.vendor-modal .vendor-form-box{margin-bottom:14px}
+.vendor-modal .vendor-form-submit{position:sticky;bottom:0;background:#101525;padding-top:10px}
 </style></head><body><header class="top"><b>관리자</b><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
@@ -261,6 +271,16 @@
   <div class="vendor-summary-card expire"><b>7일 이내 만료</b><strong><%=_vExpiring%></strong></div>
 </div>
 <p class="vendor-filter-note">업체목록은 광고상태, 노출상태, 만기상태를 기준으로 빠르게 확인할 수 있습니다.</p>
+<div class="vendor-toolbar">
+  <button type="button" id="openVendorCreateModal" class="vendor-add-open">업체 등록</button>
+</div>
+
+<div id="vendorModal" class="vendor-modal">
+  <div class="vendor-modal-box">
+    <div class="vendor-modal-head">
+      <h3 id="vendorModalTitle">업체 등록</h3>
+      <button type="button" id="closeVendorModal" class="vendor-modal-close">닫기</button>
+    </div>
 <form id="vendorForm" method="post" action="/admin/vendor" enctype="multipart/form-data">
   <input type="hidden" name="id">
 
@@ -312,7 +332,9 @@
     <button id="vendorSubmitBtn">업체 등록</button>
     <button type="button" id="cancelVendorEdit" class="cancel-edit" style="display:none">취소</button>
   </div>
-</form><div class="vendor-admin-filter"><input id="vendorSearch" placeholder="업체명 검색"><select id="vendorTypeFilter"><option value="all">전체 광고</option><option value="noad">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option><option value="banner">프리미엄배너</option><option value="expiring">7일 이내 만료</option></select><select id="vendorStatusFilter"><option value="all">전체 상태</option><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select><select id="vendorSortFilter"><option value="default">기본순</option><option value="views">조회수순</option><option value="reviews">후기순</option><option value="rating">평점순</option><option value="latest">최신등록순</option></select><button type="button" id="vendorFilterReset">초기화</button></div>
+</form>
+  </div>
+</div><div class="vendor-admin-filter"><input id="vendorSearch" placeholder="업체명 검색"><select id="vendorTypeFilter"><option value="all">전체 광고</option><option value="noad">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option><option value="banner">프리미엄배너</option><option value="expiring">7일 이내 만료</option></select><select id="vendorStatusFilter"><option value="all">전체 상태</option><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select><select id="vendorSortFilter"><option value="default">기본순</option><option value="views">조회수순</option><option value="reviews">후기순</option><option value="rating">평점순</option><option value="latest">최신등록순</option></select><button type="button" id="vendorFilterReset">초기화</button></div>
 <table><tr><th>ID</th><th>구분</th><th>업체명</th><th>지역/업종</th><th>조회</th><th>후기</th><th>평점</th><th>만기상태</th><th>영업시간</th><th>상태</th><th>관리</th></tr><% vendors.forEach(v=>{ const t=v.is_premium?'premium':v.is_recommended?'recommend':'normal'; const st=vendorReviewStats[v.id]||{count:0,sum:0}; const avg=st.count?(st.sum/st.count).toFixed(1):'-'; %><tr class="vendor-row" data-id="<%=v.id%>" data-views="<%=v.views||0%>" data-reviews="<%=st.count%>" data-rating="<%=avg==='-'?0:avg%>" data-ad-type="<%=v.ad_type||'none'%>" data-membership="<%=v.ad_type||'none'%>" data-expire="<%=v.expire_at||''%>" data-banner-active="<%=v.banner_active?'1':'0'%>" data-banner-until="<%=v.banner_until?fmtDate(v.banner_until):''%>" data-name="<%=String(v.name||'').toLowerCase()%>" data-type="<%=(!v.ad_type||v.ad_type==='none')?'noad':v.banner_active?'banner':v.ad_type==='recommended'?'recommended':'general'%>" data-expiring="<% const _dlFilter=(v.expire_at?Math.ceil((new Date(v.expire_at).setHours(0,0,0,0)-new Date().setHours(0,0,0,0))/(1000*60*60*24)):9999); %><%=_dlFilter>=0&&_dlFilter<=7?'1':'0'%>" data-status="<%=v.status%>" data-region="<%=v.region||''%>" data-category="<%=v.category||''%>" data-vendor-name="<%=v.name||''%>" data-business-hours="<%=v.business_hours||''%>"><td><%=v.id%></td><td>
   <div class="vendor-ad-status">
     <%- v.banner_active?'<span class="ad-badge ad-banner">추천광고 + 프리미엄배너</span>':v.ad_type==='recommended'?'<span class="ad-badge ad-recommended">추천광고</span>':v.ad_type==='general'?'<span class="ad-badge ad-general">일반광고</span>':'<span class="ad-badge ad-none">광고없음</span>' %>
@@ -773,4 +795,54 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
 </script>
 
 
+
+<script>
+(function(){
+  const modal=document.getElementById('vendorModal');
+  const openBtn=document.getElementById('openVendorCreateModal');
+  const closeBtn=document.getElementById('closeVendorModal');
+  const cancelBtn=document.getElementById('cancelVendorEdit');
+  const form=document.getElementById('vendorForm');
+  const title=document.getElementById('vendorModalTitle');
+  const submit=document.getElementById('vendorSubmitBtn');
+
+  if(!modal||!form)return;
+
+  function openModal(mode){
+    if(title) title.textContent = mode==='edit' ? '업체 수정' : '업체 등록';
+    if(submit) submit.textContent = mode==='edit' ? '업체 수정 저장' : '업체 등록';
+    modal.classList.add('active');
+    document.body.style.overflow='hidden';
+  }
+
+  function closeModal(){
+    modal.classList.remove('active');
+    document.body.style.overflow='';
+  }
+
+  if(openBtn){
+    openBtn.addEventListener('click',()=>{
+      form.reset();
+      const idInput=form.querySelector('input[name="id"]');
+      if(idInput) idInput.value='';
+      const preview=document.getElementById('vendorImagePreview');
+      if(preview) preview.style.display='none';
+      if(cancelBtn) cancelBtn.style.display='none';
+      openModal('create');
+    });
+  }
+
+  document.querySelectorAll('.edit-vendor-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      setTimeout(()=>openModal('edit'),0);
+    });
+  });
+
+  if(closeBtn) closeBtn.addEventListener('click',closeModal);
+  if(cancelBtn) cancelBtn.addEventListener('click',closeModal);
+  modal.addEventListener('click',e=>{
+    if(e.target===modal) closeModal();
+  });
+})();
+</script>
 </body></html>
