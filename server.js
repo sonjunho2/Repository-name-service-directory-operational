@@ -422,10 +422,14 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
 
 app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
+  const pending=await q("SELECT id FROM vendor_update_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' LIMIT 1",[req.session.user.id,req.session.user.vendor_id]);
+  if(pending.rows[0])return res.redirect('/vendor-dashboard');
+  const name=(req.body.name||'').trim().slice(0,100);
+  if(!name)return res.redirect('/vendor-dashboard');
   const im=img(req.file);
   await q(
     'INSERT INTO vendor_update_requests(user_id,vendor_id,name,category,region,phone,kakao_url,business_hours,tags,description,image_data,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
-    [req.session.user.id,req.session.user.vendor_id,req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,req.body.business_hours,req.body.tags,req.body.description,im,req.body.sns_url,req.body.line_url,req.body.telegram_url,req.body.holiday_info]
+    [req.session.user.id,req.session.user.vendor_id,name,(req.body.category||'기타').trim().slice(0,50),(req.body.region||'기타').trim().slice(0,50),(req.body.phone||'').trim().slice(0,50),(req.body.kakao_url||'').trim().slice(0,200),(req.body.business_hours||'').trim().slice(0,200),(req.body.tags||'').trim().slice(0,300),(req.body.description||'').trim().slice(0,3000),im,(req.body.sns_url||'').trim().slice(0,200),(req.body.line_url||'').trim().slice(0,200),(req.body.telegram_url||'').trim().slice(0,200),(req.body.holiday_info||'').trim().slice(0,500)]
   );
   res.redirect('/vendor-dashboard');
 });
@@ -509,7 +513,7 @@ app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
   res.redirect('/vendor-dashboard');
 });
 
-app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>{const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x)return res.redirect('/admin#bannerRequests'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data]); await q('UPDATE vendor_banner_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]); await logAdmin(req,'배너신청 승인','banner_request',x.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
+app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>{res.redirect('/admin#bannerRequests');});
 
 
 
