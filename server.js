@@ -208,6 +208,8 @@ async function homeData(req){
   const settings=await getSettings();
   return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings};
 }
+app.get('/robots.txt',(req,res)=>{const base=req.protocol+'://'+req.get('host');res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vendor-dashboard\nDisallow: /mypage\nSitemap: '+base+'/sitemap.xml\n');});
+app.get('/sitemap.xml',async(req,res)=>{const base=req.protocol+'://'+req.get('host');const rows=await q("SELECT id FROM vendors WHERE status='active' AND ad_type<>'none' AND expire_at IS NOT NULL AND expire_at>=CURRENT_DATE ORDER BY id DESC LIMIT 5000");const urls=['/','/advertise','/apply'].map(x=>'<url><loc>'+base+x+'</loc></url>').concat(rows.rows.map(v=>'<url><loc>'+base+'/vendor/'+v.id+'</loc></url>'));res.type('application/xml').send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+urls.join('')+'</urlset>');});
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
 app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
 app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
