@@ -631,20 +631,7 @@ app.get('/admin/backup.json',admin,async(req,res)=>{
   res.setHeader('Content-Disposition','attachment; filename=\"backup.json\"');
   res.send(JSON.stringify(data,null,2));
 });
-app.post('/admin/restore-json',admin,async(req,res)=>{
-  const password=(req.body.password||'').trim();
-  const raw=req.body.backup_json||'';
-  const adminUser=await q('SELECT * FROM users WHERE id=$1 AND role=$2',[req.session.user.id,'admin']);
-  if(!adminUser.rows[0] || !await bcrypt.compare(password,adminUser.rows[0].password_hash))return res.redirect('/admin#settings');
-  let data; try{data=JSON.parse(raw);}catch(e){return res.redirect('/admin#settings');}
-  if(!data.tables)return res.redirect('/admin#settings');
-  const wipe=['vendor_ad_requests','vendor_banner_requests','vendor_update_requests','favorites','flags','reviews','banners','inquiries','notices','vendors'];
-  for(const t of wipe){try{await q(`DELETE FROM ${t}`);}catch(e){}}
-  if(data.tables.vendors){for(const x of data.tables.vendors){await q('INSERT INTO vendors(id,name,category,region,phone,kakao_url,tags,description,business_hours,is_recommended,is_premium,status,image_data,views,created_at,ad_until) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (id) DO NOTHING',[x.id,x.name,x.category,x.region,x.phone,x.kakao_url,x.tags,x.description,x.business_hours,x.is_recommended,x.is_premium,x.status,x.image_data,x.views,x.created_at,x.ad_until]);}}
-  if(data.tables.banners){for(const x of data.tables.banners){await q('INSERT INTO banners(id,title,subtitle,link_url,position,sort_order,is_active,image_data,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING',[x.id,x.title,x.subtitle,x.link_url,x.position,x.sort_order,x.is_active,x.image_data,x.created_at]);}}
-  if(data.tables.notices){for(const x of data.tables.notices){await q('INSERT INTO notices(id,title,content,is_pinned,created_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT (id) DO NOTHING',[x.id,x.title,x.content,x.is_pinned,x.created_at]);}}
-  res.redirect('/admin#settings');
-});
+app.post('/admin/restore-json',admin,async(req,res)=>{await logAdmin(req,'복원 차단','system','restore','복원 기능 임시 비활성화');res.redirect('/admin#settings');});
 
 app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   const password=(req.body.password||'').trim();
