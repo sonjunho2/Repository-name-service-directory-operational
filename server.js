@@ -581,37 +581,16 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   await logAdmin(req,'변경/연장 입금확인','ad_request',x.id,`${x.plan||productType} 적용`);
   res.redirect('/admin#adRequests');
 });
-app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
+app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>{await q("UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new'",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#bannerRequests');});
 
-app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>{
-  const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);
-  const x=r.rows[0];
+app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>{res.redirect('/admin#adRequests');});
 
-  if(!x){
-    return res.redirect('/admin#adRequests');
-  }
-
-  const days=parseInt(x.period||30,10)||30;
-
-  await q(
-    "UPDATE vendors SET is_premium=true, ad_until=(CURRENT_DATE + ($1 || ' days')::interval)::date WHERE id=$2",
-    [days,x.vendor_id]
-  );
-
-  await q(
-    'UPDATE vendor_ad_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',
-    ['approved',(req.body.admin_memo||'').slice(0,500),x.id]
-  );
-
-  res.redirect('/admin#adRequests');
-});
-
-app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_ad_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'상품/광고신청 반려','ad_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#adRequests');});
+app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>{await q("UPDATE vendor_ad_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new'",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'상품/광고신청 반려','ad_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#adRequests');});
 
 app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
   const r=await q('SELECT * FROM vendor_update_requests WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
-  if(!x)return res.redirect('/admin#vendorRequests');
+  if(!x||x.status!=='new')return res.redirect('/admin#vendorRequests');
 
   const params=[x.name,x.category,x.region,x.phone,x.kakao_url,x.business_hours,x.tags,x.description,x.sns_url,x.line_url,x.telegram_url,x.holiday_info,x.vendor_id];
 
@@ -625,7 +604,7 @@ app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
   await logAdmin(req,'업체수정요청 승인','vendor_update_request',x.id,req.body.admin_memo||'');
   res.redirect('/admin#vendorRequests');
 });
-app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>{await q('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'업체수정요청 반려','vendor_update_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#vendorRequests');});
+app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>{await q("UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3 AND status='new'",['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'업체수정요청 반려','vendor_update_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#vendorRequests');});
 
 app.post('/admin/link-user-vendor',admin,async(req,res)=>{const userId=parseInt(req.body.user_id||0,10); const vendorId=parseInt(req.body.vendor_id||0,10); if(userId&&vendorId){await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]); await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);} await logAdmin(req,'회원 수정','user',req.body.id,req.body.nickname||''); res.redirect('/admin#users');});
 
