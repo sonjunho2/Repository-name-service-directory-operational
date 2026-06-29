@@ -1,0 +1,64 @@
+name: UI polish stage 1
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ui-polish-stage1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append UI polish CSS
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          css_path = Path('public/css/style.css')
+          css = css_path.read_text()
+          marker = '/* UI POLISH STAGE 1 - 2026 */'
+          block = r'''
+
+/* UI POLISH STAGE 1 - 2026 */
+:root{
+  --surface-glass:rgba(16,21,37,.78);
+  --surface-deep:#080d18;
+  --soft-border:rgba(255,255,255,.08);
+  --glow-cyan:0 0 0 1px rgba(16,217,255,.18),0 18px 52px rgba(16,217,255,.09);
+  --glow-pink:0 0 0 1px rgba(255,63,180,.18),0 18px 52px rgba(255,63,180,.08);
+}
+body:before{content:'';position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.035),transparent 260px),radial-gradient(circle at 50% -120px,rgba(16,217,255,.12),transparent 360px);z-index:-1}
+.top{border-bottom-color:rgba(255,255,255,.08);background:rgba(7,10,18,.82)!important}.brand{display:inline-flex;align-items:center;gap:9px}.brand:before{content:'◆';font-size:13px;color:var(--cyan);filter:drop-shadow(0 0 10px rgba(16,217,255,.85))}.top nav a{border:1px solid transparent}.top nav a:hover{border-color:rgba(16,217,255,.22);box-shadow:0 8px 22px rgba(16,217,255,.08)}
+.selector-wrap{border-width:1px!important;border-color:rgba(255,220,77,.72)!important;border-radius:22px;overflow:hidden;background:rgba(7,11,21,.86)!important;backdrop-filter:blur(10px)}.selector-head{background:linear-gradient(90deg,#ffdc4d,#ffb84d)!important}.selector-list a{border-right-color:rgba(255,255,255,.07)!important}.selector-list a.active,.selector-list a[aria-current="page"]{background:linear-gradient(135deg,rgba(255,220,77,.19),rgba(16,217,255,.08))!important;color:#fff!important;box-shadow:inset 0 -2px 0 var(--yellow)}
+.premium-row-slider,.side-search,.panel,.card,.side-box,.admin-content .panel{background:linear-gradient(145deg,rgba(17,23,43,.93),rgba(12,17,32,.96))!important;border-color:rgba(255,255,255,.08)!important}.premium-row-slider{box-shadow:var(--glow-pink)}.side-search{box-shadow:var(--glow-cyan)}.side-search input,.side-search select{height:46px!important;border-radius:13px!important}.side-search button{border-radius:13px!important;letter-spacing:-.01em}
+.section-title{padding:0 4px}.section-title h2{font-size:clamp(24px,2.5vw,34px);letter-spacing:-.04em}.section-title h2:after{content:'';display:block;width:54px;height:3px;margin-top:9px;border-radius:99px;background:linear-gradient(90deg,var(--pink),var(--cyan))}.section-title span{line-height:1.55}
+.card{border-radius:26px!important}.card.premium{box-shadow:0 0 0 1px rgba(244,190,42,.2),0 22px 64px rgba(244,190,42,.08)!important}.card.recommend{box-shadow:0 0 0 1px rgba(71,163,255,.18),0 22px 64px rgba(71,163,255,.08)!important}.card em{letter-spacing:.02em}.card h3{letter-spacing:-.045em}.card p{font-weight:800;color:#d1d8ef!important}.thumb{background:linear-gradient(135deg,#080d18,#11172b)!important;border-color:rgba(255,255,255,.08)!important}.noimg{display:grid;place-items:center;width:100%;height:100%;background:repeating-linear-gradient(135deg,rgba(255,255,255,.02) 0 10px,transparent 10px 20px);color:#687392!important}
+.card-rating{box-shadow:inset 0 0 0 1px rgba(255,220,77,.16)}.popular-rank{box-shadow:0 8px 20px rgba(255,63,180,.18)}
+.right-board{gap:20px}.side-box h3{display:flex;align-items:center;gap:8px}.side-box h3:before{content:'';width:9px;height:9px;border-radius:99px;background:var(--cyan);box-shadow:0 0 16px rgba(16,217,255,.8)}.sideitem,.mini-row{transition:background .18s ease,padding-left .18s ease}.sideitem:hover,.mini-row:hover{background:rgba(255,255,255,.035);padding-left:8px;border-radius:10px}
+.modal-vendor-info h2,.vendor-summary h1{letter-spacing:-.055em}.modal-vendor-photo,.vendor-photo{box-shadow:0 18px 46px rgba(0,0,0,.34)}.modal-info-box,.info-list div{background:linear-gradient(145deg,rgba(8,13,24,.96),rgba(16,21,37,.9))!important}.modal-section,.vendor-section{background:rgba(8,13,24,.42);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:22px!important}.modal-section{margin-top:18px!important}.review{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.055)!important;border-radius:16px;margin:10px 0;padding:16px!important}.review:last-of-type{border-bottom:1px solid rgba(255,255,255,.055)!important}
+.admin-shell{background:linear-gradient(135deg,rgba(255,255,255,.015),transparent)}.admin-sidebar{background:rgba(8,13,24,.86)!important;backdrop-filter:blur(12px)}.admin-sidebar h2{letter-spacing:-.05em}.admin-menu-title{letter-spacing:.02em}.admin-sidebar a{border:1px solid transparent}.admin-sidebar a:hover{border-color:rgba(16,217,255,.24)}.admin-content h2{font-size:30px;letter-spacing:-.05em;margin-top:0}.admin-content h2:after{content:'';display:block;width:48px;height:3px;margin-top:10px;border-radius:99px;background:linear-gradient(90deg,var(--pink),var(--cyan))}.dash-card,.dashboard-box,.admin-home-box,.integrated-card,.settings-box{background:linear-gradient(145deg,rgba(8,13,24,.98),rgba(16,21,37,.92))!important;border-color:rgba(255,255,255,.08)!important}.admin-content table{border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 30px rgba(0,0,0,.2)}.admin-content th{background:#10172b!important;color:#dfe9ff}.admin-content tr:hover td{background:rgba(16,217,255,.035)}.approve-btn,.banner-btn,.reject-btn{box-shadow:none!important}.pay-badge,.expiry-badge,.role-badge{box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.vendor-dashboard,.vendor-detail,.auth .form,.form.panel{animation:fadeUp .34s ease both}.card,.side-box,.panel{animation:fadeUp .28s ease both}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:1120px){.right-board{grid-template-columns:1fr 1fr 1fr}.side-box{min-width:0}.premium-row-slider:before,.premium-row-slider:after{width:34px}}
+@media(max-width:900px){body:before{background:radial-gradient(circle at 50% -80px,rgba(16,217,255,.16),transparent 320px)}.top{position:sticky!important}.brand{font-size:18px}.top nav span{display:none}.selector-wrap{border-radius:18px}.promo-search-wrap{gap:14px}.premium-row-slider{border-radius:18px}.section-title h2{font-size:24px}.modal-section,.vendor-section{padding:18px!important}.admin-content h2{font-size:25px}.admin-sidebar{max-height:52vh;overflow:auto}.admin-sidebar a{min-height:40px}.dashboard-pending-grid,.dashboard-metric-grid{grid-template-columns:1fr!important}}
+@media(max-width:640px){.top{display:block}.brand{height:38px}.top nav{justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap;padding-bottom:8px}.top nav a{flex:0 0 auto}.selector-list a{font-size:13px}.premium-banner-card strong{font-size:18px}.card h3{font-size:20px}.thumb{height:155px}.side-search input,.side-search select,.side-search button{min-height:44px!important}.right-board{display:flex}.modal-vendor-info h2{font-size:28px!important}.review-title{align-items:flex-start;flex-direction:column}.review-write-btn{width:100%!important;justify-content:center}.admin-content{padding:12px!important}.admin-content .panel{padding:16px!important;border-radius:16px!important}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+'''
+          if marker not in css:
+              css_path.write_text(css.rstrip() + block + '\n')
+          Path('.github/workflows/ui-polish-stage1.yml').unlink(missing_ok=True)
+          PY
+      - name: Commit UI polish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No UI changes to commit"
+          else
+            git commit -m "Polish stage 1 UI styles"
+            git push
+          fi
