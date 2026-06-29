@@ -54,7 +54,7 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
     await q("CREATE INDEX IF NOT EXISTS idx_ad_requests_status_payment ON vendor_ad_requests(status,payment_status)");
     await q("CREATE INDEX IF NOT EXISTS idx_banner_requests_status_payment ON vendor_banner_requests(status,payment_status)");
   }
-app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public'));
+app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'7d',etag:true}));
 app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12}}));
 function formatKstDate(value){
   if(!value)return '-';
