@@ -1,0 +1,38 @@
+name: Performance stage 1
+
+on:
+  push:
+    paths:
+      - '.github/workflows/perf-stage1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Add indexes and public list limit
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('server.js')
+          s=p.read_text()
+          if 'idx_vendors_status_expire' not in s:
+              s=s.replace("await q(\"ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int\");", "await q(\"ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int\");\n    await q(\"CREATE INDEX IF NOT EXISTS idx_vendors_status_expire ON vendors(status,expire_at)\");\n    await q(\"CREATE INDEX IF NOT EXISTS idx_vendors_region_category ON vendors(region,category)\");\n    await q(\"CREATE INDEX IF NOT EXISTS idx_reviews_vendor_status ON reviews(vendor_id,status)\");\n    await q(\"CREATE INDEX IF NOT EXISTS idx_favorites_vendor ON favorites(vendor_id)\");\n    await q(\"CREATE INDEX IF NOT EXISTS idx_view_logs_vendor_created ON vendor_view_logs(vendor_id,created_at)\");\n    await q(\"CREATE INDEX IF NOT EXISTS idx_ad_requests_status_payment ON vendor_ad_requests(status,payment_status)\");\n    await q(\"CREATE INDEX IF NOT EXISTS idx_banner_requests_status_payment ON vendor_banner_requests(status,payment_status)\");")
+          s=s.replace("ORDER BY ${order}`,params);", "ORDER BY ${order} LIMIT 120`,params);")
+          p.write_text(s)
+          Path('.github/workflows/perf-stage1.yml').unlink(missing_ok=True)
+          PY
+          node --check server.js
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; else git commit -m "Add core indexes and limit public listing" && git push; fi
