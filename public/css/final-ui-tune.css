@@ -1,0 +1,10 @@
+/* Final shared UI tune - 2026 */
+:root{--final-border:rgba(255,255,255,.08);--final-panel:linear-gradient(145deg,rgba(16,21,37,.96),rgba(8,13,24,.98))}
+input,select,textarea{font-family:inherit}button,a.btn,.btn{user-select:none}button:disabled,.btn:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.35)}
+input::placeholder,textarea::placeholder{color:#7f8baa}select option{background:#080d18;color:#fff}
+.card,.box,.panel,.side-box,.auth-card{backdrop-filter:saturate(115%)}
+button:not(:disabled),.btn,a.card,.menu-btn,.dashboard-pending-card{transition:transform .18s ease,filter .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease}
+button:not(:disabled):active,.btn:active,.menu-btn:active{transform:translateY(1px)}
+table{font-size:14px}th{font-weight:900;letter-spacing:-.02em}td{vertical-align:middle}
+.empty-text,.vendor-empty{line-height:1.65}.status-waiting{white-space:nowrap}.call-btn,.review-write-btn{white-space:nowrap}
+@media(max-width:760px){body{overflow-x:hidden}.top nav::-webkit-scrollbar{height:0}.section-title h2,.box h2,.box h3{word-break:keep-all}table{font-size:13px}button,.btn{min-height:40px}}
