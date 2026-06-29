@@ -1,0 +1,46 @@
+name: Admin UI finish
+
+on:
+  push:
+    paths:
+      - '.github/workflows/admin-ui-finish.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append admin UI finish css
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('public/css/style.css')
+          s=p.read_text()
+          marker='/* ADMIN UI FINISH - 2026 */'
+          block='''
+
+/* ADMIN UI FINISH - 2026 */
+.admin-shell{background:radial-gradient(circle at top right,rgba(16,217,255,.08),transparent 340px)}
+.admin-sidebar{box-shadow:18px 0 44px rgba(0,0,0,.22);backdrop-filter:blur(12px)}
+.admin-sidebar h2{letter-spacing:-.05em}.admin-sidebar a{border:1px solid transparent}.admin-sidebar a:hover,.admin-sidebar a.active{box-shadow:0 12px 28px rgba(16,217,255,.14)}
+.admin-content h2{letter-spacing:-.05em}.admin-content h2:after{content:'';display:block;width:52px;height:3px;margin-top:10px;border-radius:99px;background:linear-gradient(90deg,#ff3fb4,#10d9ff)}
+.admin-content .panel,.dash-card,.dash-list,.settings-box,.integrated-card,.admin-home-box{border-color:rgba(255,255,255,.08)!important;background:linear-gradient(145deg,rgba(16,21,37,.96),rgba(8,13,24,.98))!important;box-shadow:0 18px 46px rgba(0,0,0,.24)}
+.admin-content input,.admin-content select,.admin-content textarea{border-color:rgba(255,255,255,.10)!important;background:#080d18!important}.admin-content input:focus,.admin-content select:focus,.admin-content textarea:focus{border-color:var(--cyan)!important;box-shadow:0 0 0 3px rgba(16,217,255,.20)!important;outline:none}
+.admin-content table{border-color:rgba(255,255,255,.08)!important}.admin-content th{background:#10172b!important;color:#dfe9ff}.admin-content tr:hover td{background:rgba(16,217,255,.04)}
+.admin-sub-filter button,.settings-tab{transition:.18s transform,.18s filter,.18s border-color,.18s box-shadow}.admin-sub-filter button:hover,.settings-tab:hover{box-shadow:0 10px 24px rgba(16,217,255,.12)}
+@media(max-width:800px){.admin-sidebar{max-height:54vh}.admin-content .panel{border-radius:18px}.admin-content h2{font-size:24px}.dash-card strong{font-size:26px!important}}
+'''
+          if marker not in s:
+              p.write_text(s.rstrip()+block+'\n')
+          Path('.github/workflows/admin-ui-finish.yml').unlink(missing_ok=True)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; else git commit -m "Finish admin UI polish" && git push; fi
