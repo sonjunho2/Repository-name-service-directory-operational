@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express=require('express'), session=require('express-session'), bcrypt=require('bcryptjs'), multer=require('multer');
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
-const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF만 가능합니다.'))}});
+const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg|webp)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF, WEBP만 가능합니다.'))}});
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
 const q=(s,p=[])=>pool.query(s,p); const img=f=>f?`data:${f.mimetype};base64,${f.buffer.toString('base64')}`:null;
 async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS kakao_url text'); await q(`CREATE TABLE IF NOT EXISTS inquiries(id SERIAL PRIMARY KEY,type text,company_name text,name text,phone text,kakao text,email text,category text,region text,content text,main_image_data text,banner_image_data text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS banner_status text DEFAULT 'new'"); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS user_id int"); await q(`CREATE TABLE IF NOT EXISTS flags(id SERIAL PRIMARY KEY,type text,target_id int,reason text,content text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS admin_memo text"); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS processed_at timestamp"); await q(`CREATE TABLE IF NOT EXISTS app_settings(key text PRIMARY KEY, value text DEFAULT '')`); await q("INSERT INTO app_settings(key,value) VALUES('categories','카페\n뷰티\n맛집\n교육\n기타') ON CONFLICT (key) DO NOTHING"); await q("INSERT INTO app_settings(key,value) VALUES('regions','서울\n부산\n대구\n인천\n광주\n대전\n제주') ON CONFLICT (key) DO NOTHING"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_vendor boolean DEFAULT false"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS vendor_id int"); await q(`CREATE TABLE IF NOT EXISTS vendor_update_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,name text,category text,region text,phone text,kakao_url text,business_hours text,tags text,description text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_banner_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,title text,subtitle text,link_url text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_ad_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,plan text,period text,content text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ad_until date");
@@ -426,6 +426,9 @@ app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
   const settings=await getSettings();
   const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
   const vendor=v.rows[0]||{};
+  if(!vendor.image_data)return res.redirect('/vendor-dashboard?panel=banner');
+  const pending=await q("SELECT id FROM vendor_banner_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' LIMIT 1",[req.session.user.id,req.session.user.vendor_id]);
+  if(pending.rows[0])return res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+pending.rows[0].id);
 
   const price=(vendor.ad_type==='recommended')
     ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0)
@@ -461,6 +464,8 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   const vendor=v.rows[0]||{};
 
   const productType=req.body.product_type||'renewal_general';
+  const pending=await q("SELECT id,product_type FROM vendor_ad_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' AND product_type=$3 LIMIT 1",[req.session.user.id,req.session.user.vendor_id,productType]);
+  if(pending.rows[0])return res.redirect('/vendor-dashboard?panel='+(productType==='renewal_banner'?'banner':'plan')+'&pay=ad&id='+pending.rows[0].id);
   const period=req.body.period||'30';
   const immediateApply=!!req.body.immediate_apply;
 
@@ -490,7 +495,7 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
 
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
-  await q('UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3',['waiting',req.params.id,req.session.user.id]);
+  await q("UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid'",['waiting',req.params.id,req.session.user.id]);
   res.redirect('/vendor-dashboard');
 });
 
@@ -501,7 +506,7 @@ app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>{const r=awa
 
 app.post('/vendor-dashboard/banner-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
-  await q('UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status=$4',['waiting',req.params.id,req.session.user.id,'new']);
+  await q("UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid'",['waiting',req.params.id,req.session.user.id]);
   res.redirect('/vendor-dashboard?panel=banner');
 });
 
