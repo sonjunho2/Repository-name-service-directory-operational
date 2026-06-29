@@ -223,14 +223,14 @@ app.get('/admin/login',(req,res)=>res.render('admin-login',{error:null})); app.p
 app.get('/admin/inquiries',admin,(req,res)=>res.redirect('/admin#inquiries'));
 app.get('/admin/reports',admin,(req,res)=>res.redirect('/admin#reports'));
 
-app.post('/admin/reports/:id/done',admin,async(req,res)=>{await q('UPDATE flags SET status=$1, admin_memo=$2, processed_at=now() WHERE id=$3',['done',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'신고 처리완료','report',req.params.id,req.body.admin_memo||''); res.redirect('/admin#reports');});
-app.post('/admin/inquiries/:id/reject',admin,async(req,res)=>{await q('UPDATE inquiries SET status=$1 WHERE id=$2',['rejected',req.params.id]); await logAdmin(req,'입점신청 반려','inquiry',req.params.id,'신청 반려'); res.redirect('/admin#inquiries');});
+app.post('/admin/reports/:id/done',admin,async(req,res)=>{await q("UPDATE flags SET status=$1, admin_memo=$2, processed_at=now() WHERE id=$3 AND status='new'",['done',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'신고 처리완료','report',req.params.id,req.body.admin_memo||''); res.redirect('/admin#reports');});
+app.post('/admin/inquiries/:id/reject',admin,async(req,res)=>{await q("UPDATE inquiries SET status=$1 WHERE id=$2 AND status='new'",['rejected',req.params.id]); await logAdmin(req,'입점신청 반려','inquiry',req.params.id,'신청 반려'); res.redirect('/admin#inquiries');});
 app.get('/admin/inquiry-image/:id/:kind',admin,async(req,res)=>{const col=req.params.kind==='banner'?'banner_image_data':'main_image_data'; const r=await q(`SELECT ${col} image_data FROM inquiries WHERE id=$1`,[req.params.id]); const data=r.rows[0]?.image_data; if(!data)return res.status(404).send('이미지가 없습니다.'); const m=data.match(/^data:(.+);base64,(.+)$/); if(!m)return res.status(400).send('이미지 형식 오류'); res.setHeader('Content-Type',m[1]); res.send(Buffer.from(m[2],'base64'));});
 app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
   const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
   if(!x)return res.redirect('/admin#inquiries');
-  if(x.type!=='apply')return res.redirect('/admin#inquiries');
+  if(x.type!=='apply'||x.status!=='new')return res.redirect('/admin#inquiries');
 
   const inserted=await q(
     "INSERT INTO vendors(name,category,region,phone,kakao_url,description,image_data,is_recommended,is_premium,status,membership_type,ad_type,expire_at,banner_active) VALUES($1,$2,$3,$4,$5,$6,$7,false,false,$8,$9,$10,NULL,false) RETURNING id",
@@ -247,7 +247,7 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
   await logAdmin(req,'입점신청 승인/업체회원전환','inquiry',x.id,`업체ID ${vendorId} 생성, 광고상태 없음`);
   res.redirect('/admin#inquiries');
 });
-app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return res.redirect('/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q('UPDATE inquiries SET banner_status=$1 WHERE id=$2',['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); res.redirect('/admin#inquiries');});
+app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return res.redirect('/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); res.redirect('/admin#inquiries');});
 app.get('/admin',admin,async(req,res)=>{await expireAds();
   const dashStats={};
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
