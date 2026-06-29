@@ -477,10 +477,10 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
   const vendor=v.rows[0]||{};
 
-  const productType=req.body.product_type||'renewal_general';
+  const productType=['renewal_general','renewal_recommended','renewal_banner'].includes(req.body.product_type)?req.body.product_type:'renewal_general';
   const pending=await q("SELECT id,product_type FROM vendor_ad_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' AND product_type=$3 LIMIT 1",[req.session.user.id,req.session.user.vendor_id,productType]);
   if(pending.rows[0])return res.redirect('/vendor-dashboard?panel='+(productType==='renewal_banner'?'banner':'plan')+'&pay=ad&id='+pending.rows[0].id);
-  const period=req.body.period||'30';
+  const period=['30','60','90'].includes(String(req.body.period))?String(req.body.period):'30';
   const immediateApply=!!req.body.immediate_apply;
 
   const price=calcProductPrice(settings,vendor,productType,period,immediateApply);
@@ -494,7 +494,7 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
       : '일반광고 신청/변경/연장';
 
   const content=[
-    req.body.content||'',
+    (req.body.content||'').trim().slice(0,1000),
     immediateApply?'[바로 적용 요청]':''
   ].filter(Boolean).join('\n');
 
