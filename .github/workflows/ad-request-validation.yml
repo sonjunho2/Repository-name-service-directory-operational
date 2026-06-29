@@ -1,0 +1,38 @@
+name: Ad request validation
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ad-request-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch ad request validation
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('server.js')
+          s=p.read_text()
+          s=s.replace("const productType=req.body.product_type||'renewal_general';", "const productType=['renewal_general','renewal_recommended','renewal_banner'].includes(req.body.product_type)?req.body.product_type:'renewal_general';")
+          s=s.replace("const period=req.body.period||'30';", "const period=['30','60','90'].includes(String(req.body.period))?String(req.body.period):'30';")
+          s=s.replace("    req.body.content||'',\n    immediateApply?'[바로 적용 요청]':''", "    (req.body.content||'').trim().slice(0,1000),\n    immediateApply?'[바로 적용 요청]':''")
+          p.write_text(s)
+          Path('.github/workflows/ad-request-validation.yml').unlink(missing_ok=True)
+          PY
+          node --check server.js
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; else git commit -m "Validate vendor ad request inputs" && git push; fi
