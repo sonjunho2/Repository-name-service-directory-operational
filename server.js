@@ -46,6 +46,13 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
     await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
     await q("ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int");
+    await q("CREATE INDEX IF NOT EXISTS idx_vendors_status_expire ON vendors(status,expire_at)");
+    await q("CREATE INDEX IF NOT EXISTS idx_vendors_region_category ON vendors(region,category)");
+    await q("CREATE INDEX IF NOT EXISTS idx_reviews_vendor_status ON reviews(vendor_id,status)");
+    await q("CREATE INDEX IF NOT EXISTS idx_favorites_vendor ON favorites(vendor_id)");
+    await q("CREATE INDEX IF NOT EXISTS idx_view_logs_vendor_created ON vendor_view_logs(vendor_id,created_at)");
+    await q("CREATE INDEX IF NOT EXISTS idx_ad_requests_status_payment ON vendor_ad_requests(status,payment_status)");
+    await q("CREATE INDEX IF NOT EXISTS idx_banner_requests_status_payment ON vendor_banner_requests(status,payment_status)");
   }
 app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public'));
 app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12}}));
@@ -194,7 +201,7 @@ async function homeData(req){
     default:'v.is_premium DESC,v.is_recommended DESC,v.created_at DESC'
   };
   const order=orderMap[sort]||orderMap.default;
-  const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order}`,params);
+  const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 120`,params);
   const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (v.status='active' AND v.banner_active=true)) ORDER BY b.sort_order, b.id DESC`);
   const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`);
   const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
