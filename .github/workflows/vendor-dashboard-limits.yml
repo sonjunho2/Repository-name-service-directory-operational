@@ -1,0 +1,39 @@
+name: Vendor dashboard limits
+
+on:
+  push:
+    paths:
+      - '.github/workflows/vendor-dashboard-limits.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Add vendor dashboard list limits
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('server.js')
+          s=p.read_text()
+          s=s.replace("SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC'", "SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100'")
+          s=s.replace("SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC'", "SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100'")
+          s=s.replace("SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC'", "SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100'")
+          s=s.replace("SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC'", "SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC LIMIT 100'")
+          p.write_text(s)
+          Path('.github/workflows/vendor-dashboard-limits.yml').unlink(missing_ok=True)
+          PY
+          node --check server.js
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; else git commit -m "Limit vendor dashboard history queries" && git push; fi
