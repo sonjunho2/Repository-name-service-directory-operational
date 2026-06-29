@@ -44,7 +44,7 @@
       <% const loopBanners = banners.length ? banners : [{title:'프리미엄 배너',subtitle:'관리자에서 이미지 업로드 가능',link_url:'#',image_data:null},{title:'이벤트 배너',subtitle:'슬라이드로 노출됩니다',link_url:'#',image_data:null},{title:'광고 배너',subtitle:'여러 개 카드 배너 지원',link_url:'#',image_data:null}]; %>
       <% loopBanners.concat(loopBanners).forEach((b)=>{ %>
         <a class="premium-banner-card" href="<%=b.link_url||'#'%>">
-          <% if(b.image_data){%><img src="<%=b.image_data%>" alt=""><%}%>
+          <% if(b.image_data){%><img src="<%=b.image_data%>" alt="" loading="lazy" decoding="async"><%}%>
           <span>PREMIUM</span>
           <strong><%=b.title%></strong>
           <small><%=b.subtitle||'프리미엄 카드 배너'%></small>
@@ -88,7 +88,7 @@
       <% vendors.filter(v=>v.membership_type==='recommended').forEach(v=>{ %>
         <a class="card vendor-open <%=v.is_premium?'premium':'recommend'%>" href="/vendor/<%=v.id%>" data-vendor-id="<%=v.id%>">
           <div class="thumb">
-            <% if(v.image_data){%><img src="<%=v.image_data%>" alt=""><%} else {%><div class="noimg">IMAGE</div><%}%>
+            <% if(v.image_data){%><img src="<%=v.image_data%>" alt="" loading="lazy" decoding="async"><%} else {%><div class="noimg">IMAGE</div><%}%>
           </div>
           <em><%=v.is_premium?'PREMIUM':'RECOMMEND'%></em>
           <h3><%=v.name%></h3>
@@ -107,7 +107,7 @@
       <% vendors.filter(v=>(v.membership_type||'general')==='general').forEach(v=>{ %>
         <a class="card vendor-open normal-card" href="/vendor/<%=v.id%>" data-vendor-id="<%=v.id%>">
           <div class="thumb small">
-            <% if(v.image_data){%><img src="<%=v.image_data%>" alt=""><%} else {%><div class="noimg">IMAGE</div><%}%>
+            <% if(v.image_data){%><img src="<%=v.image_data%>" alt="" loading="lazy" decoding="async"><%} else {%><div class="noimg">IMAGE</div><%}%>
           </div>
           <h3><%=v.name%></h3>
           <span class="card-rating"><%=v.review_count>0?'⭐ '+v.avg_rating+' · 후기 '+v.review_count+'개':'⭐ 평점 없음'%></span>
