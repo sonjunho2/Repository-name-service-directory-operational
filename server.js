@@ -376,10 +376,10 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
       try{const r=await q(sql,params); return r.rows[0]||fallback;}catch(e){console.error('vendor-dashboard safeOne error',e.message); return fallback;}
     };
 
-    const requests=await safeRows('SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]);
-    const bannerRequests=await safeRows('SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]);
-    const adRequests=await safeRows('SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC',[req.session.user.id]);
-    const paymentLogs=await safeRows('SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC',[req.session.user.vendor_id]);
+    const requests=await safeRows('SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.id]);
+    const bannerRequests=await safeRows('SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.id]);
+    const adRequests=await safeRows('SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.id]);
+    const paymentLogs=await safeRows('SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.vendor_id]);
 
     const stats=await safeOne(`SELECT
       (SELECT COUNT(*)::int FROM reviews WHERE vendor_id=$1) review_count,
