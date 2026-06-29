@@ -1,0 +1,38 @@
+name: Static cache stage 1
+
+on:
+  push:
+    paths:
+      - '.github/workflows/static-cache-stage1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Add static cache headers
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('server.js')
+          s=p.read_text()
+          old="app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public'));"
+          new="app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'7d',etag:true}));"
+          s=s.replace(old,new)
+          p.write_text(s)
+          Path('.github/workflows/static-cache-stage1.yml').unlink(missing_ok=True)
+          PY
+          node --check server.js
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; else git commit -m "Add static asset cache headers" && git push; fi
