@@ -169,7 +169,7 @@ function addDaysSqlFromExpire(){
 async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions)};}
 async function homeData(req){
   await expireAds();
-  const search=req.query.search||'', region=req.query.region||'', category=req.query.category||'', sort=req.query.sort||'default';
+  const search=(req.query.search||'').trim().slice(0,80), region=(req.query.region||'').trim().slice(0,50), category=(req.query.category||'').trim().slice(0,50), sort=(req.query.sort||'default').trim();
   const where=["v.status=$1 AND v.ad_type <> 'none' AND v.expire_at IS NOT NULL AND v.expire_at >= CURRENT_DATE"];
   const params=['active'];
 
