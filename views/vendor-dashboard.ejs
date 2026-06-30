@@ -6,16 +6,16 @@
 <title>업체관리</title>
 <link rel="stylesheet" href="/public/css/style.css">
 <style>
-.wrap{max-width:1100px;margin:30px auto;padding:0 18px}
-.layout{display:grid;grid-template-columns:240px 1fr;gap:18px}
+.wrap{max-width:1320px;margin:30px auto;padding:0 18px}
+.layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:22px}
 .side,.box{border:1px solid #29324f;border-radius:18px;background:#101525;padding:20px}
 .side{position:sticky;top:16px;height:max-content}
 .side h2{margin-top:0}.menu-btn{width:100%;height:40px;border:0;border-radius:12px;background:transparent;color:#fff;text-align:left;padding:0 12px;font-weight:800;cursor:pointer}
 .menu-btn.active,.menu-btn:hover{background:linear-gradient(90deg,#ff3fb4,#10d9ff)}
 .group{border-top:1px solid #29324f;margin-top:14px;padding-top:14px}.group-title{color:#8d98b8;font-size:13px;margin-bottom:8px}
 .panel{display:none}.panel.active{display:block}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card{background:#070b15;border:1px solid #29324f;border-radius:14px;padding:14px}
-.card b{display:block;color:#8d98b8;margin-bottom:8px}.card strong{font-size:22px;color:#10d9ff}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card{background:#070b15;border:1px solid #29324f;border-radius:14px;padding:16px;min-height:96px;box-sizing:border-box}
+.card b{display:block;color:#8d98b8;margin-bottom:8px}.card strong{display:block;font-size:22px;color:#10d9ff;line-height:1.25;word-break:keep-all}
 .form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form input,.form select,.form textarea{height:42px;border-radius:12px;border:1px solid #29324f;background:#070b15;color:#fff;padding:0 12px}.form textarea{grid-column:1/3;height:90px;padding:12px}.form button{grid-column:1/3;height:46px;border:0;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;font-weight:900}
 .paybox{border:1px solid #10d9ff;background:#06111c;border-radius:14px;padding:14px;margin:12px 0}.paybox b{color:#10d9ff}.addr{display:grid;grid-template-columns:1fr auto;gap:8px}.addr input{height:42px;border-radius:10px;border:1px solid #29324f;background:#070b15;color:#fff;padding:0 12px}.addr button{border:0;border-radius:10px;background:#29324f;color:#fff;padding:0 14px}
 .table{width:100%;border-collapse:collapse}.table th,.table td{border:1px solid #29324f;padding:9px;text-align:left}.table th{background:#171d30}
@@ -40,7 +40,7 @@
 .vendor-status-rejected,.vendor-status-cancelled{background:#3b1212;color:#ff6b6b}
 .vendor-empty{border:1px dashed #29324f;background:#070b15;border-radius:14px;padding:16px;color:#8d98b8}
 @media(max-width:900px){.vendor-status-item{grid-template-columns:1fr}}
-.vendor-stat-strong-good{color:#1fe087!important}.vendor-stat-strong-warn{color:#ffdc4d!important}.vendor-stat-strong-danger{color:#ff6b6b!important}.vendor-stat-note{display:block;margin-top:6px;color:#8d98b8;font-size:12px;font-weight:700}.vendor-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.vendor-stat-card{background:#070b15;border:1px solid #29324f;border-radius:14px;padding:14px}.vendor-stat-card b{display:block;color:#8d98b8;margin-bottom:8px}.vendor-stat-card strong{font-size:24px;color:#10d9ff}.vendor-stat-card.good{border-color:#1fe087;background:linear-gradient(135deg,rgba(31,224,135,.12),rgba(16,217,255,.04))}.vendor-stat-card.warn{border-color:#ffdc4d;background:linear-gradient(135deg,rgba(255,220,77,.14),rgba(16,217,255,.04))}.vendor-stat-card.danger{border-color:#ff6b6b;background:linear-gradient(135deg,rgba(255,107,107,.16),rgba(255,63,180,.04))}.vendor-insight{margin-top:14px;border:1px solid #29324f;border-radius:14px;background:#070b15;padding:14px;color:#dfe9ff;line-height:1.6}.vendor-insight b{color:#10d9ff}@media(max-width:900px){.vendor-stat-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.vendor-stat-grid{grid-template-columns:1fr}}</style>
+.vendor-stat-note{display:block;margin-top:8px;color:#8d98b8;font-size:12px;font-weight:700;line-height:1.35}.vendor-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px}.vendor-stat-card{background:#070b15;border:1px solid #29324f;border-radius:14px;padding:16px;min-height:104px;box-sizing:border-box}.vendor-stat-card b{display:block;color:#8d98b8;margin-bottom:8px}.vendor-stat-card strong{display:block;font-size:26px;color:#10d9ff;line-height:1.2;word-break:keep-all}.vendor-stat-card.good{border-color:#1fe087;background:linear-gradient(135deg,rgba(31,224,135,.12),rgba(16,217,255,.04))}.vendor-stat-card.warn{border-color:#ffdc4d;background:linear-gradient(135deg,rgba(255,220,77,.14),rgba(16,217,255,.04))}.vendor-stat-card.danger{border-color:#ff6b6b;background:linear-gradient(135deg,rgba(255,107,107,.16),rgba(255,63,180,.04))}.vendor-insight{margin-top:14px;border:1px solid #29324f;border-radius:14px;background:#070b15;padding:14px;color:#dfe9ff;line-height:1.6}.vendor-insight b{color:#10d9ff}@media(max-width:1180px){.vendor-stat-grid,.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.vendor-stat-grid,.grid{grid-template-columns:1fr}.layout{grid-template-columns:1fr}.side{position:static}}</style>
 </head>
 <body>
 <header><b>업체관리</b><span><a href="/">사이트</a> <a href="/logout">로그아웃</a></span></header>
