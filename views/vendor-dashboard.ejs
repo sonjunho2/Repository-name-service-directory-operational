@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>업체관리</title>
 <link rel="stylesheet" href="/public/css/style.css">
-<link rel="stylesheet" href="/public/css/vendor-dashboard-polish.css">
 <style>
 .wrap{max-width:1100px;margin:30px auto;padding:0 18px}
 .layout{display:grid;grid-template-columns:240px 1fr;gap:18px}
@@ -41,7 +40,7 @@
 .vendor-status-rejected,.vendor-status-cancelled{background:#3b1212;color:#ff6b6b}
 .vendor-empty{border:1px dashed #29324f;background:#070b15;border-radius:14px;padding:16px;color:#8d98b8}
 @media(max-width:900px){.vendor-status-item{grid-template-columns:1fr}}
-</style>
+.vendor-stat-strong-good{color:#1fe087!important}.vendor-stat-strong-warn{color:#ffdc4d!important}.vendor-stat-strong-danger{color:#ff6b6b!important}.vendor-stat-note{display:block;margin-top:6px;color:#8d98b8;font-size:12px;font-weight:700}.vendor-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.vendor-stat-card{background:#070b15;border:1px solid #29324f;border-radius:14px;padding:14px}.vendor-stat-card b{display:block;color:#8d98b8;margin-bottom:8px}.vendor-stat-card strong{font-size:24px;color:#10d9ff}.vendor-stat-card.good{border-color:#1fe087;background:linear-gradient(135deg,rgba(31,224,135,.12),rgba(16,217,255,.04))}.vendor-stat-card.warn{border-color:#ffdc4d;background:linear-gradient(135deg,rgba(255,220,77,.14),rgba(16,217,255,.04))}.vendor-stat-card.danger{border-color:#ff6b6b;background:linear-gradient(135deg,rgba(255,107,107,.16),rgba(255,63,180,.04))}.vendor-insight{margin-top:14px;border:1px solid #29324f;border-radius:14px;background:#070b15;padding:14px;color:#dfe9ff;line-height:1.6}.vendor-insight b{color:#10d9ff}@media(max-width:900px){.vendor-stat-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.vendor-stat-grid{grid-template-columns:1fr}}</style>
 </head>
 <body>
 <header><b>업체관리</b><span><a href="/">사이트</a> <a href="/logout">로그아웃</a></span></header>
@@ -135,11 +134,31 @@
 
         <div class="box vendor-home-section">
           <h2>업체 통계</h2>
-          <div class="grid">
-            <div class="card"><b>오늘 조회</b><strong><%=viewStats.today_views||0%></strong></div>
-            <div class="card"><b>7일 조회</b><strong><%=viewStats.week_views||0%></strong></div>
-            <div class="card"><b>후기</b><strong><%=stats.review_count||0%></strong></div>
-            <div class="card"><b>평점</b><strong><%=stats.avg_rating||'-'%></strong></div>
+          <%
+            const remainDays = Number(pricingPreview.remainDays||0);
+            const monthViews = Number(viewStats.month_views||0);
+            const weekViews = Number(viewStats.week_views||0);
+            const todayViews = Number(viewStats.today_views||0);
+            const reviewCount = Number(stats.review_count||0);
+            const favoriteCount = Number(stats.favorite_count||0);
+            const reportCount = Number(stats.report_count||0);
+            const avgRating = stats.avg_rating || '-';
+            const remainClass = !vendor.expire_at ? '' : remainDays < 0 ? 'danger' : remainDays <= 7 ? 'warn' : 'good';
+            const remainText = !vendor.expire_at ? '미설정' : remainDays < 0 ? '만료' : remainDays + '일';
+          %>
+          <div class="vendor-stat-grid">
+            <div class="vendor-stat-card"><b>오늘 조회</b><strong><%=todayViews.toLocaleString()%></strong><span class="vendor-stat-note">오늘 상세페이지 방문</span></div>
+            <div class="vendor-stat-card"><b>7일 조회</b><strong><%=weekViews.toLocaleString()%></strong><span class="vendor-stat-note">최근 7일 누적</span></div>
+            <div class="vendor-stat-card"><b>30일 조회</b><strong><%=monthViews.toLocaleString()%></strong><span class="vendor-stat-note">최근 30일 누적</span></div>
+            <div class="vendor-stat-card <%=remainClass%>"><b>광고 잔여일</b><strong><%=remainText%></strong><span class="vendor-stat-note"><%=fmtDate(vendor.expire_at)%></span></div>
+            <div class="vendor-stat-card"><b>찜</b><strong><%=favoriteCount.toLocaleString()%></strong><span class="vendor-stat-note">회원 관심 수</span></div>
+            <div class="vendor-stat-card"><b>후기</b><strong><%=reviewCount.toLocaleString()%></strong><span class="vendor-stat-note">등록된 후기</span></div>
+            <div class="vendor-stat-card"><b>평균 평점</b><strong><%=avgRating%></strong><span class="vendor-stat-note">후기 평점 평균</span></div>
+            <div class="vendor-stat-card <%=reportCount>0?'danger':''%>"><b>신고</b><strong><%=reportCount.toLocaleString()%></strong><span class="vendor-stat-note">신고 누적</span></div>
+          </div>
+          <div class="vendor-insight">
+            <b>운영 팁</b><br>
+            조회수는 상세페이지 방문 기준입니다. 7일 조회가 늘고 있는데 찜/후기가 적다면 소개글, 태그, 대표이미지를 수정요청으로 개선해보세요.
           </div>
         </div>
       </section>
