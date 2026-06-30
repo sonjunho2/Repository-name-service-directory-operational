@@ -320,6 +320,18 @@ app.get('/admin/api/live-summary',admin,async(req,res)=>{
         totalUsers:await scalar("SELECT COUNT(*) v FROM users"),
         totalVendors:await scalar("SELECT COUNT(*) v FROM vendors")
       },
+      ops:{
+        todayDone:await scalar("SELECT COUNT(*) v FROM admin_logs WHERE created_at>=CURRENT_DATE"),
+        todayVendors:await scalar("SELECT COUNT(*) v FROM vendors WHERE created_at>=CURRENT_DATE"),
+        todayReports:await scalar("SELECT COUNT(*) v FROM flags WHERE created_at>=CURRENT_DATE"),
+        expiring3:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '3 days'"),
+        expiringToday:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at=CURRENT_DATE"),
+        bannerExpiring7:await scalar("SELECT COUNT(*) v FROM vendors WHERE banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND banner_until<=CURRENT_DATE+INTERVAL '7 days'"),
+        bannerExpiring3:await scalar("SELECT COUNT(*) v FROM vendors WHERE banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND banner_until<=CURRENT_DATE+INTERVAL '3 days'"),
+        lastBackup:(await q("SELECT action,memo,created_at FROM admin_logs WHERE action LIKE '%백업%' OR action LIKE '%복원%' ORDER BY id DESC LIMIT 1")).rows[0]||null,
+        db:true,
+        api:true
+      },
       recent:{
         inquiries:recentInquiries.rows,
         payments:recentPayments.rows,
