@@ -57,6 +57,15 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
 app.set('trust proxy',1); app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'7d',etag:true}));
 app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12,httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production'}}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
+app.use((req,res,next)=>{
+  if(req.method!=='POST')return next();
+  const origin=req.get('origin');
+  if(!origin)return next();
+  const expected=`${req.protocol}://${req.get('host')}`;
+  if(origin!==expected)return res.status(403).send('잘못된 요청입니다.');
+  next();
+});
+
 const loginAttempts=new Map();
 function loginAttemptKey(req,username,prefix='login'){
   return prefix+':'+(req.ip||req.headers['x-forwarded-for']||'ip')+':'+String(username||'').toLowerCase();
