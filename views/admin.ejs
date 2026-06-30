@@ -1305,11 +1305,11 @@ document.addEventListener('DOMContentLoaded',function(){
       '<td>'+esc(u.id)+'</td>'+
       '<td>'+esc(u.username||'')+'</td>'+
       '<td>'+roleBadge(u)+'</td>'+
-      '<td><form method="post" action="/admin/user" class="inline-form"><input type="hidden" name="id" value="'+esc(u.id)+'"><input name="nickname" value="'+esc(u.nickname||'')+'"></td>'+
+      '<td><form method="post" action="/admin/users/'+esc(u.id)+'/update" class="inline-form"><input name="nickname" value="'+esc(u.nickname||'')+'"></td>'+
       '<td><select name="role">'+roleOption(u.role,'user','user')+roleOption(u.role,'admin','admin')+'</select></td>'+
-      '<td><select name="status">'+statusOption(u.status,'active','active')+statusOption(u.status,'blocked','blocked')+'</select></td>'+
+      '<td><select name="status">'+statusOption(u.status,'active','active')+statusOption(u.status,'blocked','blocked')+statusOption(u.status,'suspended','suspended')+statusOption(u.status,'inactive','inactive')+'</select></td>'+
       '<td><input name="password" placeholder="새 비번"></td>'+
-      '<td><button>저장</button></form></td>'+
+      '<td><div class="row-actions"><button>저장</button></form>'+((u.role==='admin')?'':'<form method="post" action="/admin/delete/users/'+esc(u.id)+'"><button onclick="return confirm(\'회원을 삭제할까요?\')">삭제</button></form>')+'</div></td>'+
       '</tr>';
   }
   function ensurePager(table){
@@ -1806,23 +1806,12 @@ document.addEventListener('DOMContentLoaded',function(){
     }
 
     try{
-      var hasFile=false;
-      form.querySelectorAll('input[type="file"]').forEach(function(input){
-        if(input.files&&input.files.length)hasFile=true;
-      });
-      var body;
-      var headers={'X-Requested-With':'fetch'};
-      if(hasFile){
-        body=new FormData(form);
-      }else{
-        body=new URLSearchParams(new FormData(form));
-        headers['Content-Type']='application/x-www-form-urlencoded;charset=UTF-8';
-      }
+      var fd=new FormData(form);
       var res=await fetch(action,{
         method:'POST',
-        body:body,
+        body:fd,
         credentials:'same-origin',
-        headers:headers
+        headers:{'X-Requested-With':'fetch'}
       });
       if(!res.ok)throw new Error('HTTP '+res.status);
 
