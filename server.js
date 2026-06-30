@@ -261,6 +261,25 @@ app.get('/logout',(req,res)=>req.session.destroy(()=>res.redirect('/')));
 app.post('/review',login,async(req,res)=>{const vendorId=parseInt(req.body.vendor_id||0,10); const title=(req.body.title||'').trim().slice(0,100); const content=(req.body.content||'').trim().slice(0,1000); if(!vendorId||!title||content.length<5)return res.redirect('/vendor/'+(vendorId||'')); const vendor=await q('SELECT id FROM vendors WHERE id=$1 AND status=$2',[vendorId,'active']); if(!vendor.rows[0])return res.redirect('/'); const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]); if(!dup.rows[0])await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[vendorId,req.session.user.id,title,content,req.body.rating||5]); res.redirect('/vendor/'+vendorId);});
 app.get('/admin/login',(req,res)=>res.render('admin-login',{error:null})); app.post('/admin/login',async(req,res)=>{const username=(req.body.username||'').trim(); if(loginBlocked(req,username,'admin'))return res.status(429).render('admin-login',{error:'로그인 시도가 많습니다. 15분 후 다시 시도해주세요.'}); const u=await q('SELECT * FROM users WHERE username=$1 AND role=$2',[username,'admin']); if(!u.rows[0]||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)){loginFail(req,username,'admin'); return res.render('admin-login',{error:'관리자 로그인 실패'});} loginSuccess(req,username,'admin'); req.session.regenerate(err=>{if(err)return res.render('admin-login',{error:'로그인 처리 중 오류가 발생했습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:'admin',is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect('/admin');});});
 
+
+function adminPageParams(req){
+  const page=Math.max(1,parseInt(req.query.page||'1',10)||1);
+  const limit=Math.min(100,Math.max(10,parseInt(req.query.limit||'20',10)||20));
+  const offset=(page-1)*limit;
+  return {page,limit,offset};
+}
+async function adminPagedJson(req,res,sql,countSql,params=[]){
+  const {page,limit,offset}=adminPageParams(req);
+  const rows=await q(sql+` LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+  const cnt=await q(countSql,params);
+  const total=Number(cnt.rows[0]?.count||0);
+  res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows});
+}
+app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,'SELECT * FROM vendors ORDER BY id DESC','SELECT COUNT(*) FROM vendors'));
+app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC','SELECT COUNT(*) FROM users'));
+app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
+app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
+
 // 통합 관리자 화면 사용: 개별 신청/신고 페이지는 관리자 메인 탭으로 이동
 app.get('/admin/inquiries',admin,(req,res)=>res.redirect('/admin#inquiries'));
 app.get('/admin/reports',admin,(req,res)=>res.redirect('/admin#reports'));
