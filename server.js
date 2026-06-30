@@ -54,9 +54,30 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
     await q("CREATE INDEX IF NOT EXISTS idx_ad_requests_status_payment ON vendor_ad_requests(status,payment_status)");
     await q("CREATE INDEX IF NOT EXISTS idx_banner_requests_status_payment ON vendor_banner_requests(status,payment_status)");
   }
-app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'7d',etag:true}));
-app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12}}));
+app.set('trust proxy',1); app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'7d',etag:true}));
+app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12,httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production'}}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
+const loginAttempts=new Map();
+function loginAttemptKey(req,username,prefix='login'){
+  return prefix+':'+(req.ip||req.headers['x-forwarded-for']||'ip')+':'+String(username||'').toLowerCase();
+}
+function loginBlocked(req,username,prefix='login'){
+  const key=loginAttemptKey(req,username,prefix);
+  const x=loginAttempts.get(key);
+  if(!x)return false;
+  if(Date.now()>x.until){loginAttempts.delete(key);return false;}
+  return true;
+}
+function loginFail(req,username,prefix='login'){
+  const key=loginAttemptKey(req,username,prefix);
+  const x=loginAttempts.get(key)||{count:0,until:0};
+  x.count+=1;
+  if(x.count>=10)x.until=Date.now()+1000*60*15;
+  loginAttempts.set(key,x);
+}
+function loginSuccess(req,username,prefix='login'){
+  loginAttempts.delete(loginAttemptKey(req,username,prefix));
+}
 function formatKstDate(value){
   if(!value)return '-';
   try{
@@ -225,11 +246,11 @@ app.get('/api/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.p
 app.post('/api/review',async(req,res)=>{if(!req.session.user)return res.status(401).json({error:'login_required'}); const vendorId=parseInt(req.body.vendor_id||0,10); const title=(req.body.title||'').trim().slice(0,100); const content=(req.body.content||'').trim().slice(0,1000); if(!vendorId||!title||content.length<5)return res.status(400).json({error:'bad_review'}); const vendor=await q('SELECT id FROM vendors WHERE id=$1 AND status=$2',[vendorId,'active']); if(!vendor.rows[0])return res.status(404).json({error:'vendor_not_found'}); const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]); if(dup.rows[0])return res.status(429).json({error:'review_duplicate'}); const rating=Math.max(1,Math.min(5,parseInt(req.body.rating||5,10))); await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[vendorId,req.session.user.id,title,content,rating]); res.json({ok:true});});
 app.post('/api/flag',async(req,res)=>{const type=(req.body.type||'').trim(); const target=parseInt(req.body.target_id||0,10); const reason=(req.body.reason||'기타').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,1000); if(!['vendor','review'].includes(type)||!target||!reason)return res.status(400).json({error:'bad_request'}); const exists=type==='vendor'?await q('SELECT id FROM vendors WHERE id=$1',[target]):await q('SELECT id FROM reviews WHERE id=$1',[target]); if(!exists.rows[0])return res.status(404).json({error:'target_not_found'}); await q('INSERT INTO flags(type,target_id,reason,content) VALUES($1,$2,$3,$4)',[type,target,reason,content]); res.json({ok:true});});
 app.get('/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.params.id); if(!data.vendor)return res.status(404).send('Not found'); res.render('vendor',data);});
-app.get('/login',(req,res)=>res.render('login',{mode:'login',error:null})); app.post('/login',async(req,res)=>{const username=(req.body.username||'').trim(); const u=await q('SELECT * FROM users WHERE username=$1',[username]); if(!u.rows[0]||u.rows[0].status!=='active'||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)) return res.render('login',{mode:'login',error:'아이디 또는 비밀번호가 올바르지 않습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:u.rows[0].role,is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect(u.rows[0].role==='admin'?'/admin':u.rows[0].is_vendor?'/vendor-dashboard':'/');});
+app.get('/login',(req,res)=>res.render('login',{mode:'login',error:null})); app.post('/login',async(req,res)=>{const username=(req.body.username||'').trim(); if(loginBlocked(req,username,'user'))return res.status(429).render('login',{mode:'login',error:'로그인 시도가 많습니다. 15분 후 다시 시도해주세요.'}); const u=await q('SELECT * FROM users WHERE username=$1',[username]); if(!u.rows[0]||u.rows[0].status!=='active'||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)){loginFail(req,username,'user'); return res.render('login',{mode:'login',error:'아이디 또는 비밀번호가 올바르지 않습니다.'});} loginSuccess(req,username,'user'); req.session.regenerate(err=>{if(err)return res.render('login',{mode:'login',error:'로그인 처리 중 오류가 발생했습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:u.rows[0].role,is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect(u.rows[0].role==='admin'?'/admin':u.rows[0].is_vendor?'/vendor-dashboard':'/');});});
 app.get('/join',(req,res)=>res.render('login',{mode:'join',error:null})); app.post('/join',async(req,res)=>{try{const username=(req.body.username||'').trim(); const password=req.body.password||''; const nickname=(req.body.nickname||username).trim().slice(0,50); if(!/^[a-zA-Z0-9_]{4,30}$/.test(username))return res.render('login',{mode:'join',error:'아이디는 영문/숫자/밑줄 4~30자로 입력해주세요.'}); if(password.length<6)return res.render('login',{mode:'join',error:'비밀번호는 6자 이상 입력해주세요.'}); const h=await bcrypt.hash(password,10); await q('INSERT INTO users(username,password_hash,nickname) VALUES($1,$2,$3)',[username,h,nickname||username]); res.redirect('/login')}catch(e){res.render('login',{mode:'join',error:'이미 사용 중인 아이디입니다.'})}});
 app.get('/logout',(req,res)=>req.session.destroy(()=>res.redirect('/')));
 app.post('/review',login,async(req,res)=>{const vendorId=parseInt(req.body.vendor_id||0,10); const title=(req.body.title||'').trim().slice(0,100); const content=(req.body.content||'').trim().slice(0,1000); if(!vendorId||!title||content.length<5)return res.redirect('/vendor/'+(vendorId||'')); const vendor=await q('SELECT id FROM vendors WHERE id=$1 AND status=$2',[vendorId,'active']); if(!vendor.rows[0])return res.redirect('/'); const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]); if(!dup.rows[0])await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[vendorId,req.session.user.id,title,content,req.body.rating||5]); res.redirect('/vendor/'+vendorId);});
-app.get('/admin/login',(req,res)=>res.render('admin-login',{error:null})); app.post('/admin/login',async(req,res)=>{const u=await q('SELECT * FROM users WHERE username=$1 AND role=$2',[req.body.username,'admin']); if(!u.rows[0]||!await bcrypt.compare(req.body.password,u.rows[0].password_hash)) return res.render('admin-login',{error:'관리자 로그인 실패'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:'admin',is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect('/admin');});
+app.get('/admin/login',(req,res)=>res.render('admin-login',{error:null})); app.post('/admin/login',async(req,res)=>{const username=(req.body.username||'').trim(); if(loginBlocked(req,username,'admin'))return res.status(429).render('admin-login',{error:'로그인 시도가 많습니다. 15분 후 다시 시도해주세요.'}); const u=await q('SELECT * FROM users WHERE username=$1 AND role=$2',[username,'admin']); if(!u.rows[0]||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)){loginFail(req,username,'admin'); return res.render('admin-login',{error:'관리자 로그인 실패'});} loginSuccess(req,username,'admin'); req.session.regenerate(err=>{if(err)return res.render('admin-login',{error:'로그인 처리 중 오류가 발생했습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:'admin',is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect('/admin');});});
 
 // 통합 관리자 화면 사용: 개별 신청/신고 페이지는 관리자 메인 탭으로 이동
 app.get('/admin/inquiries',admin,(req,res)=>res.redirect('/admin#inquiries'));
