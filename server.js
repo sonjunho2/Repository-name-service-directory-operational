@@ -911,6 +911,57 @@ app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=
 app.post('/admin/user',admin,async(req,res)=>{const userId=parseInt(req.body.id||0,10); if(!userId)return res.redirect('/admin#users'); const role=['admin','user'].includes(req.body.role)?req.body.role:'user'; const status=['active','blocked'].includes(req.body.status)?req.body.status:'active'; const nickname=(req.body.nickname||'회원').trim().slice(0,50); const password=req.body.password||''; if(password&&password.length<6)return res.redirect('/admin#users'); const h=password?await bcrypt.hash(password,10):null; if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]); else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]); await logAdmin(req,'회원 수정','user',userId,nickname); res.redirect('/admin#users');});
 app.post('/admin/notice',admin,async(req,res)=>{await q('INSERT INTO notices(title,content,is_pinned) VALUES($1,$2,$3)',[req.body.title,req.body.content,!!req.body.is_pinned]); await logAdmin(req,'공지 등록','notice','new',req.body.title||''); res.redirect('/admin#notices');});
 app.post('/admin/delete/:table/:id',admin,async(req,res)=>{const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'}; const table=allowed[req.params.table]; const id=parseInt(req.params.id||0,10); if(table&&id){ if(table==='users'){const u=await q('SELECT role FROM users WHERE id=$1',[id]); if(u.rows[0]?.role==='admin')return res.redirect('/admin#users');} if(table==='vendors'){await q('UPDATE vendors SET status=$1 WHERE id=$2',['inactive',id]); await logAdmin(req,'업체 비활성화','vendors',id,'관리자 삭제 대신 비활성화'); return res.redirect('/admin#vendors');} await q(`DELETE FROM ${table} WHERE id=$1`,[id]); await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제'); } res.redirect('/admin');});
-app.use((req,res)=>{res.status(404).send('페이지를 찾을 수 없습니다.');});
-app.use((err,req,res,next)=>{console.error(err);res.status(500).send('서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');});
+
+function siteBaseUrl(req){
+  return (process.env.SITE_URL||`${req.protocol}://${req.get('host')}`).replace(/\/$/,'');
+}
+function escapeXml(s){
+  return String(s||'').replace(/[<>&'"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+}
+app.get('/favicon.svg',(req,res)=>{
+  res.setHeader('Content-Type','image/svg+xml; charset=utf-8');
+  res.setHeader('Cache-Control','public, max-age=604800');
+  res.send("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop stop-color=\"#ff3fb4\"/><stop offset=\"1\" stop-color=\"#10d9ff\"/></linearGradient></defs><rect width=\"128\" height=\"128\" rx=\"28\" fill=\"#080d18\"/><path d=\"M30 36h68v16H30zM30 60h48v16H30zM30 84h68v16H30z\" fill=\"url(#g)\"/></svg>");
+});
+app.get('/site.webmanifest',(req,res)=>{
+  const base=siteBaseUrl(req);
+  res.setHeader('Content-Type','application/manifest+json; charset=utf-8');
+  res.send(JSON.stringify({name:'서비스 디렉토리',short_name:'서비스디렉토리',start_url:'/',scope:'/',display:'standalone',background_color:'#080d18',theme_color:'#080d18',icons:[{src:base+'/favicon.svg',sizes:'any',type:'image/svg+xml'}]}));
+});
+app.get('/robots.txt',(req,res)=>{
+  const base=siteBaseUrl(req);
+  res.type('text/plain').send("User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vendor-dashboard\nDisallow: /login\nDisallow: /join\n\nSitemap: "+base+'/sitemap.xml\n');
+});
+app.get('/sitemap.xml',async(req,res)=>{
+  const base=siteBaseUrl(req);
+  const urls=[{loc:base+'/',priority:'1.0'},{loc:base+'/inquiry',priority:'0.8'}];
+  try{
+    const vendors=await q("SELECT id,created_at FROM vendors WHERE status='active' ORDER BY id DESC LIMIT 1000");
+    vendors.rows.forEach(v=>urls.push({loc:base+'/vendor/'+v.id,lastmod:v.created_at?new Date(v.created_at).toISOString().slice(0,10):undefined,priority:'0.7'}));
+  }catch(e){}
+  const items=urls.map(u=>'  <url>\n    <loc>'+escapeXml(u.loc)+'</loc>'+(u.lastmod?'\n    <lastmod>'+u.lastmod+'</lastmod>':'')+'\n    <priority>'+u.priority+'</priority>\n  </url>').join('\n');
+  res.setHeader('Content-Type','application/xml; charset=utf-8');
+  res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+items+'\n</urlset>');
+});
+app.get('/open-check',admin,async(req,res)=>{
+  const checks=[];
+  const add=(name,ok,detail='')=>checks.push({name,ok,detail});
+  try{await q('SELECT 1');add('DB 연결',true,'정상');}catch(e){add('DB 연결',false,e.message);}
+  add('robots.txt',true,'/robots.txt');
+  add('sitemap.xml',true,'/sitemap.xml');
+  add('favicon',true,'/favicon.svg');
+  add('healthz',true,'/healthz');
+  const cards=checks.map(c=>'<div class="card"><b class="'+(c.ok?'ok':'bad')+'">'+(c.ok?'정상':'확인필요')+'</b> '+c.name+'<br><small>'+c.detail+'</small></div>').join('');
+  res.send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\uc624\ud508 \uccb4\ud06c</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:40px auto;padding:24px}.card{border:1px solid #29324f;border-radius:18px;background:#10182b;padding:18px;margin:10px 0}.ok{color:#1fe087}.bad{color:#ff6b6b}a{color:#10d9ff}</style></head><body><div class=\"wrap\"><h1>\uc624\ud508 \uccb4\ud06c</h1>"+cards+"<p><a href=\"/admin\">\uad00\ub9ac\uc790\ub85c \ub3cc\uc544\uac00\uae30</a></p></div></body></html>");
+});
+
+
+app.use((req,res)=>{
+  res.status(404).send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\ud398\uc774\uc9c0\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class=\"box\"><h1>404</h1><p>\uc694\uccad\ud558\uc2e0 \ud398\uc774\uc9c0\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.</p><a href=\"/\">\ud648\uc73c\ub85c \uc774\ub3d9</a></div></body></html>");
+});
+app.use((err,req,res,next)=>{
+  console.error('server error',err);
+  res.status(500).send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class=\"box\"><h1>500</h1><p>\uc77c\uc2dc\uc801\uc778 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.</p><a href=\"/\">\ud648\uc73c\ub85c \uc774\ub3d9</a></div></body></html>");
+});
+
 const port=process.env.PORT||3000; ensureSchema().then(()=>app.listen(port,()=>console.log('server on '+port))).catch(e=>{console.error(e);process.exit(1)});
