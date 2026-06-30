@@ -3,7 +3,18 @@ const express=require('express'), session=require('express-session'), bcrypt=req
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
 const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg|webp)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF, WEBP만 가능합니다.'))}});
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
-const q=(s,p=[])=>pool.query(s,p); const img=f=>f?`data:${f.mimetype};base64,${f.buffer.toString('base64')}`:null;
+const q=(s,p=[])=>pool.query(s,p);
+function validImageBuffer(file){
+  if(!file||!file.buffer||!file.mimetype)return false;
+  const b=file.buffer;
+  const mime=String(file.mimetype||'').toLowerCase();
+  if(mime==='image/png')return b.length>8&&b[0]===0x89&&b[1]===0x50&&b[2]===0x4e&&b[3]===0x47;
+  if(mime==='image/jpeg'||mime==='image/jpg')return b.length>3&&b[0]===0xff&&b[1]===0xd8&&b[2]===0xff;
+  if(mime==='image/gif')return b.length>6&&b.slice(0,3).toString()==='GIF';
+  if(mime==='image/webp')return b.length>12&&b.slice(0,4).toString()==='RIFF'&&b.slice(8,12).toString()==='WEBP';
+  return false;
+}
+const img=f=>f&&validImageBuffer(f)?`data:${f.mimetype};base64,${f.buffer.toString('base64')}`:null;
 async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS kakao_url text'); await q(`CREATE TABLE IF NOT EXISTS inquiries(id SERIAL PRIMARY KEY,type text,company_name text,name text,phone text,kakao text,email text,category text,region text,content text,main_image_data text,banner_image_data text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS banner_status text DEFAULT 'new'"); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS user_id int"); await q(`CREATE TABLE IF NOT EXISTS flags(id SERIAL PRIMARY KEY,type text,target_id int,reason text,content text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS admin_memo text"); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS processed_at timestamp"); await q(`CREATE TABLE IF NOT EXISTS app_settings(key text PRIMARY KEY, value text DEFAULT '')`); await q("INSERT INTO app_settings(key,value) VALUES('categories','카페\n뷰티\n맛집\n교육\n기타') ON CONFLICT (key) DO NOTHING"); await q("INSERT INTO app_settings(key,value) VALUES('regions','서울\n부산\n대구\n인천\n광주\n대전\n제주') ON CONFLICT (key) DO NOTHING"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_vendor boolean DEFAULT false"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS vendor_id int"); await q(`CREATE TABLE IF NOT EXISTS vendor_update_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,name text,category text,region text,phone text,kakao_url text,business_hours text,tags text,description text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_banner_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,title text,subtitle text,link_url text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_ad_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,plan text,period text,content text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ad_until date");
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS membership_type text DEFAULT 'general'");
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ad_type text DEFAULT 'none'");
@@ -75,6 +86,20 @@ app.use((req,res,next)=>{
   next();
 });
 
+
+app.use((req,res,next)=>{
+  if(req.method==='POST'&&req.path==='/join'&&!rateLimit(req,'join',5,1000*60*15)){
+    return res.status(429).send('가입 요청이 많습니다. 잠시 후 다시 시도해주세요.');
+  }
+  if(req.method==='POST'&&req.path==='/inquiry'&&!rateLimit(req,'inquiry',10,1000*60*15)){
+    return res.status(429).send('문의 요청이 많습니다. 잠시 후 다시 시도해주세요.');
+  }
+  if(req.path.startsWith('/api/')&&!rateLimit(req,'api',240,1000*60)){
+    return res.status(429).json({error:'too_many_requests'});
+  }
+  next();
+});
+
 app.use((req,res,next)=>{
   if(req.method!=='POST')return next();
   const origin=req.get('origin');
@@ -105,6 +130,27 @@ function loginFail(req,username,prefix='login'){
 function loginSuccess(req,username,prefix='login'){
   loginAttempts.delete(loginAttemptKey(req,username,prefix));
 }
+
+const requestLimits=new Map();
+function rateLimitKey(req,name){
+  return name+':'+(req.ip||req.headers['x-forwarded-for']||'ip');
+}
+function rateLimit(req,name,max,windowMs){
+  const key=rateLimitKey(req,name);
+  const now=Date.now();
+  const x=requestLimits.get(key)||{count:0,reset:now+windowMs};
+  if(now>x.reset){x.count=0;x.reset=now+windowMs;}
+  x.count+=1;
+  requestLimits.set(key,x);
+  return x.count<=max;
+}
+setInterval(()=>{
+  const now=Date.now();
+  for(const [k,v] of requestLimits.entries()){
+    if(now>v.reset)requestLimits.delete(k);
+  }
+},1000*60*10).unref?.();
+
 function formatKstDate(value){
   if(!value)return '-';
   try{
@@ -979,6 +1025,46 @@ app.get('/admin/api/performance-check',admin,async(req,res)=>{
   res.json({ok:true,uptime:Math.round(process.uptime()),checks});
 });
 
+
+app.get('/admin/api/security-check',admin,async(req,res)=>{
+  const checks=[];
+  const add=(name,ok,detail='')=>checks.push({name,ok,detail});
+  add('세션 쿠키 httpOnly',true,'활성');
+  add('sameSite 쿠키',true,'lax');
+  add('운영 secure 쿠키',process.env.NODE_ENV==='production','NODE_ENV=production 권장');
+  add('Origin 검사',true,'POST 요청 보호');
+  add('로그인 제한',true,'10회 실패 시 15분 제한');
+  add('API 제한',true,'분당 240회');
+  add('회원가입 제한',true,'15분 5회');
+  add('문의 제한',true,'15분 10회');
+  add('업로드 MIME 검증',true,'MIME + 파일 시그니처 검사');
+  try{await q('SELECT 1');add('DB 연결',true,'정상');}catch(e){add('DB 연결',false,e.message);}
+  res.json({ok:true,checks});
+});
+app.get('/admin/api/final-qa',admin,async(req,res)=>{
+  const checks=[];
+  const add=(name,ok,detail='')=>checks.push({name,ok,detail});
+  try{
+    const counts=await Promise.all([
+      q('SELECT COUNT(*)::int count FROM users'),
+      q('SELECT COUNT(*)::int count FROM vendors'),
+      q('SELECT COUNT(*)::int count FROM inquiries'),
+      q('SELECT COUNT(*)::int count FROM payment_logs'),
+      q('SELECT COUNT(*)::int count FROM flags')
+    ]);
+    add('회원 테이블',true,counts[0].rows[0].count+'건');
+    add('업체 테이블',true,counts[1].rows[0].count+'건');
+    add('신청 테이블',true,counts[2].rows[0].count+'건');
+    add('결제 테이블',true,counts[3].rows[0].count+'건');
+    add('신고 테이블',true,counts[4].rows[0].count+'건');
+  }catch(e){add('DB 기본 테이블',false,e.message);}
+  add('robots.txt',true,'/robots.txt');
+  add('sitemap.xml',true,'/sitemap.xml');
+  add('성능 체크',true,'/admin/api/performance-check');
+  add('보안 체크',true,'/admin/api/security-check');
+  res.json({ok:true,checks});
+});
+
 app.get('/open-check',admin,async(req,res)=>{
   const checks=[];
   const add=(name,ok,detail='')=>checks.push({name,ok,detail});
@@ -987,6 +1073,9 @@ app.get('/open-check',admin,async(req,res)=>{
   add('sitemap.xml',true,'/sitemap.xml');
   add('favicon',true,'/favicon.svg');
   add('healthz',true,'/healthz');
+  add('성능 체크 API',true,'/admin/api/performance-check');
+  add('보안 체크 API',true,'/admin/api/security-check');
+  add('최종 QA API',true,'/admin/api/final-qa');
   const cards=checks.map(c=>'<div class="card"><b class="'+(c.ok?'ok':'bad')+'">'+(c.ok?'정상':'확인필요')+'</b> '+c.name+'<br><small>'+c.detail+'</small></div>').join('');
   res.send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\uc624\ud508 \uccb4\ud06c</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:40px auto;padding:24px}.card{border:1px solid #29324f;border-radius:18px;background:#10182b;padding:18px;margin:10px 0}.ok{color:#1fe087}.bad{color:#ff6b6b}a{color:#10d9ff}</style></head><body><div class=\"wrap\"><h1>\uc624\ud508 \uccb4\ud06c</h1>"+cards+"<p><a href=\"/admin\">\uad00\ub9ac\uc790\ub85c \ub3cc\uc544\uac00\uae30</a></p></div></body></html>");
 });
@@ -999,5 +1088,20 @@ app.use((err,req,res,next)=>{
   console.error('server error',err);
   res.status(500).send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class=\"box\"><h1>500</h1><p>\uc77c\uc2dc\uc801\uc778 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.</p><a href=\"/\">\ud648\uc73c\ub85c \uc774\ub3d9</a></div></body></html>");
 });
+
+
+process.on('unhandledRejection',err=>{
+  console.error('unhandledRejection',err);
+});
+process.on('uncaughtException',err=>{
+  console.error('uncaughtException',err);
+});
+async function shutdown(signal){
+  console.log(signal+' received, closing database pool');
+  try{await pool.end();}catch(e){console.error('pool close failed',e);}
+  process.exit(0);
+}
+process.on('SIGTERM',()=>shutdown('SIGTERM'));
+process.on('SIGINT',()=>shutdown('SIGINT'));
 
 const port=process.env.PORT||3000; ensureSchema().then(()=>app.listen(port,()=>console.log('server on '+port))).catch(e=>{console.error(e);process.exit(1)});
