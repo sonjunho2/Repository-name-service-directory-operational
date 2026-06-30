@@ -332,6 +332,13 @@ app.get('/admin/api/live-summary',admin,async(req,res)=>{
         db:true,
         api:true
       },
+      charts:{
+        dailyViews:(await q("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM vendor_view_logs WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d")).rows,
+        dailyUsers:(await q("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM users WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d")).rows,
+        dailyRevenue:(await q("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.sum,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT paid_at::date day,SUM(krw_price) sum FROM payment_logs WHERE paid_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY paid_at::date) x ON x.day=d::date ORDER BY d")).rows,
+        productSales:(await q("SELECT COALESCE(product_type,'기타') label,COUNT(*)::int value FROM payment_logs GROUP BY product_type ORDER BY value DESC LIMIT 6")).rows,
+        regionVendors:(await q("SELECT COALESCE(region,'미지정') label,COUNT(*)::int value FROM vendors GROUP BY region ORDER BY value DESC LIMIT 6")).rows
+      },
       recent:{
         inquiries:recentInquiries.rows,
         payments:recentPayments.rows,
