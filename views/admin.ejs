@@ -200,6 +200,9 @@
 
 .stage32-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.stage32-box{border:1px solid #29324f;border-radius:18px;background:#070b15;padding:18px}.stage32-box h3{margin:0 0 12px;font-size:18px}.stage32-card{border:1px solid #29324f;border-radius:14px;background:#10182b;padding:14px;min-height:92px}.stage32-card b{display:block;color:#8d98b8;margin-bottom:8px}.stage32-card strong{display:block;font-size:25px;color:#10d9ff}.stage32-card.good{border-color:#1fe087}.stage32-card.warn{border-color:#ffdc4d}.stage32-card.danger{border-color:#ff6b6b}.stage32-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}.stage32-quick a{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:999px;border:1px solid #29324f;background:#10182b;color:#fff;text-decoration:none;font-weight:900}.stage32-quick a:hover{border-color:#10d9ff}.stage32-list{display:grid;gap:8px}.stage32-task{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #29324f;border-radius:12px;padding:10px 12px;color:#dfe9ff;text-decoration:none;background:#10182b}.stage32-task strong{font-size:18px}.stage32-task.danger{border-color:#ff6b6b}.stage32-task.warn{border-color:#ffdc4d}.stage32-task.good{border-color:#1fe087}.stage32-status{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stage32-status span{display:block;border:1px solid #29324f;border-radius:12px;padding:12px;background:#10182b;font-weight:900}.stage32-status small{display:block;color:#8d98b8;margin-top:4px}@media(max-width:1100px){.stage32-grid{grid-template-columns:repeat(2,1fr)}.stage32-quick{grid-template-columns:repeat(2,1fr)}.stage32-status{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.stage32-grid,.stage32-quick,.stage32-status{grid-template-columns:1fr}}
 
+
+.stage33-panel{margin:18px 0;border:1px solid #29324f;border-radius:20px;background:#070b15;padding:18px}.stage33-panel h3{margin:0 0 14px;font-size:19px}.stage33-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stage33-chart{border:1px solid #29324f;border-radius:16px;background:#10182b;padding:14px;min-height:160px}.stage33-chart b{display:block;margin-bottom:10px;color:#dfe9ff}.stage33-bars{display:flex;align-items:end;gap:7px;height:92px}.stage33-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}.stage33-bar{width:100%;min-height:4px;border-radius:9px 9px 2px 2px;background:linear-gradient(180deg,#10d9ff,#ff3fb4)}.stage33-bar-label{font-size:11px;color:#8d98b8;white-space:nowrap}.stage33-bar-value{font-size:11px;color:#dfe9ff;font-weight:800}.stage33-search{display:grid;grid-template-columns:1fr 140px;gap:10px;margin:14px 0}.stage33-search input{height:44px;border-radius:14px;border:1px solid #29324f;background:#080d18;color:#fff;padding:0 14px;font-weight:800}.stage33-search button{height:44px;border-radius:999px;border:0;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;font-weight:900}.stage33-results{display:grid;gap:8px}.stage33-result{border:1px solid #29324f;border-radius:12px;padding:10px 12px;background:#10182b;color:#dfe9ff;text-decoration:none}.stage33-result small{display:block;color:#8d98b8;margin-top:4px}.stage33-perf{display:flex;gap:10px;flex-wrap:wrap;color:#8d98b8;font-size:12px}.stage33-perf span{border:1px solid #29324f;border-radius:999px;padding:6px 10px;background:#10182b}@media(max-width:1100px){.stage33-grid{grid-template-columns:1fr 1fr}}@media(max-width:700px){.stage33-grid,.stage33-search{grid-template-columns:1fr}}
+
 </style></head><body><header class="top"><b>관리자</b><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
@@ -242,6 +245,34 @@
   </div>
 </aside><main class="admin-content"><section id="dashboard" class="panel admin-panel active">
 <h2>대시보드</h2>
+
+<div id="stage33Panel" class="stage33-panel">
+  <h3>실시간 운영 차트</h3>
+  <div class="stage33-grid">
+    <div class="stage33-chart"><b>최근 7일 방문</b><div class="stage33-bars" id="chartDailyViews"></div></div>
+    <div class="stage33-chart"><b>최근 7일 가입</b><div class="stage33-bars" id="chartDailyUsers"></div></div>
+    <div class="stage33-chart"><b>최근 7일 매출</b><div class="stage33-bars" id="chartDailyRevenue"></div></div>
+    <div class="stage33-chart"><b>광고상품 판매</b><div class="stage33-bars" id="chartProductSales"></div></div>
+    <div class="stage33-chart"><b>지역별 업체</b><div class="stage33-bars" id="chartRegionVendors"></div></div>
+    <div class="stage33-chart">
+      <b>자동 갱신 상태</b>
+      <div class="stage33-perf">
+        <span id="stage33Visible">활성</span>
+        <span id="stage33LastFetch">마지막 갱신 -</span>
+        <span>비활성 탭 자동 중지</span>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:20px">관리자 통합 검색</h3>
+  <div class="stage33-search">
+    <input id="stage33SearchInput" placeholder="업체, 회원, 신청, 신고, 결제, 관리자 로그 검색">
+    <button type="button" id="stage33SearchBtn">검색</button>
+  </div>
+  <div class="stage33-results" id="stage33SearchResults">
+    <div class="stage33-result">검색어를 입력하면 현재 불러온 관리자 데이터에서 빠르게 찾습니다.</div>
+  </div>
+</div>
 <div id="stage32OpsPanel" class="stage32-ops">
   <div class="stage32-quick">
     <a href="#vendors" data-panel="vendors">+ 업체 등록</a>
@@ -338,6 +369,9 @@
 
 
 .stage32-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.stage32-box{border:1px solid #29324f;border-radius:18px;background:#070b15;padding:18px}.stage32-box h3{margin:0 0 12px;font-size:18px}.stage32-card{border:1px solid #29324f;border-radius:14px;background:#10182b;padding:14px;min-height:92px}.stage32-card b{display:block;color:#8d98b8;margin-bottom:8px}.stage32-card strong{display:block;font-size:25px;color:#10d9ff}.stage32-card.good{border-color:#1fe087}.stage32-card.warn{border-color:#ffdc4d}.stage32-card.danger{border-color:#ff6b6b}.stage32-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}.stage32-quick a{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:999px;border:1px solid #29324f;background:#10182b;color:#fff;text-decoration:none;font-weight:900}.stage32-quick a:hover{border-color:#10d9ff}.stage32-list{display:grid;gap:8px}.stage32-task{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #29324f;border-radius:12px;padding:10px 12px;color:#dfe9ff;text-decoration:none;background:#10182b}.stage32-task strong{font-size:18px}.stage32-task.danger{border-color:#ff6b6b}.stage32-task.warn{border-color:#ffdc4d}.stage32-task.good{border-color:#1fe087}.stage32-status{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stage32-status span{display:block;border:1px solid #29324f;border-radius:12px;padding:12px;background:#10182b;font-weight:900}.stage32-status small{display:block;color:#8d98b8;margin-top:4px}@media(max-width:1100px){.stage32-grid{grid-template-columns:repeat(2,1fr)}.stage32-quick{grid-template-columns:repeat(2,1fr)}.stage32-status{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.stage32-grid,.stage32-quick,.stage32-status{grid-template-columns:1fr}}
+
+
+.stage33-panel{margin:18px 0;border:1px solid #29324f;border-radius:20px;background:#070b15;padding:18px}.stage33-panel h3{margin:0 0 14px;font-size:19px}.stage33-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stage33-chart{border:1px solid #29324f;border-radius:16px;background:#10182b;padding:14px;min-height:160px}.stage33-chart b{display:block;margin-bottom:10px;color:#dfe9ff}.stage33-bars{display:flex;align-items:end;gap:7px;height:92px}.stage33-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}.stage33-bar{width:100%;min-height:4px;border-radius:9px 9px 2px 2px;background:linear-gradient(180deg,#10d9ff,#ff3fb4)}.stage33-bar-label{font-size:11px;color:#8d98b8;white-space:nowrap}.stage33-bar-value{font-size:11px;color:#dfe9ff;font-weight:800}.stage33-search{display:grid;grid-template-columns:1fr 140px;gap:10px;margin:14px 0}.stage33-search input{height:44px;border-radius:14px;border:1px solid #29324f;background:#080d18;color:#fff;padding:0 14px;font-weight:800}.stage33-search button{height:44px;border-radius:999px;border:0;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;font-weight:900}.stage33-results{display:grid;gap:8px}.stage33-result{border:1px solid #29324f;border-radius:12px;padding:10px 12px;background:#10182b;color:#dfe9ff;text-decoration:none}.stage33-result small{display:block;color:#8d98b8;margin-top:4px}.stage33-perf{display:flex;gap:10px;flex-wrap:wrap;color:#8d98b8;font-size:12px}.stage33-perf span{border:1px solid #29324f;border-radius:999px;padding:6px 10px;background:#10182b}@media(max-width:1100px){.stage33-grid{grid-template-columns:1fr 1fr}}@media(max-width:700px){.stage33-grid,.stage33-search{grid-template-columns:1fr}}
 
 </style>
 <div class="dash-grid">
@@ -2082,6 +2116,112 @@ document.addEventListener('DOMContentLoaded',function(){
   document.addEventListener('DOMContentLoaded',function(){
     setTimeout(loadStage32,900);
     setInterval(loadStage32,30000);
+  });
+})();
+</script><script>
+(function(){
+  if(window.__adminStage33)return;
+  window.__adminStage33=true;
+
+  var lastLiveData=null;
+  var timer=null;
+
+  function esc(v){
+    return String(v==null?'':v).replace(/[&<>"']/g,function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function compact(n){
+    n=Number(n||0);
+    if(n>=1000000)return Math.round(n/10000)+'만';
+    if(n>=10000)return Math.round(n/1000)/10+'만';
+    return n.toLocaleString();
+  }
+  function drawBars(id,rows){
+    var el=document.getElementById(id);
+    if(!el)return;
+    rows=Array.isArray(rows)?rows:[];
+    var max=Math.max(1,...rows.map(function(x){return Number(x.value||0);}));
+    el.innerHTML=rows.map(function(x){
+      var h=Math.max(4,Math.round((Number(x.value||0)/max)*86));
+      return '<div class="stage33-bar-wrap"><div class="stage33-bar-value">'+compact(x.value)+'</div><div class="stage33-bar" style="height:'+h+'px"></div><div class="stage33-bar-label">'+esc(x.label)+'</div></div>';
+    }).join('') || '<div class="stage33-bar-label">데이터 없음</div>';
+  }
+  function renderCharts(data){
+    var charts=data&&data.charts?data.charts:{};
+    drawBars('chartDailyViews',charts.dailyViews);
+    drawBars('chartDailyUsers',charts.dailyUsers);
+    drawBars('chartDailyRevenue',charts.dailyRevenue);
+    drawBars('chartProductSales',charts.productSales);
+    drawBars('chartRegionVendors',charts.regionVendors);
+    var lf=document.getElementById('stage33LastFetch');
+    if(lf)lf.textContent='마지막 갱신 '+new Date().toLocaleTimeString();
+  }
+  function collectSearchRows(q){
+    q=String(q||'').trim().toLowerCase();
+    if(!q)return [];
+    var out=[];
+    document.querySelectorAll('table tr').forEach(function(row){
+      var text=(row.innerText||'').trim();
+      if(text&&text.toLowerCase().indexOf(q)!==-1){
+        var panel=row.closest('.admin-panel');
+        out.push({panel:panel&&panel.id?panel.id:'dashboard',title:text.split('\n').slice(0,2).join(' / ').slice(0,90),text:text.slice(0,180)});
+      }
+    });
+    document.querySelectorAll('.admin-activity-item,.admin-live-item,.stage32-task').forEach(function(item){
+      var text=(item.innerText||'').trim();
+      if(text&&text.toLowerCase().indexOf(q)!==-1){
+        var panel=item.getAttribute('data-panel')||'dashboard';
+        out.push({panel:panel,title:text.split('\n')[0].slice(0,90),text:text.slice(0,180)});
+      }
+    });
+    return out.slice(0,20);
+  }
+  function runSearch(){
+    var input=document.getElementById('stage33SearchInput');
+    var box=document.getElementById('stage33SearchResults');
+    if(!input||!box)return;
+    var q=input.value;
+    var rows=collectSearchRows(q);
+    if(!q.trim()){
+      box.innerHTML='<div class="stage33-result">검색어를 입력하면 현재 불러온 관리자 데이터에서 빠르게 찾습니다.</div>';
+      return;
+    }
+    if(!rows.length){
+      box.innerHTML='<div class="stage33-result">검색 결과가 없습니다.<small>현재 화면에 불러온 데이터 기준입니다.</small></div>';
+      return;
+    }
+    box.innerHTML=rows.map(function(r){
+      return '<a class="stage33-result" href="#'+esc(r.panel)+'" data-panel="'+esc(r.panel)+'"><b>'+esc(r.title)+'</b><small>'+esc(r.text)+'</small></a>';
+    }).join('');
+  }
+  async function fetchStage33(){
+    if(document.hidden)return;
+    try{
+      var res=await fetch('/admin/api/live-summary',{headers:{'Accept':'application/json'},credentials:'same-origin'});
+      var data=await res.json();
+      if(data&&data.ok){
+        lastLiveData=data;
+        renderCharts(data);
+      }
+    }catch(e){}
+  }
+  function updateVisibility(){
+    var el=document.getElementById('stage33Visible');
+    if(el)el.textContent=document.hidden?'비활성: 갱신 중지':'활성: 자동 갱신';
+    if(!document.hidden)fetchStage33();
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(fetchStage33,1200);
+    timer=setInterval(fetchStage33,30000);
+    document.addEventListener('visibilitychange',updateVisibility);
+    updateVisibility();
+  });
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.id==='stage33SearchBtn')runSearch();
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.target&&e.target.id==='stage33SearchInput'&&e.key==='Enter')runSearch();
   });
 })();
 </script></body></html>
