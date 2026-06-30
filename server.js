@@ -53,10 +53,28 @@ async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXI
     await q("CREATE INDEX IF NOT EXISTS idx_view_logs_vendor_created ON vendor_view_logs(vendor_id,created_at)");
     await q("CREATE INDEX IF NOT EXISTS idx_ad_requests_status_payment ON vendor_ad_requests(status,payment_status)");
     await q("CREATE INDEX IF NOT EXISTS idx_banner_requests_status_payment ON vendor_banner_requests(status,payment_status)");
+    await q("CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at DESC)");
+    await q("CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(role,status)");
+    await q("CREATE INDEX IF NOT EXISTS idx_vendors_created ON vendors(created_at DESC)");
+    await q("CREATE INDEX IF NOT EXISTS idx_vendors_ad_type ON vendors(ad_type,banner_active)");
+    await q("CREATE INDEX IF NOT EXISTS idx_inquiries_status_created ON inquiries(status,created_at DESC)");
+    await q("CREATE INDEX IF NOT EXISTS idx_flags_status_created ON flags(status,created_at DESC)");
+    await q("CREATE INDEX IF NOT EXISTS idx_payment_logs_paid_at ON payment_logs(paid_at DESC)");
+    await q("CREATE INDEX IF NOT EXISTS idx_payment_logs_product_type ON payment_logs(product_type)");
+    await q("CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC)");
+    await q("CREATE INDEX IF NOT EXISTS idx_vendor_requests_status_created ON vendor_update_requests(status,created_at DESC)");
+
   }
-app.set('trust proxy',1); app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'7d',etag:true}));
+app.set('trust proxy',1); app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'30d',etag:true,lastModified:true,immutable:true}));
 app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12,httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production'}}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
+app.use((req,res,next)=>{
+  if(req.path.startsWith('/admin')||req.path.startsWith('/api')||req.path.startsWith('/vendor-dashboard')){
+    res.setHeader('Cache-Control','no-store');
+  }
+  next();
+});
+
 app.use((req,res,next)=>{
   if(req.method!=='POST')return next();
   const origin=req.get('origin');
@@ -360,7 +378,7 @@ app.get('/admin/reports',admin,(req,res)=>res.redirect('/admin#reports'));
 
 app.post('/admin/reports/:id/done',admin,async(req,res)=>{await q("UPDATE flags SET status=$1, admin_memo=$2, processed_at=now() WHERE id=$3 AND status='new'",['done',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'신고 처리완료','report',req.params.id,req.body.admin_memo||''); res.redirect('/admin#reports');});
 app.post('/admin/inquiries/:id/reject',admin,async(req,res)=>{await q("UPDATE inquiries SET status=$1 WHERE id=$2 AND status='new'",['rejected',req.params.id]); await logAdmin(req,'입점신청 반려','inquiry',req.params.id,'신청 반려'); res.redirect('/admin#inquiries');});
-app.get('/admin/inquiry-image/:id/:kind',admin,async(req,res)=>{const col=req.params.kind==='banner'?'banner_image_data':'main_image_data'; const r=await q(`SELECT ${col} image_data FROM inquiries WHERE id=$1`,[req.params.id]); const data=r.rows[0]?.image_data; if(!data)return res.status(404).send('이미지가 없습니다.'); const m=data.match(/^data:(.+);base64,(.+)$/); if(!m)return res.status(400).send('이미지 형식 오류'); res.setHeader('Content-Type',m[1]); res.send(Buffer.from(m[2],'base64'));});
+app.get('/admin/inquiry-image/:id/:kind',admin,async(req,res)=>{const col=req.params.kind==='banner'?'banner_image_data':'main_image_data'; const r=await q(`SELECT ${col} image_data FROM inquiries WHERE id=$1`,[req.params.id]); const data=r.rows[0]?.image_data; if(!data)return res.status(404).send('이미지가 없습니다.'); const m=data.match(/^data:(.+);base64,(.+)$/); if(!m)return res.status(400).send('이미지 형식 오류'); res.setHeader('Content-Type',m[1]); res.setHeader('Cache-Control','private, max-age=86400'); res.send(Buffer.from(m[2],'base64'));});
 app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
   const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
@@ -943,6 +961,24 @@ app.get('/sitemap.xml',async(req,res)=>{
   res.setHeader('Content-Type','application/xml; charset=utf-8');
   res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+items+'\n</urlset>');
 });
+
+app.get('/admin/api/performance-check',admin,async(req,res)=>{
+  const started=Date.now();
+  const checks=[];
+  const add=(name,ok,detail='')=>checks.push({name,ok,detail});
+  try{
+    await q('SELECT 1');
+    add('DB 응답',true,(Date.now()-started)+'ms');
+  }catch(e){
+    add('DB 응답',false,e.message);
+  }
+  add('정적 캐시',true,'/public 30일 캐시');
+  add('관리자/API 캐시',true,'no-store');
+  add('이미지 캐시',true,'private 1일');
+  add('프로세스 메모리',true,Math.round(process.memoryUsage().rss/1024/1024)+'MB');
+  res.json({ok:true,uptime:Math.round(process.uptime()),checks});
+});
+
 app.get('/open-check',admin,async(req,res)=>{
   const checks=[];
   const add=(name,ok,detail='')=>checks.push({name,ok,detail});
