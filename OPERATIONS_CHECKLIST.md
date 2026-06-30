@@ -1,61 +1,23 @@
-# 운영 점검 체크리스트
+# 오픈 준비 체크리스트
 
-## 1. Render 배포 후 확인
+## 배포 후 확인 주소
 
-1. Render에서 `Manual Deploy → Deploy latest commit` 실행
-2. 배포 완료 후 아래 주소 확인
-   - `/healthz`
-   - `/robots.txt`
-   - `/sitemap.xml`
-3. `/healthz` 응답 예시
+- `/healthz`
+- `/robots.txt`
+- `/sitemap.xml`
+- `/favicon.svg`
+- `/site.webmanifest`
+- `/open-check` 관리자 로그인 필요
 
-```json
-{"ok":true,"db":true}
-```
+## Render 환경변수 권장
 
-## 2. 기본 화면 확인
+- `NODE_ENV=production`
+- `SITE_URL=https://실제도메인`
+- `SESSION_SECRET=긴_랜덤_문자열`
+- `DATABASE_URL=PostgreSQL 연결값`
 
-- `/` 메인 접속
-- `/login` 로그인 화면
-- `/join` 회원가입 화면
-- `/advertise` 광고문의 화면
-- `/apply` 입점신청 화면
+## Google Search Console
 
-## 3. 관리자 기능 확인
-
-- `/admin` 접속
-- 입점신청 승인/반려
-- 광고/배너 신청 입금확인
-- 업체 수정/비활성화
-- 설정 저장
-- 백업 다운로드
-
-주의: 복원 기능은 데이터 손실 방지를 위해 비활성화되어 있습니다.
-
-## 4. 업체회원 기능 확인
-
-- 업체관리 접속
-- 업체정보 수정요청
-- 배너 신청
-- 광고상품 신청
-- 입금완료 버튼
-
-## 5. 주요 안전장치
-
-- WEBP 업로드 허용
-- 중복 신청 방지
-- 취소된 신청 재입금 방지
-- 관리자 중복 승인/반려 방지
-- 관리자 계정 삭제 방지
-- 업체 삭제는 실제 삭제 대신 비활성화
-- 위험한 부분 복원 비활성화
-- 보안 헤더 적용
-
-## 6. 문제 발생 시 우선 확인
-
-1. Render Logs 확인
-2. `/healthz` 확인
-3. GitHub 최신 커밋이 Render에 배포됐는지 확인
-4. 환경변수 확인
-   - `DATABASE_URL`
-   - `SESSION_SECRET`
+1. 실제 도메인 등록
+2. sitemap 제출: `https://실제도메인/sitemap.xml`
+3. 메인 페이지 색인 요청
