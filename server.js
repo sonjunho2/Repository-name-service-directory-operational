@@ -15,14 +15,7 @@ function validImageBuffer(file){
   return false;
 }
 const img=f=>f&&validImageBuffer(f)?`data:${f.mimetype};base64,${f.buffer.toString('base64')}`:null;
-async function ensureSchema(){
-  await q(`CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, nickname TEXT NOT NULL, role TEXT DEFAULT 'user', status TEXT DEFAULT 'active', created_at TIMESTAMP DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS vendors(id SERIAL PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, region TEXT NOT NULL, phone TEXT, tags TEXT, description TEXT, business_hours TEXT, image_data TEXT, is_recommended BOOLEAN DEFAULT false, is_premium BOOLEAN DEFAULT false, status TEXT DEFAULT 'active', views INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS banners(id SERIAL PRIMARY KEY, title TEXT NOT NULL, subtitle TEXT, link_url TEXT, image_data TEXT, position TEXT DEFAULT 'premium', sort_order INTEGER DEFAULT 0, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS reviews(id SERIAL PRIMARY KEY, vendor_id INTEGER REFERENCES vendors(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, title TEXT NOT NULL, content TEXT NOT NULL, rating INTEGER DEFAULT 5, status TEXT DEFAULT 'visible', created_at TIMESTAMP DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS events(id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, image_data TEXT, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS notices(id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, is_pinned BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT now())`);
-await q('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS kakao_url text'); await q(`CREATE TABLE IF NOT EXISTS inquiries(id SERIAL PRIMARY KEY,type text,company_name text,name text,phone text,kakao text,email text,category text,region text,content text,main_image_data text,banner_image_data text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS banner_status text DEFAULT 'new'"); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS user_id int"); await q(`CREATE TABLE IF NOT EXISTS flags(id SERIAL PRIMARY KEY,type text,target_id int,reason text,content text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS admin_memo text"); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS processed_at timestamp"); await q(`CREATE TABLE IF NOT EXISTS app_settings(key text PRIMARY KEY, value text DEFAULT '')`); await q("INSERT INTO app_settings(key,value) VALUES('categories','카페\n뷰티\n맛집\n교육\n기타') ON CONFLICT (key) DO NOTHING"); await q("INSERT INTO app_settings(key,value) VALUES('regions','서울\n부산\n대구\n인천\n광주\n대전\n제주') ON CONFLICT (key) DO NOTHING"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_vendor boolean DEFAULT false"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS vendor_id int"); await q(`CREATE TABLE IF NOT EXISTS vendor_update_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,name text,category text,region text,phone text,kakao_url text,business_hours text,tags text,description text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_banner_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,title text,subtitle text,link_url text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_ad_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,plan text,period text,content text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ad_until date");
+async function ensureSchema(){await q('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS kakao_url text'); await q(`CREATE TABLE IF NOT EXISTS inquiries(id SERIAL PRIMARY KEY,type text,company_name text,name text,phone text,kakao text,email text,category text,region text,content text,main_image_data text,banner_image_data text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS banner_status text DEFAULT 'new'"); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS user_id int"); await q(`CREATE TABLE IF NOT EXISTS flags(id SERIAL PRIMARY KEY,type text,target_id int,reason text,content text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS admin_memo text"); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS processed_at timestamp"); await q(`CREATE TABLE IF NOT EXISTS app_settings(key text PRIMARY KEY, value text DEFAULT '')`); await q("INSERT INTO app_settings(key,value) VALUES('categories','카페\n뷰티\n맛집\n교육\n기타') ON CONFLICT (key) DO NOTHING"); await q("INSERT INTO app_settings(key,value) VALUES('regions','서울\n부산\n대구\n인천\n광주\n대전\n제주') ON CONFLICT (key) DO NOTHING"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_vendor boolean DEFAULT false"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS vendor_id int"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamp DEFAULT now()"); await q(`CREATE TABLE IF NOT EXISTS vendor_update_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,name text,category text,region text,phone text,kakao_url text,business_hours text,tags text,description text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_banner_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,title text,subtitle text,link_url text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_ad_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,plan text,period text,content text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ad_until date");
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS membership_type text DEFAULT 'general'");
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ad_type text DEFAULT 'none'");
     await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS expire_at date");
@@ -311,8 +304,8 @@ async function homeData(req){
   return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings};
 }
 app.get('/healthz',async(req,res)=>{try{await q('SELECT 1');res.json({ok:true,db:true,time:new Date().toISOString()});}catch(e){res.status(500).json({ok:false,db:false,error:e.message,time:new Date().toISOString()});}});
-
-
+app.get('/robots.txt',(req,res)=>{const base=req.protocol+'://'+req.get('host');res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /vendor-dashboard\nDisallow: /mypage\nSitemap: '+base+'/sitemap.xml\n');});
+app.get('/sitemap.xml',async(req,res)=>{const base=req.protocol+'://'+req.get('host');const rows=await q("SELECT id FROM vendors WHERE status='active' AND ad_type<>'none' AND expire_at IS NOT NULL AND expire_at>=CURRENT_DATE ORDER BY id DESC LIMIT 5000");const urls=['/','/advertise','/apply'].map(x=>'<url><loc>'+base+x+'</loc></url>').concat(rows.rows.map(v=>'<url><loc>'+base+'/vendor/'+v.id+'</loc></url>'));res.type('application/xml').send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+urls.join('')+'</urlset>');});
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
 app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
 app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
@@ -352,77 +345,54 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SEL
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
 app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`,'SELECT COUNT(*) FROM flags'));
 
+
 app.get('/admin/api/live-summary',admin,async(req,res)=>{
-  try{
-    const scalar=async(sql)=>Number((await q(sql)).rows[0]?.v||0);
-    const [recentInquiries,recentPayments,recentReports,recentLogs]=await Promise.all([
-      q(`SELECT i.id,i.type,i.company_name,i.name,i.status,i.created_at,u.username applicant_username
-         FROM inquiries i LEFT JOIN users u ON u.id=i.user_id
-         ORDER BY i.id DESC LIMIT 5`),
-      q(`SELECT p.id,p.product_type,p.krw_price,p.paid_at,p.created_at,v.name vendor_name,u.username
-         FROM payment_logs p
-         LEFT JOIN vendors v ON v.id=p.vendor_id
-         LEFT JOIN users u ON u.id=p.user_id
-         ORDER BY p.id DESC LIMIT 5`),
-      q(`SELECT f.id,f.type,f.reason,f.status,f.created_at,v.name vendor_name,rv.title review_title
-         FROM flags f
-         LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id
-         LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id
-         ORDER BY f.id DESC LIMIT 5`),
-      q(`SELECT id,action,target_type,target_id,memo,created_at
-         FROM admin_logs ORDER BY id DESC LIMIT 5`)
-    ]);
-    const data={
-      ok:true,
-      time:new Date().toISOString(),
-      counts:{
-        pendingInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE status='new'"),
-        pendingVendorRequests:await scalar("SELECT COUNT(*) v FROM vendor_update_requests WHERE status='new'"),
-        pendingAdRequests:await scalar("SELECT COUNT(*) v FROM vendor_ad_requests WHERE status='new'"),
-        pendingBannerRequests:await scalar("SELECT COUNT(*) v FROM vendor_banner_requests WHERE status='new'"),
-        pendingReports:await scalar("SELECT COUNT(*) v FROM flags WHERE status='new'"),
-        waitingPayments:await scalar("SELECT COUNT(*) v FROM (SELECT payment_status FROM vendor_ad_requests UNION ALL SELECT payment_status FROM vendor_banner_requests) x WHERE payment_status='waiting'"),
-        expiring7:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '7 days'"),
-        todayViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=CURRENT_DATE"),
-        todayUsers:await scalar("SELECT COUNT(*) v FROM users WHERE created_at>=CURRENT_DATE"),
-        todayInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE created_at>=CURRENT_DATE"),
-        todayRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE paid_at>=CURRENT_DATE"),
-        monthRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)"),
-        totalUsers:await scalar("SELECT COUNT(*) v FROM users"),
-        totalVendors:await scalar("SELECT COUNT(*) v FROM vendors")
-      },
-      ops:{
-        todayDone:await scalar("SELECT COUNT(*) v FROM admin_logs WHERE created_at>=CURRENT_DATE"),
-        todayVendors:await scalar("SELECT COUNT(*) v FROM vendors WHERE created_at>=CURRENT_DATE"),
-        todayReports:await scalar("SELECT COUNT(*) v FROM flags WHERE created_at>=CURRENT_DATE"),
-        expiring3:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '3 days'"),
-        expiringToday:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at=CURRENT_DATE"),
-        bannerExpiring7:await scalar("SELECT COUNT(*) v FROM vendors WHERE banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND banner_until<=CURRENT_DATE+INTERVAL '7 days'"),
-        bannerExpiring3:await scalar("SELECT COUNT(*) v FROM vendors WHERE banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND banner_until<=CURRENT_DATE+INTERVAL '3 days'"),
-        lastBackup:(await q("SELECT action,memo,created_at FROM admin_logs WHERE action LIKE '%백업%' OR action LIKE '%복원%' ORDER BY id DESC LIMIT 1")).rows[0]||null,
-        db:true,
-        api:true
-      },
-      charts:{
-        dailyViews:(await q("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM vendor_view_logs WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d")).rows,
-        dailyUsers:(await q("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM users WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d")).rows,
-        dailyRevenue:(await q("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.sum,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT paid_at::date day,SUM(krw_price) sum FROM payment_logs WHERE paid_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY paid_at::date) x ON x.day=d::date ORDER BY d")).rows,
-        productSales:(await q("SELECT COALESCE(product_type,'기타') label,COUNT(*)::int value FROM payment_logs GROUP BY product_type ORDER BY value DESC LIMIT 6")).rows,
-        regionVendors:(await q("SELECT COALESCE(region,'미지정') label,COUNT(*)::int value FROM vendors GROUP BY region ORDER BY value DESC LIMIT 6")).rows
-      },
-      recent:{
-        inquiries:recentInquiries.rows,
-        payments:recentPayments.rows,
-        reports:recentReports.rows,
-        logs:recentLogs.rows
-      }
-    };
-    data.alertTotal=data.counts.pendingInquiries+data.counts.pendingVendorRequests+data.counts.pendingAdRequests+data.counts.pendingBannerRequests+data.counts.pendingReports+data.counts.waitingPayments;
-    res.json(data);
-  }catch(e){
-    res.status(500).json({ok:false,error:e.message||'live summary failed'});
-  }
+  const safeScalar=async(sql)=>{try{return Number((await q(sql)).rows[0]?.v||0);}catch(e){console.error('live scalar failed',e.message);return 0;}};
+  const safeRows=async(sql)=>{try{return (await q(sql)).rows;}catch(e){console.error('live rows failed',e.message);return [];}};
+  const counts={
+    pendingInquiries:await safeScalar("SELECT COUNT(*) v FROM inquiries WHERE status='new'"),
+    pendingVendorRequests:await safeScalar("SELECT COUNT(*) v FROM vendor_update_requests WHERE status='new'"),
+    pendingAdRequests:await safeScalar("SELECT COUNT(*) v FROM vendor_ad_requests WHERE status='new'"),
+    pendingBannerRequests:await safeScalar("SELECT COUNT(*) v FROM vendor_banner_requests WHERE status='new'"),
+    pendingReports:await safeScalar("SELECT COUNT(*) v FROM flags WHERE status='new'"),
+    waitingPayments:await safeScalar("SELECT COUNT(*) v FROM (SELECT payment_status FROM vendor_ad_requests UNION ALL SELECT payment_status FROM vendor_banner_requests) x WHERE payment_status='waiting'"),
+    expiring7:await safeScalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '7 days'"),
+    todayViews:await safeScalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=CURRENT_DATE"),
+    todayUsers:await safeScalar("SELECT COUNT(*) v FROM users WHERE created_at>=CURRENT_DATE"),
+    todayInquiries:await safeScalar("SELECT COUNT(*) v FROM inquiries WHERE created_at>=CURRENT_DATE"),
+    todayRevenue:await safeScalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE paid_at>=CURRENT_DATE"),
+    monthRevenue:await safeScalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)"),
+    totalUsers:await safeScalar("SELECT COUNT(*) v FROM users"),
+    totalVendors:await safeScalar("SELECT COUNT(*) v FROM vendors")
+  };
+  const ops={
+    todayDone:await safeScalar("SELECT COUNT(*) v FROM admin_logs WHERE created_at>=CURRENT_DATE"),
+    todayVendors:await safeScalar("SELECT COUNT(*) v FROM vendors WHERE created_at>=CURRENT_DATE"),
+    todayReports:await safeScalar("SELECT COUNT(*) v FROM flags WHERE created_at>=CURRENT_DATE"),
+    expiring3:await safeScalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '3 days'"),
+    expiringToday:await safeScalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at=CURRENT_DATE"),
+    bannerExpiring7:await safeScalar("SELECT COUNT(*) v FROM vendors WHERE banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND banner_until<=CURRENT_DATE+INTERVAL '7 days'"),
+    bannerExpiring3:await safeScalar("SELECT COUNT(*) v FROM vendors WHERE banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND banner_until<=CURRENT_DATE+INTERVAL '3 days'"),
+    lastBackup:(await safeRows("SELECT action,memo,created_at FROM admin_logs WHERE action LIKE '%백업%' OR action LIKE '%복원%' ORDER BY id DESC LIMIT 1"))[0]||null,
+    db:true,api:true
+  };
+  const recent={
+    inquiries:await safeRows(`SELECT i.id,i.type,i.company_name,i.name,i.status,i.created_at,u.username applicant_username FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC LIMIT 5`),
+    payments:await safeRows(`SELECT p.id,p.product_type,p.krw_price,p.paid_at,p.created_at,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 5`),
+    reports:await safeRows(`SELECT f.id,f.type,f.reason,f.status,f.created_at,v.name vendor_name,rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 5`),
+    logs:await safeRows(`SELECT id,action,target_type,target_id,memo,created_at FROM admin_logs ORDER BY id DESC LIMIT 5`)
+  };
+  const charts={
+    dailyViews:await safeRows("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM vendor_view_logs WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d"),
+    dailyUsers:await safeRows("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM users WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d"),
+    dailyRevenue:await safeRows("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.sum,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT paid_at::date day,SUM(krw_price) sum FROM payment_logs WHERE paid_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY paid_at::date) x ON x.day=d::date ORDER BY d"),
+    productSales:await safeRows("SELECT COALESCE(product_type,'기타') label,COUNT(*)::int value FROM payment_logs GROUP BY product_type ORDER BY value DESC LIMIT 6"),
+    regionVendors:await safeRows("SELECT COALESCE(region,'미지정') label,COUNT(*)::int value FROM vendors GROUP BY region ORDER BY value DESC LIMIT 6")
+  };
+  const alertTotal=counts.pendingInquiries+counts.pendingVendorRequests+counts.pendingAdRequests+counts.pendingBannerRequests+counts.pendingReports+counts.waitingPayments;
+  res.json({ok:true,time:new Date().toISOString(),counts,ops,recent,charts,alertTotal});
 });
+
 
 
 // 통합 관리자 화면 사용: 개별 신청/신고 페이지는 관리자 메인 탭으로 이동
@@ -847,6 +817,31 @@ app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
 });
 app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>{await q("UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3 AND status='new'",['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); await logAdmin(req,'업체수정요청 반려','vendor_update_request',req.params.id,req.body.admin_memo||''); res.redirect('/admin#vendorRequests');});
 
+
+app.post('/admin/users/:id/update',admin,async(req,res)=>{
+  const userId=parseInt(req.params.id||req.body.id||0,10);
+  if(!userId)return res.status(400).send('잘못된 회원입니다.');
+  const current=await q('SELECT role FROM users WHERE id=$1',[userId]);
+  if(!current.rows[0])return res.status(404).send('회원을 찾을 수 없습니다.');
+  const role=['admin','user'].includes(req.body.role)?req.body.role:'user';
+  const status=['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:'active';
+  const nickname=(req.body.nickname||'회원').trim().slice(0,50)||'회원';
+  const password=(req.body.password||'').trim();
+  if(current.rows[0].role==='admin'&&role!=='admin'){
+    return res.status(400).send('관리자 권한은 이 화면에서 해제할 수 없습니다.');
+  }
+  if(password&&password.length<6)return res.status(400).send('비밀번호는 6자 이상이어야 합니다.');
+  if(password){
+    const h=await bcrypt.hash(password,10);
+    await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]);
+  }else{
+    await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]);
+  }
+  await logAdmin(req,'회원 수정','user',userId,nickname);
+  if(req.get('x-requested-with'))return res.json({ok:true});
+  res.redirect('/admin#users');
+});
+
 app.post('/admin/link-user-vendor',admin,async(req,res)=>{const userId=parseInt(req.body.user_id||0,10); const vendorId=parseInt(req.body.vendor_id||0,10); if(userId&&vendorId){await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]); await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);} await logAdmin(req,'회원 수정','user',req.body.id,req.body.nickname||''); res.redirect('/admin#users');});
 
 
@@ -979,25 +974,7 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   res.redirect('/admin#vendors');
 });
 app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=img(req.file); if(req.body.id){let p=[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,req.body.id]; await q(`UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6 ${im?', image_data=$8':''} WHERE id=$7`, im?[...p,im]:p)} else await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,im]); await logAdmin(req,req.body.id?'배너 수정':'배너 등록','banner',req.body.id||'new',req.body.title||''); res.redirect('/admin#banners');});
-
-app.post('/admin/users/:id/update',admin,async(req,res)=>{
-  req.body=req.body||{};
-  req.body.id=req.params.id;
-  const userId=parseInt(req.body.id||0,10);
-  if(!userId)return res.redirect('/admin#users');
-  const role=['admin','user'].includes(req.body.role)?req.body.role:'user';
-  const status=['active','blocked'].includes(req.body.status)?req.body.status:'active';
-  const nickname=(req.body.nickname||'').trim().slice(0,50)||'회원';
-  const password=(req.body.password||'').trim();
-  if(password&&password.length<6)return res.redirect('/admin#users');
-  const h=password?await bcrypt.hash(password,10):null;
-  if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]);
-  else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]);
-  await logAdmin(req,'회원 수정','users',userId,nickname);
-  res.redirect('/admin#users');
-});
-
-app.post('/admin/user',admin,async(req,res)=>{const userId=parseInt(req.body.id||0,10); if(!userId)return res.redirect('/admin#users'); const role=['admin','user'].includes(req.body.role)?req.body.role:'user'; const status=['active','blocked'].includes(req.body.status)?req.body.status:'active'; const nickname=(req.body.nickname||'회원').trim().slice(0,50); const password=req.body.password||''; if(password&&password.length<6)return res.redirect('/admin#users'); const h=password?await bcrypt.hash(password,10):null; if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]); else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]); await logAdmin(req,'회원 수정','user',userId,nickname); res.redirect('/admin#users');});
+app.post('/admin/user',admin,async(req,res)=>{const userId=parseInt(req.body.id||0,10); if(!userId)return res.redirect('/admin#users'); const role=['admin','user'].includes(req.body.role)?req.body.role:'user'; const status=['active','blocked'].includes(req.body.status)?req.body.status:'active'; const nickname=(req.body.nickname||'회원').trim().slice(0,50); const password=req.body.password||''; if(password&&password.length<6)return res.redirect('/admin#users'); const h=password?await bcrypt.hash(password,10):null; if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]); else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]); await logAdmin(req,'회원 수정','user',userId,nickname); if(req.get('x-requested-with'))return res.json({ok:true}); res.redirect('/admin#users');});
 app.post('/admin/notice',admin,async(req,res)=>{await q('INSERT INTO notices(title,content,is_pinned) VALUES($1,$2,$3)',[req.body.title,req.body.content,!!req.body.is_pinned]); await logAdmin(req,'공지 등록','notice','new',req.body.title||''); res.redirect('/admin#notices');});
 app.post('/admin/delete/:table/:id',admin,async(req,res)=>{const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'}; const table=allowed[req.params.table]; const id=parseInt(req.params.id||0,10); if(table&&id){ if(table==='users'){const u=await q('SELECT role FROM users WHERE id=$1',[id]); if(u.rows[0]?.role==='admin')return res.redirect('/admin#users');} if(table==='vendors'){await q('UPDATE vendors SET status=$1 WHERE id=$2',['inactive',id]); await logAdmin(req,'업체 비활성화','vendors',id,'관리자 삭제 대신 비활성화'); return res.redirect('/admin#vendors');} await q(`DELETE FROM ${table} WHERE id=$1`,[id]); await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제'); } res.redirect('/admin');});
 
