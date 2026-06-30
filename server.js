@@ -646,7 +646,7 @@ app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
 
 require('./restore-routes')(app,{q,bcrypt,admin,logAdmin});
 app.get('/admin/backup.json',admin,async(req,res)=>{
-  const tables=['users','vendors','banners','reviews','notices','inquiries','flags','vendor_update_requests','vendor_banner_requests','vendor_ad_requests','favorites','app_settings'];
+  const tables=['users','vendors','banners','reviews','notices','inquiries','flags','vendor_update_requests','vendor_banner_requests','vendor_ad_requests','favorites','app_settings','payment_logs','vendor_view_logs'];
   const data={created_at:new Date().toISOString(),tables:{}};
   for(const t of tables){try{const r=await q(`SELECT * FROM ${t} ORDER BY 1`); data.tables[t]=r.rows;}catch(e){data.tables[t]=[];}}
   res.setHeader('Content-Type','application/json; charset=utf-8');
