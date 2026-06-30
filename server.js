@@ -644,6 +644,7 @@ app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
   res.redirect('/admin#adRequests');
 });
 
+require('./restore-routes')(app,{q,bcrypt,admin,logAdmin});
 app.get('/admin/backup.json',admin,async(req,res)=>{
   const tables=['users','vendors','banners','reviews','notices','inquiries','flags','vendor_update_requests','vendor_banner_requests','vendor_ad_requests','favorites','app_settings'];
   const data={created_at:new Date().toISOString(),tables:{}};
