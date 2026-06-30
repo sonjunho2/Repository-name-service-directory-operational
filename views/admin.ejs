@@ -197,6 +197,9 @@
 .admin-live-item small{display:block;color:#8d98b8;margin-top:3px}
 .admin-live-muted{color:#8d98b8;font-size:12px}
 
+
+.stage32-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.stage32-box{border:1px solid #29324f;border-radius:18px;background:#070b15;padding:18px}.stage32-box h3{margin:0 0 12px;font-size:18px}.stage32-card{border:1px solid #29324f;border-radius:14px;background:#10182b;padding:14px;min-height:92px}.stage32-card b{display:block;color:#8d98b8;margin-bottom:8px}.stage32-card strong{display:block;font-size:25px;color:#10d9ff}.stage32-card.good{border-color:#1fe087}.stage32-card.warn{border-color:#ffdc4d}.stage32-card.danger{border-color:#ff6b6b}.stage32-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}.stage32-quick a{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:999px;border:1px solid #29324f;background:#10182b;color:#fff;text-decoration:none;font-weight:900}.stage32-quick a:hover{border-color:#10d9ff}.stage32-list{display:grid;gap:8px}.stage32-task{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #29324f;border-radius:12px;padding:10px 12px;color:#dfe9ff;text-decoration:none;background:#10182b}.stage32-task strong{font-size:18px}.stage32-task.danger{border-color:#ff6b6b}.stage32-task.warn{border-color:#ffdc4d}.stage32-task.good{border-color:#1fe087}.stage32-status{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stage32-status span{display:block;border:1px solid #29324f;border-radius:12px;padding:12px;background:#10182b;font-weight:900}.stage32-status small{display:block;color:#8d98b8;margin-top:4px}@media(max-width:1100px){.stage32-grid{grid-template-columns:repeat(2,1fr)}.stage32-quick{grid-template-columns:repeat(2,1fr)}.stage32-status{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.stage32-grid,.stage32-quick,.stage32-status{grid-template-columns:1fr}}
+
 </style></head><body><header class="top"><b>관리자</b><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
@@ -239,6 +242,53 @@
   </div>
 </aside><main class="admin-content"><section id="dashboard" class="panel admin-panel active">
 <h2>대시보드</h2>
+<div id="stage32OpsPanel" class="stage32-ops">
+  <div class="stage32-quick">
+    <a href="#vendors" data-panel="vendors">+ 업체 등록</a>
+    <a href="#notices" data-panel="notices">+ 공지 작성</a>
+    <a href="#banners" data-panel="banners">+ 배너 등록</a>
+    <a href="#adCenter" data-panel="adCenter">광고 관리</a>
+    <a href="/admin/backup.json" target="_blank">백업 다운로드</a>
+  </div>
+
+  <div class="stage32-grid">
+    <div class="stage32-card"><b>오늘 처리 완료</b><strong data-stage32="todayDone">-</strong></div>
+    <div class="stage32-card"><b>오늘 신규 업체</b><strong data-stage32="todayVendors">-</strong></div>
+    <div class="stage32-card"><b>오늘 신규 회원</b><strong data-stage32="todayUsers">-</strong></div>
+    <div class="stage32-card"><b>오늘 매출</b><strong data-stage32="todayRevenue">-</strong></div>
+  </div>
+
+  <div class="stage32-grid">
+    <div class="stage32-box">
+      <h3>오늘 처리해야 할 일</h3>
+      <div class="stage32-list" id="stage32TodoList">
+        <div class="stage32-task">불러오는 중입니다.</div>
+      </div>
+    </div>
+    <div class="stage32-box">
+      <h3>광고 만료 예정</h3>
+      <div class="stage32-list" id="stage32ExpireList">
+        <div class="stage32-task">불러오는 중입니다.</div>
+      </div>
+    </div>
+    <div class="stage32-box">
+      <h3>배너 만료 예정</h3>
+      <div class="stage32-list" id="stage32BannerExpireList">
+        <div class="stage32-task">불러오는 중입니다.</div>
+      </div>
+    </div>
+    <div class="stage32-box">
+      <h3>운영 상태</h3>
+      <div class="stage32-status">
+        <span>DB<small data-stage32="dbStatus">확인중</small></span>
+        <span>API<small data-stage32="apiStatus">확인중</small></span>
+        <span>백업<small data-stage32="backupStatus">확인중</small></span>
+        <span>알림<small data-stage32="alertStatus">확인중</small></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <%
   const S=(typeof adminSummary!=='undefined'&&adminSummary)?adminSummary:{};
   const money=n=>Number(n||0).toLocaleString()+"원";
@@ -285,6 +335,9 @@
 .admin-live-item:last-child{border-bottom:0}
 .admin-live-item small{display:block;color:#8d98b8;margin-top:3px}
 .admin-live-muted{color:#8d98b8;font-size:12px}
+
+
+.stage32-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.stage32-box{border:1px solid #29324f;border-radius:18px;background:#070b15;padding:18px}.stage32-box h3{margin:0 0 12px;font-size:18px}.stage32-card{border:1px solid #29324f;border-radius:14px;background:#10182b;padding:14px;min-height:92px}.stage32-card b{display:block;color:#8d98b8;margin-bottom:8px}.stage32-card strong{display:block;font-size:25px;color:#10d9ff}.stage32-card.good{border-color:#1fe087}.stage32-card.warn{border-color:#ffdc4d}.stage32-card.danger{border-color:#ff6b6b}.stage32-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}.stage32-quick a{display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:999px;border:1px solid #29324f;background:#10182b;color:#fff;text-decoration:none;font-weight:900}.stage32-quick a:hover{border-color:#10d9ff}.stage32-list{display:grid;gap:8px}.stage32-task{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #29324f;border-radius:12px;padding:10px 12px;color:#dfe9ff;text-decoration:none;background:#10182b}.stage32-task strong{font-size:18px}.stage32-task.danger{border-color:#ff6b6b}.stage32-task.warn{border-color:#ffdc4d}.stage32-task.good{border-color:#1fe087}.stage32-status{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stage32-status span{display:block;border:1px solid #29324f;border-radius:12px;padding:12px;background:#10182b;font-weight:900}.stage32-status small{display:block;color:#8d98b8;margin-top:4px}@media(max-width:1100px){.stage32-grid{grid-template-columns:repeat(2,1fr)}.stage32-quick{grid-template-columns:repeat(2,1fr)}.stage32-status{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.stage32-grid,.stage32-quick,.stage32-status{grid-template-columns:1fr}}
 
 </style>
 <div class="dash-grid">
@@ -1955,5 +2008,80 @@ document.addEventListener('DOMContentLoaded',function(){
     setInterval(loadLive,30000);
   });
   window.addEventListener('hashchange',function(){setTimeout(decorateDashboardForLive,300);});
+})();
+</script><script>
+(function(){
+  if(window.__adminStage32)return;
+  window.__adminStage32=true;
+
+  function num(n){return Number(n||0).toLocaleString();}
+  function money(n){return Number(n||0).toLocaleString()+'원';}
+  function set(key,val){
+    document.querySelectorAll('[data-stage32="'+key+'"]').forEach(function(el){el.textContent=val;});
+  }
+  function cls(n){
+    n=Number(n||0);
+    if(n>=5)return 'danger';
+    if(n>0)return 'warn';
+    return 'good';
+  }
+  function task(label,count,panel){
+    var c=cls(count);
+    return '<a class="stage32-task '+c+'" href="#'+panel+'" data-panel="'+panel+'"><span>'+label+'</span><strong>'+num(count)+'</strong></a>';
+  }
+  function renderStage32(data){
+    if(!data||!data.ok)return;
+    var c=data.counts||{}, o=data.ops||{};
+    set('todayDone',num(o.todayDone));
+    set('todayVendors',num(o.todayVendors));
+    set('todayUsers',num(c.todayUsers));
+    set('todayRevenue',money(c.todayRevenue));
+    set('dbStatus',o.db?'정상':'확인 필요');
+    set('apiStatus',o.api?'정상':'확인 필요');
+    set('alertStatus',Number(data.alertTotal||0)+'건 대기');
+    set('backupStatus',o.lastBackup?(new Date(o.lastBackup.created_at).toLocaleString()):'기록 없음');
+
+    var todo=document.getElementById('stage32TodoList');
+    if(todo){
+      todo.innerHTML=[
+        task('입점신청',c.pendingInquiries,'inquiries'),
+        task('업체 수정요청',c.pendingVendorRequests,'vendorRequests'),
+        task('광고신청',c.pendingAdRequests,'adCenter'),
+        task('배너신청',c.pendingBannerRequests,'adCenter'),
+        task('입금대기',c.waitingPayments,'adCenter'),
+        task('신고',c.pendingReports,'reports')
+      ].join('');
+    }
+
+    var exp=document.getElementById('stage32ExpireList');
+    if(exp){
+      exp.innerHTML=[
+        task('오늘 만료',o.expiringToday,'vendors'),
+        task('3일 이내',o.expiring3,'vendors'),
+        task('7일 이내',c.expiring7,'vendors')
+      ].join('');
+    }
+
+    var bexp=document.getElementById('stage32BannerExpireList');
+    if(bexp){
+      bexp.innerHTML=[
+        task('3일 이내',o.bannerExpiring3,'vendors'),
+        task('7일 이내',o.bannerExpiring7,'vendors')
+      ].join('');
+    }
+  }
+
+  async function loadStage32(){
+    try{
+      var res=await fetch('/admin/api/live-summary',{headers:{'Accept':'application/json'},credentials:'same-origin'});
+      var data=await res.json();
+      renderStage32(data);
+    }catch(e){}
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(loadStage32,900);
+    setInterval(loadStage32,30000);
+  });
 })();
 </script></body></html>
