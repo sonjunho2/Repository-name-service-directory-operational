@@ -1,0 +1,55 @@
+name: Admin restore file input
+
+on:
+  push:
+    paths:
+      - '.github/workflows/admin-restore-file-input.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch admin restore form
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('views/admin.ejs')
+          s=p.read_text()
+          if 'backupFileInput' not in s:
+            s=s.replace('<textarea name="json" placeholder="backup.json 내용을 붙여넣기"></textarea>', '<input type="file" id="backupFileInput" accept=".json,application/json" style="margin-bottom:10px"><textarea id="backupJsonText" name="json" placeholder="backup.json 파일을 선택하면 자동으로 내용이 들어갑니다. 직접 붙여넣기도 가능합니다."></textarea>')
+            s=s.replace('<textarea name="backup_json" placeholder="backup.json 내용을 붙여넣기"></textarea>', '<input type="file" id="backupFileInput" accept=".json,application/json" style="margin-bottom:10px"><textarea id="backupJsonText" name="backup_json" placeholder="backup.json 파일을 선택하면 자동으로 내용이 들어갑니다. 직접 붙여넣기도 가능합니다."></textarea>')
+            s=s.replace('<input type="password" name="password" placeholder="관리자 비밀번호">', '<input type="password" name="password" placeholder="관리자 비밀번호"><input name="confirm_text" placeholder="확인 문구: 복원" value="">')
+            js="""<script>
+document.addEventListener('change',function(e){
+  if(e.target&&e.target.id==='backupFileInput'){
+    const file=e.target.files&&e.target.files[0];
+    if(!file)return;
+    if(!file.name.toLowerCase().endsWith('.json')){alert('backup.json 파일만 선택해주세요.');e.target.value='';return;}
+    const reader=new FileReader();
+    reader.onload=function(){
+      const target=document.getElementById('backupJsonText');
+      if(target)target.value=String(reader.result||'');
+    };
+    reader.readAsText(file,'utf-8');
+  }
+});
+</script>"""
+            s=s.replace('</body>', js+'</body>')
+          p.write_text(s)
+          Path('.github/workflows/admin-restore-file-input.yml').unlink(missing_ok=True)
+          PY
+          node --check server.js
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "No changes"; else git commit -m "Add file picker to admin restore form" && git push; fi
