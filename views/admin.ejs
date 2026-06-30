@@ -222,39 +222,61 @@
   const S=(typeof adminSummary!=='undefined'&&adminSummary)?adminSummary:{};
   const money=n=>Number(n||0).toLocaleString()+"원";
   const num=n=>Number(n||0).toLocaleString();
+  const level=n=>Number(n||0)>=20?'level-danger':Number(n||0)>=6?'level-warn':Number(n||0)>0?'level-info':'level-zero';
+  const alertDot=n=>Number(n||0)>0?'<i class="dash-dot"></i>':'';
 %>
+<style>
+.dashboard-card-link{position:relative;text-decoration:none;color:inherit;transition:.15s transform,.15s border-color}
+.dashboard-card-link:hover{transform:translateY(-2px);border-color:#10d9ff}
+.dash-card{position:relative}
+.dash-card .stat-note{display:block;margin-top:8px;color:#8d98b8;font-size:12px;font-weight:700}
+.dash-card strong.level-zero{color:#b7c0d8}
+.dash-card strong.level-info{color:#10d9ff}
+.dash-card strong.level-warn{color:#ffdc4d}
+.dash-card strong.level-danger{color:#ff6b6b}
+.dash-dot{position:absolute;right:16px;top:16px;width:10px;height:10px;border-radius:999px;background:#ff4d6d;box-shadow:0 0 0 5px rgba(255,77,109,.16)}
+.dashboard-simple{margin-top:18px}
+.dashboard-box{border:1px solid #29324f;border-radius:18px;background:#070b15;padding:20px}
+.dashboard-box h3{margin:0 0 14px}
+.dashboard-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.dashboard-quick a{display:block;border:1px solid #29324f;border-radius:14px;padding:16px;color:#fff;text-decoration:none;background:#0b1020;font-weight:900}
+.dashboard-quick a:hover{border-color:#10d9ff}
+.dashboard-quick small{display:block;margin-top:6px;color:#8d98b8;font-weight:700}
+@media(max-width:900px){.dashboard-quick{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.dashboard-quick{grid-template-columns:1fr}}
+</style>
 <div class="dash-grid">
-  <div class="dash-card today"><b>오늘 방문</b><strong><%=num(S.todayViews)%></strong><span class="stat-note">업체 상세 조회 기준</span></div>
-  <div class="dash-card today"><b>오늘 가입</b><strong><%=num(S.todayUsers)%></strong><span class="stat-note">신규 회원</span></div>
-  <div class="dash-card today"><b>오늘 입점신청</b><strong><%=num(S.todayInquiries)%></strong><span class="stat-note">일반/입점 문의</span></div>
-  <div class="dash-card hot"><b>오늘 매출</b><strong><%=money(S.todayRevenue)%></strong><span class="stat-note">입금확인 완료 기준</span></div>
+  <div class="dash-card today"><b>오늘 방문</b><strong class="<%=level(S.todayViews)%>"><%=num(S.todayViews)%></strong><span class="stat-note">이번주 <%=num(S.weekViews)%> · 이번달 <%=num(S.monthViews)%></span></div>
+  <div class="dash-card today"><b>오늘 가입</b><strong class="<%=level(S.todayUsers)%>"><%=num(S.todayUsers)%></strong><span class="stat-note">이번주 <%=num(S.weekUsers)%></span></div>
+  <a class="dash-card today dashboard-card-link" href="#inquiries" data-panel="inquiries"><%-alertDot(S.todayInquiries)%><b>오늘 입점신청</b><strong class="<%=level(S.todayInquiries)%>"><%=num(S.todayInquiries)%></strong><span class="stat-note">일반/입점 문의</span></a>
+  <a class="dash-card hot dashboard-card-link" href="#revenue" data-panel="revenue"><b>오늘 매출</b><strong><%=money(S.todayRevenue)%></strong><span class="stat-note">입금확인 완료 기준</span></a>
 </div>
 <div class="dash-grid">
-  <div class="dash-card"><b>이번달 매출</b><strong><%=money(S.monthRevenue)%></strong></div>
-  <div class="dash-card"><b>누적 매출</b><strong><%=money(S.totalRevenue)%></strong></div>
-  <div class="dash-card"><b>활성 광고</b><strong><%=num(S.activeAds)%></strong><span class="stat-note">일반/추천 노출</span></div>
-  <div class="dash-card"><b>프리미엄 배너</b><strong><%=num(S.activeBanners)%></strong></div>
+  <a class="dash-card dashboard-card-link" href="#revenue" data-panel="revenue"><b>이번달 매출</b><strong><%=money(S.monthRevenue)%></strong></a>
+  <a class="dash-card dashboard-card-link" href="#revenue" data-panel="revenue"><b>올해 매출</b><strong><%=money(S.yearRevenue)%></strong></a>
+  <a class="dash-card dashboard-card-link" href="#vendors" data-panel="vendors"><b>활성 광고</b><strong class="<%=level(S.activeAds)%>"><%=num(S.activeAds)%></strong><span class="stat-note">일반/추천 노출</span></a>
+  <a class="dash-card dashboard-card-link" href="#banners" data-panel="banners"><b>프리미엄 배너</b><strong class="<%=level(S.activeBanners)%>"><%=num(S.activeBanners)%></strong></a>
 </div>
 <div class="dash-grid">
-  <a class="dash-card alert" href="#inquiries" data-panel="inquiries"><b>입점 승인대기</b><strong><%=num(S.pendingInquiries)%></strong></a>
-  <a class="dash-card warn" href="#vendorRequests" data-panel="vendorRequests"><b>수정요청 대기</b><strong><%=num(S.pendingVendorRequests)%></strong></a>
-  <a class="dash-card warn" href="#adCenter" data-panel="adCenter"><b>광고/배너 신청</b><strong><%=num((S.pendingAdRequests||0)+(S.pendingBannerRequests||0))%></strong></a>
-  <a class="dash-card alert" href="#adCenter" data-panel="adCenter"><b>입금확인 대기</b><strong><%=num(S.waitingPayments)%></strong></a>
+  <a class="dash-card alert dashboard-card-link" href="#inquiries" data-panel="inquiries"><%-alertDot(S.pendingInquiries)%><b>입점 승인대기</b><strong class="<%=level(S.pendingInquiries)%>"><%=num(S.pendingInquiries)%></strong></a>
+  <a class="dash-card warn dashboard-card-link" href="#vendorRequests" data-panel="vendorRequests"><%-alertDot(S.pendingVendorRequests)%><b>수정요청 대기</b><strong class="<%=level(S.pendingVendorRequests)%>"><%=num(S.pendingVendorRequests)%></strong></a>
+  <a class="dash-card warn dashboard-card-link" href="#adCenter" data-panel="adCenter"><%-alertDot((S.pendingAdRequests||0)+(S.pendingBannerRequests||0))%><b>광고/배너 신청</b><strong class="<%=level((S.pendingAdRequests||0)+(S.pendingBannerRequests||0))%>"><%=num((S.pendingAdRequests||0)+(S.pendingBannerRequests||0))%></strong></a>
+  <a class="dash-card alert dashboard-card-link" href="#adCenter" data-panel="adCenter"><%-alertDot(S.waitingPayments)%><b>입금확인 대기</b><strong class="<%=level(S.waitingPayments)%>"><%=num(S.waitingPayments)%></strong></a>
 </div>
 <div class="dash-grid">
-  <a class="dash-card alert" href="#reports" data-panel="reports"><b>신고 대기</b><strong><%=num(S.pendingReports)%></strong></a>
-  <a class="dash-card warn" href="#vendors" data-panel="vendors"><b>7일 내 만료</b><strong><%=num(S.expiring7)%></strong></a>
-  <div class="dash-card"><b>전체 회원</b><strong><%=num(S.totalUsers)%></strong></div>
-  <div class="dash-card"><b>전체 업체/후기</b><strong><%=num(S.totalVendors)%> / <%=num(S.totalReviews)%></strong></div>
+  <a class="dash-card alert dashboard-card-link" href="#reports" data-panel="reports"><%-alertDot(S.pendingReports)%><b>신고 대기</b><strong class="<%=level(S.pendingReports)%>"><%=num(S.pendingReports)%></strong></a>
+  <a class="dash-card warn dashboard-card-link" href="#vendors" data-panel="vendors"><%-alertDot(S.expiring7)%><b>7일 내 만료</b><strong class="<%=level(S.expiring7)%>"><%=num(S.expiring7)%></strong></a>
+  <a class="dash-card dashboard-card-link" href="#users" data-panel="users"><b>전체 회원</b><strong><%=num(S.totalUsers)%></strong></a>
+  <a class="dash-card dashboard-card-link" href="#vendors" data-panel="vendors"><b>전체 업체/후기</b><strong><%=num(S.totalVendors)%> / <%=num(S.totalReviews)%></strong></a>
 </div>
 <div class="dashboard-simple">
   <div class="dashboard-box">
     <h3>빠른 이동</h3>
     <div class="dashboard-quick">
-      <a href="#vendors" data-panel="vendors">업체목록<small>등록/수정/비활성화</small></a>
-      <a href="#adCenter" data-panel="adCenter">광고센터<small>광고 신청/입금확인</small></a>
-      <a href="#revenue" data-panel="revenue">결제내역<small>매출/결제 확인</small></a>
-      <a href="#settings" data-panel="settings">환경설정<small>가격/백업/복원</small></a>
+      <a href="#vendors" data-panel="vendors">🏢 업체목록<small>등록/수정/비활성화</small></a>
+      <a href="#adCenter" data-panel="adCenter">📢 광고센터<small>광고 신청/입금확인</small></a>
+      <a href="#revenue" data-panel="revenue">💳 결제내역<small>매출/결제 확인</small></a>
+      <a href="#settings" data-panel="settings">⚙ 환경설정<small>가격/백업/복원</small></a>
     </div>
   </div>
 </div>
