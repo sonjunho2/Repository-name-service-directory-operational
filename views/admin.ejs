@@ -219,79 +219,43 @@
 </aside><main class="admin-content"><section id="dashboard" class="panel admin-panel active">
 <h2>대시보드</h2>
 <%
-  const _safeHome=v=>Array.isArray(v)?v:[];
-  const _usersHome=(typeof users!=='undefined')?_safeHome(users):[];
-  const _vendorsHome=(typeof vendors!=='undefined')?_safeHome(vendors):[];
-  const _inquiriesHome=(typeof inquiries!=='undefined')?_safeHome(inquiries):[];
-  const _vendorRequestsHome=(typeof vendorRequests!=='undefined')?_safeHome(vendorRequests):[];
-  const _adRequestsHome=(typeof adRequests!=='undefined')?_safeHome(adRequests):[];
-  const _bannerRequestsHome=(typeof bannerRequests!=='undefined')?_safeHome(bannerRequests):[];
-  const _flagsHome=(typeof flags!=='undefined')?_safeHome(flags):[];
-  const _revHome=(typeof revenueStats!=='undefined'&&revenueStats)?revenueStats:{};
-  const _todayHome=new Date().toISOString().slice(0,10);
-  const _isTodayHome=x=>x&&x.created_at&&new Date(x.created_at).toISOString().slice(0,10)===_todayHome;
-
-  const _pendingInquiriesHome=_inquiriesHome.filter(x=>x.status!=='approved'&&x.status!=='rejected').length;
-  const _pendingVendorRequestsHome=_vendorRequestsHome.filter(x=>x.status==='new').length;
-  const _pendingAdHome=_adRequestsHome.filter(x=>x.status==='new').length;
-  const _pendingBannerHome=_bannerRequestsHome.filter(x=>x.status==='new').length;
-  const _waitingPayHome=[..._adRequestsHome,..._bannerRequestsHome].filter(x=>x.payment_status==='waiting').length;
-  const _pendingReportsHome=_flagsHome.filter(x=>x.status!=='done').length;
+  const S=(typeof adminSummary!=='undefined'&&adminSummary)?adminSummary:{};
+  const money=n=>Number(n||0).toLocaleString()+"원";
+  const num=n=>Number(n||0).toLocaleString();
 %>
-
+<div class="dash-grid">
+  <div class="dash-card today"><b>오늘 방문</b><strong><%=num(S.todayViews)%></strong><span class="stat-note">업체 상세 조회 기준</span></div>
+  <div class="dash-card today"><b>오늘 가입</b><strong><%=num(S.todayUsers)%></strong><span class="stat-note">신규 회원</span></div>
+  <div class="dash-card today"><b>오늘 입점신청</b><strong><%=num(S.todayInquiries)%></strong><span class="stat-note">일반/입점 문의</span></div>
+  <div class="dash-card hot"><b>오늘 매출</b><strong><%=money(S.todayRevenue)%></strong><span class="stat-note">입금확인 완료 기준</span></div>
+</div>
+<div class="dash-grid">
+  <div class="dash-card"><b>이번달 매출</b><strong><%=money(S.monthRevenue)%></strong></div>
+  <div class="dash-card"><b>누적 매출</b><strong><%=money(S.totalRevenue)%></strong></div>
+  <div class="dash-card"><b>활성 광고</b><strong><%=num(S.activeAds)%></strong><span class="stat-note">일반/추천 노출</span></div>
+  <div class="dash-card"><b>프리미엄 배너</b><strong><%=num(S.activeBanners)%></strong></div>
+</div>
+<div class="dash-grid">
+  <a class="dash-card alert" href="#inquiries" data-panel="inquiries"><b>입점 승인대기</b><strong><%=num(S.pendingInquiries)%></strong></a>
+  <a class="dash-card warn" href="#vendorRequests" data-panel="vendorRequests"><b>수정요청 대기</b><strong><%=num(S.pendingVendorRequests)%></strong></a>
+  <a class="dash-card warn" href="#adCenter" data-panel="adCenter"><b>광고/배너 신청</b><strong><%=num((S.pendingAdRequests||0)+(S.pendingBannerRequests||0))%></strong></a>
+  <a class="dash-card alert" href="#adCenter" data-panel="adCenter"><b>입금확인 대기</b><strong><%=num(S.waitingPayments)%></strong></a>
+</div>
+<div class="dash-grid">
+  <a class="dash-card alert" href="#reports" data-panel="reports"><b>신고 대기</b><strong><%=num(S.pendingReports)%></strong></a>
+  <a class="dash-card warn" href="#vendors" data-panel="vendors"><b>7일 내 만료</b><strong><%=num(S.expiring7)%></strong></a>
+  <div class="dash-card"><b>전체 회원</b><strong><%=num(S.totalUsers)%></strong></div>
+  <div class="dash-card"><b>전체 업체/후기</b><strong><%=num(S.totalVendors)%> / <%=num(S.totalReviews)%></strong></div>
+</div>
 <div class="dashboard-simple">
   <div class="dashboard-box">
-    <h3>처리 대기</h3>
-    <div class="dashboard-pending-grid">
-      <a class="dashboard-pending-card" href="#inquiries" data-panel="inquiries"><b>입점 승인</b><strong><%=_pendingInquiriesHome%></strong></a>
-      <a class="dashboard-pending-card" href="#vendorRequests" data-panel="vendorRequests"><b>업체 수정요청</b><strong><%=_pendingVendorRequestsHome%></strong></a>
-      <a class="dashboard-pending-card" href="#adCenter" data-panel="adCenter"><b>광고 신청</b><strong><%=_pendingAdHome+_pendingBannerHome%></strong></a>
-      <a class="dashboard-pending-card" href="#adCenter" data-panel="adCenter"><b>입금확인중</b><strong><%=_waitingPayHome%></strong></a>
-      <a class="dashboard-pending-card" href="#reports" data-panel="reports"><b>신고 접수</b><strong><%=_pendingReportsHome%></strong></a>
-      <a class="dashboard-pending-card" href="#vendors" data-panel="vendors"><b>업체 전체</b><strong><%=_vendorsHome.length%></strong></a>
+    <h3>빠른 이동</h3>
+    <div class="dashboard-quick">
+      <a href="#vendors" data-panel="vendors">업체목록<small>등록/수정/비활성화</small></a>
+      <a href="#adCenter" data-panel="adCenter">광고센터<small>광고 신청/입금확인</small></a>
+      <a href="#revenue" data-panel="revenue">결제내역<small>매출/결제 확인</small></a>
+      <a href="#settings" data-panel="settings">환경설정<small>가격/백업/복원</small></a>
     </div>
-  </div>
-
-  <div class="dashboard-box">
-    <h3>오늘 통계</h3>
-    <div class="dashboard-metric-grid">
-      <div class="dashboard-metric"><b>오늘 가입</b><strong><%=_usersHome.filter(_isTodayHome).length%>명</strong></div>
-      <div class="dashboard-metric"><b>오늘 업체등록</b><strong><%=_vendorsHome.filter(_isTodayHome).length%>개</strong></div>
-      <div class="dashboard-metric"><b>오늘 신청</b><strong><%=_inquiriesHome.filter(_isTodayHome).length + _adRequestsHome.filter(_isTodayHome).length + _bannerRequestsHome.filter(_isTodayHome).length%>건</strong></div>
-      <div class="dashboard-metric"><b>오늘 매출</b><strong><%=Number(_revHome.today||0).toLocaleString()%>원</strong></div>
-    </div>
-  </div>
-</div>
-
-<div class="dashboard-simple">
-  <div class="dashboard-box">
-    <h3>매출 요약</h3>
-    <div class="dashboard-metric-grid">
-      <div class="dashboard-metric"><b>오늘 매출</b><strong><%=Number(_revHome.today||0).toLocaleString()%>원</strong></div>
-      <div class="dashboard-metric"><b>이번달 매출</b><strong><%=Number(_revHome.month||0).toLocaleString()%>원</strong></div>
-      <div class="dashboard-metric"><b>누적 매출</b><strong><%=Number(_revHome.total||0).toLocaleString()%>원</strong></div>
-      <div class="dashboard-metric"><b>결제 건수</b><strong><%=Number(_revHome.count||0).toLocaleString()%>건</strong></div>
-    </div>
-  </div>
-
-  <div class="dashboard-box">
-    <h3>운영 요약</h3>
-    <div class="dashboard-metric-grid">
-      <div class="dashboard-metric"><b>전체 회원</b><strong><%=_usersHome.length%>명</strong></div>
-      <div class="dashboard-metric"><b>업체회원</b><strong><%=_usersHome.filter(u=>u.is_vendor).length%>명</strong></div>
-      <div class="dashboard-metric"><b>광고 노출</b><strong><%=_vendorsHome.filter(v=>v.ad_type&&v.ad_type!=='none').length%>개</strong></div>
-      <div class="dashboard-metric"><b>프리미엄배너</b><strong><%=_vendorsHome.filter(v=>v.banner_active).length%>개</strong></div>
-    </div>
-  </div>
-</div>
-
-<div class="dashboard-box">
-  <h3>빠른 이동</h3>
-  <div class="dashboard-quick">
-    <a href="#vendors" data-panel="vendors">업체목록<small>등록/수정/삭제</small></a>
-    <a href="#adCenter" data-panel="adCenter">광고센터<small>광고 신청/입금확인</small></a>
-    <a href="#revenue" data-panel="revenue">결제내역<small>매출/결제 확인</small></a>
-    <a href="#settings" data-panel="settings">환경설정<small>가격/지역/초기화</small></a>
   </div>
 </div>
 </section><section id="vendors" class="panel admin-panel"><% const vendorReviewStats={}; reviews.forEach(r=>{const id=r.vendor_id; if(id){vendorReviewStats[id]=vendorReviewStats[id]||{count:0,sum:0}; vendorReviewStats[id].count++; vendorReviewStats[id].sum+=Number(r.rating||0);}}); %><h2>업체 관리</h2>
