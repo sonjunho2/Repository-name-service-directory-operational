@@ -1301,15 +1301,15 @@ document.addEventListener('DOMContentLoaded',function(){
     return '<option value="'+value+'" '+(current===value?'selected':'')+'>'+label+'</option>';
   }
   function rowHtml(u){
-    return '<tr class="user-row" data-role="'+esc(u.role||'')+'" data-status="'+esc(u.status||'')+'" data-user-type="'+(u.role==='admin'?'admin':u.is_vendor?'vendor':'user')+'">'+
+    return '<tr class="user-row" data-id="'+esc(u.id)+'" data-role="'+esc(u.role||'')+'" data-status="'+esc(u.status||'')+'" data-user-type="'+(u.role==='admin'?'admin':u.is_vendor?'vendor':'user')+'">'+
       '<td>'+esc(u.id)+'</td>'+
       '<td>'+esc(u.username||'')+'</td>'+
       '<td>'+roleBadge(u)+'</td>'+
-      '<td><form method="post" action="/admin/users/'+esc(u.id)+'/update" class="inline-form"><input name="nickname" value="'+esc(u.nickname||'')+'"></td>'+
+      '<td><input name="nickname" value="'+esc(u.nickname||'')+'"></td>'+
       '<td><select name="role">'+roleOption(u.role,'user','user')+roleOption(u.role,'admin','admin')+'</select></td>'+
       '<td><select name="status">'+statusOption(u.status,'active','active')+statusOption(u.status,'blocked','blocked')+statusOption(u.status,'suspended','suspended')+statusOption(u.status,'inactive','inactive')+'</select></td>'+
       '<td><input name="password" placeholder="새 비번"></td>'+
-      '<td><div class="row-actions"><button>저장</button></form>'+((u.role==='admin')?'':'<form method="post" action="/admin/delete/users/'+esc(u.id)+'"><button onclick="return confirm(\'회원을 삭제할까요?\')">삭제</button></form>')+'</div></td>'+
+      '<td><div class="row-actions"><button type="button" class="user-save-btn" data-id="'+esc(u.id)+'">저장</button>'+((u.role==='admin')?'':'<button type="button" class="user-delete-btn" data-id="'+esc(u.id)+'">삭제</button>')+'</div></td>'+
       '</tr>';
   }
   function ensurePager(table){
@@ -2224,4 +2224,133 @@ document.addEventListener('DOMContentLoaded',function(){
     if(e.target&&e.target.id==='stage33SearchInput'&&e.key==='Enter')runSearch();
   });
 })();
-</script></body></html>
+</script><script>
+(function(){
+  if(window.__memberSaveDeleteFix)return;
+  window.__memberSaveDeleteFix=true;
+
+  function toastLocal(message,type){
+    var wrap=document.querySelector('.admin-toast-wrap');
+    if(!wrap){
+      wrap=document.createElement('div');
+      wrap.className='admin-toast-wrap';
+      document.body.appendChild(wrap);
+    }
+    var el=document.createElement('div');
+    el.className='admin-toast '+(type||'ok');
+    el.textContent=message;
+    wrap.appendChild(el);
+    setTimeout(function(){el.style.opacity='0';el.style.transform='translateY(-8px)';},2200);
+    setTimeout(function(){el.remove();},2700);
+  }
+
+  function rowOf(btn){
+    return btn.closest('tr');
+  }
+
+  async function saveUser(btn){
+    var row=rowOf(btn);
+    if(!row)return;
+    var id=btn.dataset.id || row.dataset.id;
+    var nickname=row.querySelector('input[name="nickname"]')?.value || '';
+    var role=row.querySelector('select[name="role"]')?.value || 'user';
+    var status=row.querySelector('select[name="status"]')?.value || 'active';
+    var password=row.querySelector('input[name="password"]')?.value || '';
+
+    var fd=new FormData();
+    fd.append('nickname',nickname);
+    fd.append('role',role);
+    fd.append('status',status);
+    fd.append('password',password);
+
+    var old=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='저장중...';
+    try{
+      var res=await fetch('/admin/users/'+encodeURIComponent(id)+'/update',{
+        method:'POST',
+        body:fd,
+        credentials:'same-origin',
+        headers:{'X-Requested-With':'fetch'}
+      });
+      if(!res.ok){
+        var txt=await res.text();
+        throw new Error(txt || ('HTTP '+res.status));
+      }
+      var pw=row.querySelector('input[name="password"]');
+      if(pw)pw.value='';
+      toastLocal('회원 정보가 저장되었습니다.','ok');
+    }catch(e){
+      toastLocal('저장 실패: '+(e.message||'오류'),'bad');
+    }finally{
+      btn.disabled=false;
+      btn.textContent=old;
+    }
+  }
+
+  async function deleteUser(btn){
+    var row=rowOf(btn);
+    if(!row)return;
+    var id=btn.dataset.id || row.dataset.id;
+    if(!confirm('회원을 삭제할까요? 삭제 후 되돌리기 어렵습니다.'))return;
+    var old=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='삭제중...';
+    try{
+      var res=await fetch('/admin/delete/users/'+encodeURIComponent(id),{
+        method:'POST',
+        body:new FormData(),
+        credentials:'same-origin',
+        headers:{'X-Requested-With':'fetch'}
+      });
+      if(!res.ok){
+        var txt=await res.text();
+        throw new Error(txt || ('HTTP '+res.status));
+      }
+      row.style.opacity='0';
+      setTimeout(function(){row.remove();},250);
+      toastLocal('회원이 삭제되었습니다.','warn');
+    }catch(e){
+      toastLocal('삭제 실패: '+(e.message||'오류'),'bad');
+      btn.disabled=false;
+      btn.textContent=old;
+    }
+  }
+
+  document.addEventListener('click',function(e){
+    var save=e.target.closest('.user-save-btn');
+    if(save){
+      e.preventDefault();
+      e.stopPropagation();
+      saveUser(save);
+      return;
+    }
+    var del=e.target.closest('.user-delete-btn');
+    if(del){
+      e.preventDefault();
+      e.stopPropagation();
+      deleteUser(del);
+      return;
+    }
+  },true);
+})();
+</script>
+<script>
+(function(){
+  function normalizeExistingUserRows(){
+    var panel=document.getElementById('users');
+    if(!panel)return;
+    panel.querySelectorAll('tr.user-row').forEach(function(row){
+      if(row.querySelector('.user-save-btn'))return;
+      var id=row.querySelector('td')?.textContent?.trim();
+      var actions=row.querySelector('.row-actions');
+      if(actions&&id){
+        actions.innerHTML='<button type="button" class="user-save-btn" data-id="'+id+'">저장</button>'+(row.dataset.role==='admin'?'':'<button type="button" class="user-delete-btn" data-id="'+id+'">삭제</button>');
+      }
+    });
+  }
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(normalizeExistingUserRows,600);});
+  window.addEventListener('hashchange',function(){setTimeout(normalizeExistingUserRows,600);});
+})();
+</script>
+</body></html>
