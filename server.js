@@ -334,7 +334,29 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     recent:paidRows.slice(0,10),
     statuses:paymentStatusStats
   };
-  res.render('admin',{users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
+  const scalar=async(sql)=>Number((await q(sql)).rows[0]?.v||0);
+  const adminSummary={
+    totalUsers:await scalar("SELECT COUNT(*) v FROM users"),
+    totalVendors:await scalar("SELECT COUNT(*) v FROM vendors"),
+    activeVendors:await scalar("SELECT COUNT(*) v FROM vendors WHERE status='active'"),
+    totalReviews:await scalar("SELECT COUNT(*) v FROM reviews"),
+    todayViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=CURRENT_DATE"),
+    todayUsers:await scalar("SELECT COUNT(*) v FROM users WHERE created_at>=CURRENT_DATE"),
+    todayInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE created_at>=CURRENT_DATE"),
+    pendingInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE status='new'"),
+    pendingVendorRequests:await scalar("SELECT COUNT(*) v FROM vendor_update_requests WHERE status='new'"),
+    pendingAdRequests:await scalar("SELECT COUNT(*) v FROM vendor_ad_requests WHERE status='new'"),
+    pendingBannerRequests:await scalar("SELECT COUNT(*) v FROM vendor_banner_requests WHERE status='new'"),
+    waitingPayments:await scalar("SELECT COUNT(*) v FROM (SELECT payment_status FROM vendor_ad_requests UNION ALL SELECT payment_status FROM vendor_banner_requests) x WHERE payment_status='waiting'"),
+    pendingReports:await scalar("SELECT COUNT(*) v FROM flags WHERE status='new'"),
+    activeAds:await scalar("SELECT COUNT(*) v FROM vendors WHERE status='active' AND ad_type<>'none'"),
+    activeBanners:await scalar("SELECT COUNT(*) v FROM vendors WHERE status='active' AND banner_active=true"),
+    expiring7:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '7 days'"),
+    todayRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE paid_at>=CURRENT_DATE"),
+    monthRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)"),
+    totalRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs")
+  };
+  res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
 
 app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=upgrade'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows});});
