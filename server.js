@@ -341,7 +341,10 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     activeVendors:await scalar("SELECT COUNT(*) v FROM vendors WHERE status='active'"),
     totalReviews:await scalar("SELECT COUNT(*) v FROM reviews"),
     todayViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=CURRENT_DATE"),
+    weekViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=date_trunc('week',CURRENT_DATE)"),
+    monthViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=date_trunc('month',CURRENT_DATE)"),
     todayUsers:await scalar("SELECT COUNT(*) v FROM users WHERE created_at>=CURRENT_DATE"),
+    weekUsers:await scalar("SELECT COUNT(*) v FROM users WHERE created_at>=date_trunc('week',CURRENT_DATE)"),
     todayInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE created_at>=CURRENT_DATE"),
     pendingInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE status='new'"),
     pendingVendorRequests:await scalar("SELECT COUNT(*) v FROM vendor_update_requests WHERE status='new'"),
@@ -354,6 +357,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     expiring7:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '7 days'"),
     todayRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE paid_at>=CURRENT_DATE"),
     monthRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)"),
+    yearRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)"),
     totalRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs")
   };
   res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
