@@ -281,6 +281,60 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SEL
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
 app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`,'SELECT COUNT(*) FROM flags'));
 
+app.get('/admin/api/live-summary',admin,async(req,res)=>{
+  try{
+    const scalar=async(sql)=>Number((await q(sql)).rows[0]?.v||0);
+    const [recentInquiries,recentPayments,recentReports,recentLogs]=await Promise.all([
+      q(`SELECT i.id,i.type,i.company_name,i.name,i.status,i.created_at,u.username applicant_username
+         FROM inquiries i LEFT JOIN users u ON u.id=i.user_id
+         ORDER BY i.id DESC LIMIT 5`),
+      q(`SELECT p.id,p.product_type,p.krw_price,p.paid_at,p.created_at,v.name vendor_name,u.username
+         FROM payment_logs p
+         LEFT JOIN vendors v ON v.id=p.vendor_id
+         LEFT JOIN users u ON u.id=p.user_id
+         ORDER BY p.id DESC LIMIT 5`),
+      q(`SELECT f.id,f.type,f.reason,f.status,f.created_at,v.name vendor_name,rv.title review_title
+         FROM flags f
+         LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id
+         LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id
+         ORDER BY f.id DESC LIMIT 5`),
+      q(`SELECT id,action,target_type,target_id,memo,created_at
+         FROM admin_logs ORDER BY id DESC LIMIT 5`)
+    ]);
+    const data={
+      ok:true,
+      time:new Date().toISOString(),
+      counts:{
+        pendingInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE status='new'"),
+        pendingVendorRequests:await scalar("SELECT COUNT(*) v FROM vendor_update_requests WHERE status='new'"),
+        pendingAdRequests:await scalar("SELECT COUNT(*) v FROM vendor_ad_requests WHERE status='new'"),
+        pendingBannerRequests:await scalar("SELECT COUNT(*) v FROM vendor_banner_requests WHERE status='new'"),
+        pendingReports:await scalar("SELECT COUNT(*) v FROM flags WHERE status='new'"),
+        waitingPayments:await scalar("SELECT COUNT(*) v FROM (SELECT payment_status FROM vendor_ad_requests UNION ALL SELECT payment_status FROM vendor_banner_requests) x WHERE payment_status='waiting'"),
+        expiring7:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '7 days'"),
+        todayViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=CURRENT_DATE"),
+        todayUsers:await scalar("SELECT COUNT(*) v FROM users WHERE created_at>=CURRENT_DATE"),
+        todayInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE created_at>=CURRENT_DATE"),
+        todayRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE paid_at>=CURRENT_DATE"),
+        monthRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)"),
+        totalUsers:await scalar("SELECT COUNT(*) v FROM users"),
+        totalVendors:await scalar("SELECT COUNT(*) v FROM vendors")
+      },
+      recent:{
+        inquiries:recentInquiries.rows,
+        payments:recentPayments.rows,
+        reports:recentReports.rows,
+        logs:recentLogs.rows
+      }
+    };
+    data.alertTotal=data.counts.pendingInquiries+data.counts.pendingVendorRequests+data.counts.pendingAdRequests+data.counts.pendingBannerRequests+data.counts.pendingReports+data.counts.waitingPayments;
+    res.json(data);
+  }catch(e){
+    res.status(500).json({ok:false,error:e.message||'live summary failed'});
+  }
+});
+
+
 // 통합 관리자 화면 사용: 개별 신청/신고 페이지는 관리자 메인 탭으로 이동
 app.get('/admin/inquiries',admin,(req,res)=>res.redirect('/admin#inquiries'));
 app.get('/admin/reports',admin,(req,res)=>res.redirect('/admin#reports'));
