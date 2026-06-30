@@ -842,6 +842,20 @@ app.post('/admin/users/:id/update',admin,async(req,res)=>{
   res.redirect('/admin#users');
 });
 
+
+app.post('/admin/delete/users/:id',admin,async(req,res)=>{
+  const userId=parseInt(req.params.id||0,10);
+  if(!userId)return res.status(400).send('잘못된 회원입니다.');
+  const u=await q('SELECT id,username,role FROM users WHERE id=$1',[userId]);
+  if(!u.rows[0])return res.status(404).send('회원을 찾을 수 없습니다.');
+  if(u.rows[0].role==='admin')return res.status(400).send('관리자 계정은 삭제할 수 없습니다.');
+  await q('UPDATE users SET vendor_id=NULL,is_vendor=false WHERE id=$1',[userId]);
+  await q('DELETE FROM users WHERE id=$1',[userId]);
+  await logAdmin(req,'회원 삭제','user',userId,u.rows[0].username||'');
+  if(req.get('x-requested-with'))return res.json({ok:true});
+  res.redirect('/admin#users');
+});
+
 app.post('/admin/link-user-vendor',admin,async(req,res)=>{const userId=parseInt(req.body.user_id||0,10); const vendorId=parseInt(req.body.vendor_id||0,10); if(userId&&vendorId){await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]); await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);} await logAdmin(req,'회원 수정','user',req.body.id,req.body.nickname||''); res.redirect('/admin#users');});
 
 
