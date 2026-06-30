@@ -946,4 +946,38 @@ document.addEventListener('DOMContentLoaded',function(){
     reader.readAsText(file,'utf-8');
   });
 });
+</script><script>
+(function(){
+  function formPath(form){
+    return (form.getAttribute('action')||'').toLowerCase();
+  }
+  function buttonText(btn){
+    return (btn&&btn.innerText||btn&&btn.value||'').trim();
+  }
+  function messageFor(form,btn){
+    var path=formPath(form);
+    var text=buttonText(btn);
+    if(path.includes('/restore-json'))return '백업 파일 기준으로 현재 운영 데이터가 복원됩니다. 계속 진행할까요?';
+    if(path.includes('/reset-data'))return '전체 운영 데이터 초기화는 되돌리기 어렵습니다. 정말 진행할까요?';
+    if(path.includes('/delete')||text.includes('삭제'))return '삭제 또는 비활성화 작업입니다. 정말 진행할까요?';
+    if(path.includes('/approve')||text.includes('승인'))return '승인 처리 후 운영 화면에 반영될 수 있습니다. 계속 진행할까요?';
+    if(path.includes('/reject')||text.includes('반려'))return '반려 처리하시겠습니까?';
+    if(path.includes('/paid')||text.includes('입금확인')||text.includes('입금 확인'))return '입금확인 처리 후 광고/배너가 반영될 수 있습니다. 계속 진행할까요?';
+    if(text.includes('초기화'))return '초기화 작업입니다. 정말 진행할까요?';
+    return '';
+  }
+  document.addEventListener('submit',function(e){
+    var form=e.target;
+    if(!form||form.dataset.safeConfirmDone==='1')return;
+    var btn=document.activeElement;
+    var msg=messageFor(form,btn);
+    if(!msg)return;
+    if(!confirm(msg)){
+      e.preventDefault();
+      e.stopPropagation();
+    }else{
+      form.dataset.safeConfirmDone='1';
+    }
+  },true);
+})();
 </script></body></html>
