@@ -1295,10 +1295,12 @@ document.addEventListener('DOMContentLoaded',function(){
     return '<span class="role-badge user">일반회원</span>';
   }
   function statusOption(current,value,label){
-    return '<option value="'+value+'" '+(current===value?'selected':'')+'>'+label+'</option>';
+    var ko={active:'정상',blocked:'차단',suspended:'일시정지',inactive:'휴면',pending:'대기',approved:'승인완료',rejected:'반려'};
+    return '<option value="'+value+'" '+(current===value?'selected':'')+'>'+(ko[value]||label||value)+'</option>';
   }
   function roleOption(current,value,label){
-    return '<option value="'+value+'" '+(current===value?'selected':'')+'>'+label+'</option>';
+    var ko={user:'일반회원',admin:'관리자',vendor:'업체회원'};
+    return '<option value="'+value+'" '+(current===value?'selected':'')+'>'+(ko[value]||label||value)+'</option>';
   }
   function rowHtml(u){
     return '<tr class="user-row" data-id="'+esc(u.id)+'" data-role="'+esc(u.role||'')+'" data-status="'+esc(u.status||'')+'" data-user-type="'+(u.role==='admin'?'admin':u.is_vendor?'vendor':'user')+'">'+
@@ -1306,8 +1308,8 @@ document.addEventListener('DOMContentLoaded',function(){
       '<td>'+esc(u.username||'')+'</td>'+
       '<td>'+roleBadge(u)+'</td>'+
       '<td><input name="nickname" value="'+esc(u.nickname||'')+'"></td>'+
-      '<td><select name="role">'+roleOption(u.role,'user','user')+roleOption(u.role,'admin','admin')+'</select></td>'+
-      '<td><select name="status">'+statusOption(u.status,'active','active')+statusOption(u.status,'blocked','blocked')+statusOption(u.status,'suspended','suspended')+statusOption(u.status,'inactive','inactive')+'</select></td>'+
+      '<td><select name="role">'+roleOption(u.role,'user','일반회원')+roleOption(u.role,'admin','관리자')+'</select></td>'+
+      '<td><select name="status">'+statusOption(u.status,'active','정상')+statusOption(u.status,'blocked','차단')+statusOption(u.status,'suspended','일시정지')+statusOption(u.status,'inactive','휴면')+'</select></td>'+
       '<td><input name="password" placeholder="새 비번"></td>'+
       '<td><div class="row-actions"><button type="button" class="user-save-btn" data-id="'+esc(u.id)+'">저장</button>'+((u.role==='admin')?'':'<button type="button" class="user-delete-btn" data-id="'+esc(u.id)+'">삭제</button>')+'</div></td>'+
       '</tr>';
@@ -2351,6 +2353,70 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   document.addEventListener('DOMContentLoaded',function(){setTimeout(normalizeExistingUserRows,600);});
   window.addEventListener('hashchange',function(){setTimeout(normalizeExistingUserRows,600);});
+})();
+</script>
+<script>
+(function(){
+  if(window.__adminKoreanLabels)return;
+  window.__adminKoreanLabels=true;
+
+  var labelMap={
+    user:'일반회원',
+    admin:'관리자',
+    active:'정상',
+    blocked:'차단',
+    suspended:'일시정지',
+    inactive:'휴면',
+    pending:'대기',
+    approved:'승인완료',
+    rejected:'반려',
+    cancelled:'취소',
+    new:'대기',
+    done:'처리완료',
+    general:'일반광고',
+    recommended:'추천광고',
+    premium:'프리미엄',
+    banner:'배너',
+    none:'없음',
+    hidden:'숨김',
+    expired:'만료'
+  };
+
+  function koreanizeSelects(root){
+    (root||document).querySelectorAll('select option').forEach(function(opt){
+      var key=String(opt.value||opt.textContent||'').trim();
+      if(labelMap[key])opt.textContent=labelMap[key];
+    });
+  }
+
+  function koreanizeBadges(root){
+    (root||document).querySelectorAll('.role-badge,.status-pending,.status-on,.status-off,.ad-badge').forEach(function(el){
+      var t=String(el.textContent||'').trim();
+      if(labelMap[t])el.textContent=labelMap[t];
+    });
+  }
+
+  function run(){
+    koreanizeSelects(document);
+    koreanizeBadges(document);
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    run();
+    setTimeout(run,400);
+    setTimeout(run,1000);
+  });
+  window.addEventListener('hashchange',function(){setTimeout(run,300);});
+  document.addEventListener('click',function(){setTimeout(run,300);},true);
+
+  var mo=new MutationObserver(function(muts){
+    var need=false;
+    muts.forEach(function(m){if(m.addedNodes&&m.addedNodes.length)need=true;});
+    if(need)setTimeout(run,80);
+  });
+  document.addEventListener('DOMContentLoaded',function(){
+    mo.observe(document.body,{childList:true,subtree:true});
+  });
 })();
 </script>
 </body></html>
