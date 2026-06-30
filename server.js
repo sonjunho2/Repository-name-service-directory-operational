@@ -279,6 +279,7 @@ app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,'SELEC
 app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC','SELECT COUNT(*) FROM users'));
 app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
+app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`,'SELECT COUNT(*) FROM flags'));
 
 // 통합 관리자 화면 사용: 개별 신청/신고 페이지는 관리자 메인 탭으로 이동
 app.get('/admin/inquiries',admin,(req,res)=>res.redirect('/admin#inquiries'));
