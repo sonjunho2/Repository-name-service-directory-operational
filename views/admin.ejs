@@ -1305,7 +1305,7 @@ document.addEventListener('DOMContentLoaded',function(){
       '<td>'+esc(u.id)+'</td>'+
       '<td>'+esc(u.username||'')+'</td>'+
       '<td>'+roleBadge(u)+'</td>'+
-      '<td><form method="post" action="/admin/users/'+esc(u.id)+'/update" class="inline-form"><input name="nickname" value="'+esc(u.nickname||'')+'"></td>'+
+      '<td><form method="post" action="/admin/user" class="inline-form"><input type="hidden" name="id" value="'+esc(u.id)+'"><input name="nickname" value="'+esc(u.nickname||'')+'"></td>'+
       '<td><select name="role">'+roleOption(u.role,'user','user')+roleOption(u.role,'admin','admin')+'</select></td>'+
       '<td><select name="status">'+statusOption(u.status,'active','active')+statusOption(u.status,'blocked','blocked')+'</select></td>'+
       '<td><input name="password" placeholder="새 비번"></td>'+
@@ -1806,12 +1806,23 @@ document.addEventListener('DOMContentLoaded',function(){
     }
 
     try{
-      var fd=new FormData(form);
+      var hasFile=false;
+      form.querySelectorAll('input[type="file"]').forEach(function(input){
+        if(input.files&&input.files.length)hasFile=true;
+      });
+      var body;
+      var headers={'X-Requested-With':'fetch'};
+      if(hasFile){
+        body=new FormData(form);
+      }else{
+        body=new URLSearchParams(new FormData(form));
+        headers['Content-Type']='application/x-www-form-urlencoded;charset=UTF-8';
+      }
       var res=await fetch(action,{
         method:'POST',
-        body:fd,
+        body:body,
         credentials:'same-origin',
-        headers:{'X-Requested-With':'fetch'}
+        headers:headers
       });
       if(!res.ok)throw new Error('HTTP '+res.status);
 
