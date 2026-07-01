@@ -1095,12 +1095,14 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   const bannerActive=normalized.banner_active;
   const isRecommended=normalized.is_recommended;
   const isPremium=normalized.is_premium;
+  const expireAt=req.body.expire_at||null;
+  const bannerUntil=bannerActive?expireAt:null;
 
   if(req.body.id){
     const params=[
       req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,
       req.body.tags,req.body.description,req.body.business_hours,isRecommended,isPremium,
-      req.body.status||'active',membership,adType,req.body.expire_at||null,bannerActive,req.body.banner_until||null,
+      req.body.status||'active',membership,adType,expireAt,bannerActive,bannerUntil,
       req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||'',req.body.id
     ];
     if(im){
@@ -1112,7 +1114,7 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
     await q('INSERT INTO vendors(name,category,region,phone,kakao_url,tags,description,business_hours,is_recommended,is_premium,image_data,membership_type,ad_type,expire_at,banner_active,banner_until,status,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)',[
       req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,
       req.body.tags,req.body.description,req.body.business_hours,isRecommended,isPremium,im,
-      membership,adType,req.body.expire_at||null,bannerActive,req.body.banner_until||null,req.body.status||'active',
+      membership,adType,expireAt,bannerActive,bannerUntil,req.body.status||'active',
       req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||''
     ]);
   }
