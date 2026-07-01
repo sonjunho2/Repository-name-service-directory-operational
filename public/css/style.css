@@ -852,3 +852,13 @@ body:before{
   .card.vendor-open .ad-card-meta h3{max-width:124px!important;font-size:18px!important}
   .card.vendor-open .ad-card-meta p{max-width:96px!important;font-size:11px!important}
 }
+
+
+/* v20 site branding header */
+.top{position:relative!important;min-height:58px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important}
+.site-brand-center{position:absolute!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:10px!important;max-width:min(46vw,520px)!important;color:#fff!important;text-decoration:none!important;font-weight:900!important;font-size:20px!important;line-height:1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;z-index:2!important;pointer-events:auto!important}
+.site-brand-center img{display:block!important;width:auto!important;height:34px!important;max-width:180px!important;object-fit:contain!important;border-radius:8px!important}
+.site-brand-center span{display:block!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;text-shadow:0 2px 14px rgba(0,0,0,.65)!important}
+.top>nav,.top>span{position:relative!important;z-index:3!important}.top>.brand,.top>b{position:relative!important;z-index:3!important}
+.settings-brand-preview{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border:1px solid #29324f;border-radius:14px;background:#080d18;color:#c8d0e8;font-size:13px}.settings-brand-preview img{height:42px;max-width:180px;object-fit:contain;border-radius:8px;background:#111827}
+@media(max-width:760px){.site-brand-center{position:static!important;transform:none!important;order:2;max-width:100%!important;font-size:16px!important}.top{flex-wrap:wrap!important}.top nav,.top span{margin-left:auto!important}.site-brand-center img{height:28px!important;max-width:130px!important}}

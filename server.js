@@ -61,6 +61,11 @@ async function ensureSchema(){
     await q("INSERT INTO app_settings(key,value) VALUES('general_to_banner_price_krw','100000') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('recommended_to_banner_price_krw','70000') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('default_register_days','30') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('site_name','서비스 디렉터리') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('brand_show_logo','off') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('brand_show_name','on') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('site_logo_data','') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('site_link_url','/') ON CONFLICT (key) DO NOTHING");
     await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
     await q("ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int");
@@ -231,23 +236,6 @@ async function expireAds(){
     WHERE scheduled_change_at IS NOT NULL
       AND scheduled_change_at <= CURRENT_DATE
       AND (expire_at IS NULL OR expire_at >= CURRENT_DATE)`);
-
-  // 광고 만기일은 살아 있는데 ad_type만 none/NULL로 남은 과거 데이터 보정.
-  // 이런 행은 관리자에는 '노출 + 만기일 있음'으로 보이지만 메인 목록 조건(v.ad_type <> 'none')에서 제외된다.
-  await q(`UPDATE vendors
-    SET ad_type='general',
-        membership_type='general',
-        is_recommended=false,
-        status='active'
-    WHERE status='active'
-      AND expire_at IS NOT NULL
-      AND expire_at >= CURRENT_DATE
-      AND (ad_type IS NULL OR ad_type='' OR ad_type='none')`);
-
-  await q("UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true WHERE status='active' AND banner_active=true AND banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND expire_at IS NOT NULL AND expire_at>=CURRENT_DATE");
-  await q("UPDATE vendors SET membership_type='recommended',is_recommended=true WHERE ad_type='recommended'");
-  await q("UPDATE vendors SET membership_type='general',is_recommended=false WHERE ad_type='general'");
-  await q("UPDATE vendors SET is_premium=false,banner_active=false,banner_until=NULL WHERE banner_active=true AND (banner_until IS NULL OR banner_until<CURRENT_DATE)");
   await q("UPDATE vendors SET is_premium=false,banner_active=false,banner_until=NULL WHERE banner_until IS NOT NULL AND banner_until < CURRENT_DATE");
   await q("UPDATE vendors SET ad_type='none',membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,expire_at=NULL WHERE expire_at IS NOT NULL AND expire_at < CURRENT_DATE");
 }
@@ -302,53 +290,15 @@ function calcProductPrice(settings,vendor,productType,period,immediateApply=fals
 function addDaysSqlFromExpire(){
   return "expire_at=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END";
 }
-function sqlDaysFromToday(days){
-  const d=parseInt(days||30,10)||30;
-  const dt=new Date();
-  dt.setHours(0,0,0,0);
-  dt.setDate(dt.getDate()+d);
-  return dt.toISOString().slice(0,10);
-}
-function isFutureOrTodayDate(value){
-  if(!value)return false;
-  const today=new Date(); today.setHours(0,0,0,0);
-  const dt=new Date(value); dt.setHours(0,0,0,0);
-  return !Number.isNaN(dt.getTime()) && dt>=today;
-}
-function normalizeAdInput(adType,bannerActive){
-  const raw=['none','general','recommended'].includes(adType)?adType:'none';
-  const hasBanner=!!bannerActive;
-  if(hasBanner)return {ad_type:'recommended',membership_type:'recommended',is_recommended:true,is_premium:true,banner_active:true};
-  if(raw==='recommended')return {ad_type:'recommended',membership_type:'recommended',is_recommended:true,is_premium:false,banner_active:false};
-  if(raw==='general')return {ad_type:'general',membership_type:'general',is_recommended:false,is_premium:false,banner_active:false};
-  return {ad_type:'none',membership_type:'general',is_recommended:false,is_premium:false,banner_active:false};
-}
-async function ensureVendorBanner(vendorId,opts={}){
-  if(!vendorId)return;
-  const r=await q('SELECT * FROM vendors WHERE id=$1',[vendorId]);
-  const v=r.rows[0];
-  if(!v)return;
-  const existing=await q('SELECT id FROM banners WHERE vendor_id=$1 ORDER BY id DESC LIMIT 1',[vendorId]);
-  const title=(opts.title||v.name||'프리미엄배너').slice(0,100);
-  const subtitle=(opts.subtitle||v.description||v.category||'').slice(0,200);
-  const link=(opts.link_url||v.kakao_url||'#').slice(0,300);
-  const image=opts.image_data||v.image_data||'';
-  if(existing.rows[0]){
-    if(image){
-      await q('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=true,image_data=$6 WHERE id=$7',[title,subtitle,link,'premium',0,image,existing.rows[0].id]);
-    }else{
-      await q('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=true WHERE id=$6',[title,subtitle,link,'premium',0,existing.rows[0].id]);
-    }
-  }else{
-    await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[title,subtitle,link,'premium',0,true,image,vendorId]);
-  }
-}
-async function disableVendorBanner(vendorId){
-  if(!vendorId)return;
-  await q('UPDATE banners SET is_active=false WHERE vendor_id=$1',[vendorId]);
-}
 
-async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions)};}
+function normalizeBrandSettings(raw){
+  const name=(raw.site_name||'서비스 디렉터리').trim()||'서비스 디렉터리';
+  const showLogo=raw.brand_show_logo==='on'&&!!raw.site_logo_data;
+  const showName=raw.brand_show_name!=='off';
+  const link=(raw.site_link_url||'/').trim().slice(0,200)||'/';
+  return {name,showLogo,showName,logo:raw.site_logo_data||'',link};
+}
+async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions),brand:normalizeBrandSettings(raw)};}
 async function homeData(req){
   await expireAds();
   const search=(req.query.search||'').trim().slice(0,80), region=(req.query.region||'').trim().slice(0,50), category=(req.query.category||'').trim().slice(0,50), sort=(req.query.sort||'default').trim();
@@ -377,7 +327,7 @@ async function homeData(req){
   };
   const order=orderMap[sort]||orderMap.default;
   const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 120`,params);
-  const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (v.status='active' AND v.banner_active=true AND v.banner_until IS NOT NULL AND v.banner_until>=CURRENT_DATE AND v.expire_at IS NOT NULL AND v.expire_at>=CURRENT_DATE)) ORDER BY b.sort_order, b.id DESC`);
+  const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (v.status='active' AND v.banner_active=true)) ORDER BY b.sort_order, b.id DESC`);
   const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`);
   const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
   const settings=await getSettings();
@@ -385,18 +335,9 @@ async function homeData(req){
 }
 app.get('/healthz',async(req,res)=>{try{await q('SELECT 1');res.json({ok:true,db:true,time:new Date().toISOString()});}catch(e){res.status(500).json({ok:false,db:false,error:e.message,time:new Date().toISOString()});}});
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
-function redirectToMemberFlow(req,res,kind='apply'){
-  const me=req.session.user;
-  if(!me) return res.redirect('/login');
-  if(me.role==='admin') return res.redirect('/admin');
-  if(me.is_vendor) return res.redirect(kind==='ad'?'/vendor-dashboard?panel=plan':'/vendor-dashboard');
-  return res.redirect('/mypage');
-}
-// 공개 광고문의/입점신청 페이지는 운영 동선 중복 방지를 위해 사용하지 않습니다.
-// 일반회원은 마이페이지에서 업체등록 신청, 업체회원은 업체관리에서 광고/배너 신청만 합니다.
-app.get('/advertise',(req,res)=>redirectToMemberFlow(req,res,'ad'));
-app.get('/apply',(req,res)=>redirectToMemberFlow(req,res,'apply'));
-app.post('/inquiry',(req,res)=>redirectToMemberFlow(req,res,req.body?.type==='ad'?'ad':'apply'));
+app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
+app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
+app.post('/inquiry',upload.fields([{name:'main_image',maxCount:1},{name:'banner_image',maxCount:1}]),async(req,res)=>{try{const type=['apply','ad'].includes(req.body.type)?req.body.type:'ad'; const company=(req.body.company_name||'').trim().slice(0,100); const phone=(req.body.phone||'').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,2000); if(!company||!phone||content.length<5)return res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:false,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',settings:await getSettings()}); const f=req.files||{}; await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,banner_image_data,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[type,company,(req.body.name||'').trim().slice(0,50),phone,(req.body.kakao||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'').trim().slice(0,50),(req.body.region||'').trim().slice(0,50),content,img(f.main_image?.[0]),img(f.banner_image?.[0]),req.session.user?.id||null]); res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:true,error:null,settings:await getSettings()});}catch(e){res.render('inquiry',{type:req.body.type||'ad',title:req.body.type==='apply'?'입점신청':'광고문의',done:false,error:e.message||'신청 저장 실패',settings:await getSettings()});}});
 
 app.post('/favorite/:id',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){const v=await q('SELECT id FROM vendors WHERE id=$1 AND status=$2',[id,'active']); if(v.rows[0])await q('INSERT INTO favorites(user_id,vendor_id) VALUES($1,$2) ON CONFLICT(user_id,vendor_id) DO NOTHING',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
 app.post('/favorite/:id/delete',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){await q('DELETE FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
@@ -405,7 +346,7 @@ async function vendorData(req,id){const vendorId=parseInt(id||0,10); if(!vendorI
 app.get('/api/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.params.id); if(!data.vendor)return res.status(404).json({error:'not found'}); res.json(data);});
 app.post('/api/review',async(req,res)=>{if(!req.session.user)return res.status(401).json({error:'login_required'}); const vendorId=parseInt(req.body.vendor_id||0,10); const title=(req.body.title||'').trim().slice(0,100); const content=(req.body.content||'').trim().slice(0,1000); if(!vendorId||!title||content.length<5)return res.status(400).json({error:'bad_review'}); const vendor=await q('SELECT id FROM vendors WHERE id=$1 AND status=$2',[vendorId,'active']); if(!vendor.rows[0])return res.status(404).json({error:'vendor_not_found'}); const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]); if(dup.rows[0])return res.status(429).json({error:'review_duplicate'}); const rating=Math.max(1,Math.min(5,parseInt(req.body.rating||5,10))); await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[vendorId,req.session.user.id,title,content,rating]); res.json({ok:true});});
 app.post('/api/flag',async(req,res)=>{const type=(req.body.type||'').trim(); const target=parseInt(req.body.target_id||0,10); const reason=(req.body.reason||'기타').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,1000); if(!['vendor','review'].includes(type)||!target||!reason)return res.status(400).json({error:'bad_request'}); const exists=type==='vendor'?await q('SELECT id FROM vendors WHERE id=$1',[target]):await q('SELECT id FROM reviews WHERE id=$1',[target]); if(!exists.rows[0])return res.status(404).json({error:'target_not_found'}); await q('INSERT INTO flags(type,target_id,reason,content) VALUES($1,$2,$3,$4)',[type,target,reason,content]); res.json({ok:true});});
-app.get('/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.params.id); if(!data.vendor)return res.status(404).send('Not found'); res.render('vendor',data);});
+app.get('/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.params.id); if(!data.vendor)return res.status(404).send('Not found'); res.render('vendor',{...data,settings:await getSettings()});});
 app.get('/login',(req,res)=>res.render('login',{mode:'login',error:null})); app.post('/login',async(req,res)=>{const username=(req.body.username||'').trim(); if(loginBlocked(req,username,'user'))return res.status(429).render('login',{mode:'login',error:'로그인 시도가 많습니다. 15분 후 다시 시도해주세요.'}); const u=await q('SELECT * FROM users WHERE username=$1',[username]); if(!u.rows[0]||u.rows[0].status!=='active'||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)){loginFail(req,username,'user'); return res.render('login',{mode:'login',error:'아이디 또는 비밀번호가 올바르지 않습니다.'});} loginSuccess(req,username,'user'); req.session.regenerate(err=>{if(err)return res.render('login',{mode:'login',error:'로그인 처리 중 오류가 발생했습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:u.rows[0].role,is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect(u.rows[0].role==='admin'?'/admin':u.rows[0].is_vendor?'/vendor-dashboard':'/');});});
 app.get('/join',(req,res)=>res.render('login',{mode:'join',error:null})); app.post('/join',async(req,res)=>{try{const username=(req.body.username||'').trim(); const password=req.body.password||''; const nickname=(req.body.nickname||username).trim().slice(0,50); if(!/^[a-zA-Z0-9_]{4,30}$/.test(username))return res.render('login',{mode:'join',error:'아이디는 영문/숫자/밑줄 4~30자로 입력해주세요.'}); if(password.length<6)return res.render('login',{mode:'join',error:'비밀번호는 6자 이상 입력해주세요.'}); const h=await bcrypt.hash(password,10); await q('INSERT INTO users(username,password_hash,nickname) VALUES($1,$2,$3)',[username,h,nickname||username]); res.redirect('/login')}catch(e){res.render('login',{mode:'join',error:'이미 사용 중인 아이디입니다.'})}});
 app.get('/logout',(req,res)=>req.session.destroy(()=>res.redirect('/')));
@@ -636,7 +577,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
 
-app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=upgrade'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows});});
+app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=upgrade'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,settings:await getSettings()});});
 
 app.get('/vendor-apply',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor&&req.session.user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const pending=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[req.session.user.id]); res.render('vendor-apply',{settings,error:null,done:!!pending.rows[0]});});
 
@@ -853,13 +794,16 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#bannerRequests');
 
   const v=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
-  const vendor=v.rows[0]||{};
-  const settings=await getSettings();
-  const defaultDays=parseInt(settings.raw.default_register_days||30,10)||30;
-  const until=isFutureOrTodayDate(vendor.expire_at)?vendor.expire_at:sqlDaysFromToday(defaultDays);
+  const vendor=v.rows[0];
+  const until=vendor?.expire_at||new Date().toISOString().slice(0,10);
 
-  await ensureVendorBanner(x.vendor_id,{title:x.title,subtitle:x.subtitle,link_url:x.link_url,image_data:x.image_data});
-  await q("UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,expire_at=$1,banner_until=$1,status='active',scheduled_membership_type=NULL,scheduled_banner_active=NULL,scheduled_change_at=NULL,scheduled_change_note=NULL WHERE id=$2",[until,x.vendor_id]);
+  const existingBanner=await q('SELECT id FROM banners WHERE vendor_id=$1 ORDER BY id DESC LIMIT 1',[x.vendor_id]);
+  if(existingBanner.rows[0]){
+    await q('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6,image_data=$7 WHERE id=$8',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,existingBanner.rows[0].id]);
+  }else{
+    await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,x.vendor_id]);
+  }
+  await q("UPDATE vendors SET ad_type='recommended',membership_type=$1,is_recommended=true,is_premium=true,banner_active=true,banner_until=$2,status=$3 WHERE id=$4",['recommended',until,'active',x.vendor_id]);
   await q('UPDATE vendor_banner_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
   await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||'프리미엄배너 입금확인']);
   await logAdmin(req,'배너 입금확인/추천승격','banner_request',x.id,`만기일 ${until}`);
@@ -887,10 +831,8 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
       await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
     }
   }else if(productType==='renewal_banner'){
-    await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
-    await ensureVendorBanner(x.vendor_id);
+    await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=expire_at, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
   }
-  if(productType==='renewal_general' || productType==='renewal_recommended')await disableVendorBanner(x.vendor_id);
 
   await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
 
@@ -926,23 +868,19 @@ app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
 app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#vendorRequests',async()=>{const r=await q("UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3 AND status='new' RETURNING id",['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 업체 수정요청을 찾을 수 없거나 이미 처리되었습니다.'); await logAdmin(req,'업체수정요청 반려','vendor_update_request',req.params.id,req.body.admin_memo||'');}));
 
 
-async function updateAdminUserRecord(req,userId){
-  if(!userId)throw new Error('잘못된 회원입니다.');
-  const current=(await q('SELECT id,username,nickname,role,status FROM users WHERE id=$1',[userId])).rows[0];
-  if(!current)throw new Error('회원을 찾을 수 없습니다.');
-
-  const hasNickname=Object.prototype.hasOwnProperty.call(req.body,'nickname');
-  const hasRole=Object.prototype.hasOwnProperty.call(req.body,'role');
-  const hasStatus=Object.prototype.hasOwnProperty.call(req.body,'status');
-
-  const role=hasRole&&['admin','user'].includes(req.body.role)?req.body.role:current.role;
-  const status=hasStatus&&['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:(current.status||'active');
-  const nickname=hasNickname?(((req.body.nickname||'').trim().slice(0,50))||'회원'):(current.nickname||'회원');
+app.post('/admin/users/:id/update',admin,async(req,res)=>{
+  const userId=parseInt(req.params.id||req.body.id||0,10);
+  if(!userId)return res.status(400).json({ok:false,error:'잘못된 회원입니다.'});
+  const current=await q('SELECT id,role FROM users WHERE id=$1',[userId]);
+  if(!current.rows[0])return res.status(404).json({ok:false,error:'회원을 찾을 수 없습니다.'});
+  const role=['admin','user'].includes(req.body.role)?req.body.role:'user';
+  const status=['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:'active';
+  const nickname=(req.body.nickname||'회원').trim().slice(0,50)||'회원';
   const password=(req.body.password||'').trim();
-
-  if(current.role==='admin'&&role!=='admin')throw new Error('관리자 권한은 이 화면에서 해제할 수 없습니다.');
-  if(password&&password.length<6)throw new Error('비밀번호는 6자 이상이어야 합니다.');
-
+  if(current.rows[0].role==='admin'&&role!=='admin'){
+    return res.status(400).json({ok:false,error:'관리자 권한은 이 화면에서 해제할 수 없습니다.'});
+  }
+  if(password&&password.length<6)return res.status(400).json({ok:false,error:'비밀번호는 6자 이상이어야 합니다.'});
   if(password){
     const h=await bcrypt.hash(password,10);
     await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]);
@@ -950,18 +888,9 @@ async function updateAdminUserRecord(req,userId){
     await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]);
   }
   await logAdmin(req,'회원 수정','user',userId,nickname);
-  return (await q('SELECT id,username,nickname,role,status,COALESCE(is_vendor,false) is_vendor,vendor_id,created_at FROM users WHERE id=$1',[userId])).rows[0];
-}
-
-app.post('/admin/users/:id/update',admin,upload.none(),async(req,res)=>{
-  try{
-    const userId=parseInt(req.params.id||req.body.id||0,10);
-    const user=await updateAdminUserRecord(req,userId);
-    if(wantsJson(req))return res.json({ok:true,user});
-    res.redirect('/admin#users');
-  }catch(e){
-    return sendFail(req,res,400,e.message||'회원 저장에 실패했습니다.','/admin#users');
-  }
+  const saved=await q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users WHERE id=$1',[userId]);
+  if(req.get('x-requested-with'))return res.json({ok:true,user:saved.rows[0]});
+  res.redirect('/admin#users');
 });
 
 
@@ -1077,12 +1006,21 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   res.redirect('/admin#settings');
 });
 
-app.post('/admin/settings/options',admin,async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)};
-  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,1400),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30)};
+app.post('/admin/settings/options',admin,upload.single('site_logo'),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)};
+  const current=await getSettings();
+  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,1400),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/'};
+  if(req.body.remove_site_logo){
+    fields.site_logo_data='';
+  }else if(req.file){
+    const logo=img(req.file);
+    if(logo)fields.site_logo_data=logo;
+  }else{
+    fields.site_logo_data=current.raw.site_logo_data||'';
+  }
   for(const [key,value] of Object.entries(fields)){
     await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",[key,String(value)]);
   }
-  await logAdmin(req,'환경설정 저장','settings','options','업종/지역/결제설정 수정');
+  await logAdmin(req,'환경설정 저장','settings','options','업종/지역/결제/브랜딩 설정 수정');
   res.redirect('/admin#settings');
 });
 app.post('/admin/settings/admin-account',admin,async(req,res)=>{const username=(req.body.username||'').trim(); const nickname=(req.body.nickname||'관리자').trim().slice(0,50); const password=(req.body.password||'').trim(); if(!/^[a-zA-Z0-9_]{4,30}$/.test(username))return res.redirect('/admin#settings'); if(password&&password.length<8)return res.redirect('/admin#settings'); if(password){const h=await bcrypt.hash(password,10); await q('UPDATE users SET username=$1,nickname=$2,password_hash=$3 WHERE id=$4 AND role=$5',[username,nickname||'관리자',h,req.session.user.id,'admin']);}else{await q('UPDATE users SET username=$1,nickname=$2 WHERE id=$3 AND role=$4',[username,nickname||'관리자',req.session.user.id,'admin']);} req.session.user.username=username; req.session.user.nickname=nickname||'관리자'; await logAdmin(req,'관리자 계정 수정','settings','admin-account',username); res.redirect('/admin#settings');});
@@ -1097,21 +1035,17 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   req.body.description=(req.body.description||'').trim().slice(0,3000);
   req.body.business_hours=(req.body.business_hours||'').trim().slice(0,200);
   if(!req.body.name)return res.redirect('/admin#vendors');
-  const bannerRequested=!!req.body.banner_active;
-  const normalized=normalizeAdInput(req.body.ad_type,bannerRequested);
-  const adType=normalized.ad_type;
-  const membership=normalized.membership_type;
-  const bannerActive=normalized.banner_active;
-  const isRecommended=normalized.is_recommended;
-  const isPremium=normalized.is_premium;
-  const expireAt=req.body.expire_at||null;
-  const bannerUntil=bannerActive?expireAt:null;
+  const adType=['none','recommended','premium','banner'].includes(req.body.ad_type)?req.body.ad_type:'none';
+  const membership=adType==='recommended'?'recommended':'general';
+  const bannerActive=!!req.body.banner_active;
+  const isRecommended=adType==='recommended';
+  const isPremium=bannerActive;
 
   if(req.body.id){
     const params=[
       req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,
       req.body.tags,req.body.description,req.body.business_hours,isRecommended,isPremium,
-      req.body.status||'active',membership,adType,expireAt,bannerActive,bannerUntil,
+      req.body.status||'active',membership,adType,req.body.expire_at||null,bannerActive,req.body.banner_until||null,
       req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||'',req.body.id
     ];
     if(im){
@@ -1123,63 +1057,17 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
     await q('INSERT INTO vendors(name,category,region,phone,kakao_url,tags,description,business_hours,is_recommended,is_premium,image_data,membership_type,ad_type,expire_at,banner_active,banner_until,status,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)',[
       req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,
       req.body.tags,req.body.description,req.body.business_hours,isRecommended,isPremium,im,
-      membership,adType,expireAt,bannerActive,bannerUntil,req.body.status||'active',
+      membership,adType,req.body.expire_at||null,bannerActive,req.body.banner_until||null,req.body.status||'active',
       req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||''
     ]);
-  }
-  const savedVendorId=req.body.id||((await q('SELECT id FROM vendors WHERE name=$1 ORDER BY id DESC LIMIT 1',[req.body.name])).rows[0]?.id);
-  if(savedVendorId){
-    if(bannerActive){
-      await ensureVendorBanner(savedVendorId);
-    }else{
-      await disableVendorBanner(savedVendorId);
-    }
   }
   await logAdmin(req,req.body.id?'업체 수정':'업체 등록','vendor',req.body.id||'new',req.body.name||'');
   res.redirect('/admin#vendors');
 });
 app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=img(req.file); if(req.body.id){let p=[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,req.body.id]; await q(`UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6 ${im?', image_data=$8':''} WHERE id=$7`, im?[...p,im]:p)} else await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,im]); await logAdmin(req,req.body.id?'배너 수정':'배너 등록','banner',req.body.id||'new',req.body.title||''); res.redirect('/admin#banners');});
-app.post('/admin/user',admin,async(req,res)=>{
-  try{
-    const userId=parseInt(req.body.id||0,10);
-    const user=await updateAdminUserRecord(req,userId);
-    if(wantsJson(req))return res.json({ok:true,user});
-    res.redirect('/admin#users');
-  }catch(e){
-    return sendFail(req,res,400,e.message||'회원 저장에 실패했습니다.','/admin#users');
-  }
-});
+app.post('/admin/user',admin,async(req,res)=>{const userId=parseInt(req.body.id||0,10); if(!userId)return res.redirect('/admin#users'); const role=['admin','user'].includes(req.body.role)?req.body.role:'user'; const status=['active','blocked'].includes(req.body.status)?req.body.status:'active'; const nickname=(req.body.nickname||'회원').trim().slice(0,50); const password=req.body.password||''; if(password&&password.length<6)return res.redirect('/admin#users'); const h=password?await bcrypt.hash(password,10):null; if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]); else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]); await logAdmin(req,'회원 수정','user',userId,nickname); if(req.get('x-requested-with'))return res.json({ok:true}); res.redirect('/admin#users');});
 app.post('/admin/notice',admin,async(req,res)=>{await q('INSERT INTO notices(title,content,is_pinned) VALUES($1,$2,$3)',[req.body.title,req.body.content,!!req.body.is_pinned]); await logAdmin(req,'공지 등록','notice','new',req.body.title||''); res.redirect('/admin#notices');});
-app.post('/admin/delete/:table/:id',admin,async(req,res)=>runAdminAction(req,res,req.params.table==='vendors'?'/admin#vendors':'/admin#'+req.params.table,async()=>{
-  const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'};
-  const table=allowed[req.params.table];
-  const id=parseInt(req.params.id||0,10);
-  if(!table||!id)throw new Error('삭제 대상이 올바르지 않습니다.');
-  if(table==='users'){
-    const u=await q('SELECT role FROM users WHERE id=$1',[id]);
-    if(u.rows[0]?.role==='admin')throw new Error('관리자 계정은 삭제할 수 없습니다.');
-  }
-  if(table==='vendors'){
-    await q('BEGIN');
-    try{
-      const r=await q('DELETE FROM vendors WHERE id=$1 RETURNING id,name',[id]);
-      if(!r.rows[0])throw new Error('업체를 찾을 수 없습니다.');
-      await q('UPDATE users SET vendor_id=NULL,is_vendor=false WHERE vendor_id=$1',[id]);
-      await q('DELETE FROM favorites WHERE vendor_id=$1',[id]);
-      await q('DELETE FROM vendor_view_logs WHERE vendor_id=$1',[id]);
-      await q('UPDATE banners SET vendor_id=NULL WHERE vendor_id=$1',[id]);
-      await q('COMMIT');
-      await logAdmin(req,'업체 삭제','vendors',id,r.rows[0].name||'');
-      return {deletedId:id};
-    }catch(e){
-      await q('ROLLBACK');
-      throw e;
-    }
-  }
-  const r=await q(`DELETE FROM ${table} WHERE id=$1 RETURNING id`,[id]);
-  if(!r.rows[0])throw new Error('삭제 대상을 찾을 수 없습니다.');
-  await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제');
-}));
+app.post('/admin/delete/:table/:id',admin,async(req,res)=>runAdminAction(req,res,req.params.table==='vendors'?'/admin#vendors':'/admin#'+req.params.table,async()=>{const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'}; const table=allowed[req.params.table]; const id=parseInt(req.params.id||0,10); if(!table||!id)throw new Error('삭제 대상이 올바르지 않습니다.'); if(table==='users'){const u=await q('SELECT role FROM users WHERE id=$1',[id]); if(u.rows[0]?.role==='admin')throw new Error('관리자 계정은 삭제할 수 없습니다.');} if(table==='vendors'){const r=await q('UPDATE vendors SET status=$1 WHERE id=$2 RETURNING id',['inactive',id]); if(!r.rows[0])throw new Error('업체를 찾을 수 없습니다.'); await logAdmin(req,'업체 비활성화','vendors',id,'관리자 삭제 대신 비활성화'); return;} const r=await q(`DELETE FROM ${table} WHERE id=$1 RETURNING id`,[id]); if(!r.rows[0])throw new Error('삭제 대상을 찾을 수 없습니다.'); await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제');}));
 
 function siteBaseUrl(req){
   return (process.env.SITE_URL||`${req.protocol}://${req.get('host')}`).replace(/\/$/,'');

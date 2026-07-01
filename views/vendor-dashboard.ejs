@@ -94,8 +94,11 @@ header a:hover{color:#10d9ff}
 
 </style>
 </head>
-<body>
-<header><b>업체관리</b><span><a href="/">홈</a> <a href="/logout">로그아웃</a></span></header>
+<body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %>
+<header><b>업체관리</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
+    <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
+    <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
+  </a><span><a href="/">홈</a> <a href="/logout">로그아웃</a></span></header>
 
 <main class="wrap">
 <% if(!vendor){ %>
