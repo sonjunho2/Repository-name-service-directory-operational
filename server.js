@@ -857,18 +857,22 @@ app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>runAdminActio
 
 
 app.post('/admin/users/:id/update',admin,async(req,res)=>{
+  const wantsJson=!!req.get('x-requested-with')||String(req.get('accept')||'').includes('application/json');
+  const fail=(code,msg)=>wantsJson?res.status(code).json({ok:false,error:msg}):res.redirect('/admin#users');
   const userId=parseInt(req.params.id||req.body.id||0,10);
-  if(!userId)return res.status(400).json({ok:false,error:'잘못된 회원입니다.'});
-  const current=await q('SELECT id,role FROM users WHERE id=$1',[userId]);
-  if(!current.rows[0])return res.status(404).json({ok:false,error:'회원을 찾을 수 없습니다.'});
-  const role=['admin','user'].includes(req.body.role)?req.body.role:'user';
-  const status=['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:'active';
-  const nickname=(req.body.nickname||'회원').trim().slice(0,50)||'회원';
-  const password=(req.body.password||'').trim();
-  if(current.rows[0].role==='admin'&&role!=='admin'){
-    return res.status(400).json({ok:false,error:'관리자 권한은 이 화면에서 해제할 수 없습니다.'});
-  }
-  if(password&&password.length<6)return res.status(400).json({ok:false,error:'비밀번호는 6자 이상이어야 합니다.'});
+  if(!userId)return fail(400,'잘못된 회원입니다.');
+  const current=await q('SELECT id,nickname,role FROM users WHERE id=$1',[userId]);
+  if(!current.rows[0])return fail(404,'회원을 찾을 수 없습니다.');
+  const requestedRole=String(req.body.role||current.rows[0].role||'user');
+  const role=['admin','user'].includes(requestedRole)?requestedRole:(current.rows[0].role||'user');
+  const requestedStatus=String(req.body.status||'active');
+  const status=['active','blocked','suspended','inactive'].includes(requestedStatus)?requestedStatus:'active';
+  const postedNickname=typeof req.body.nickname==='string'?req.body.nickname.trim():'';
+  const nickname=(postedNickname||current.rows[0].nickname||'회원').slice(0,50);
+  const password=String(req.body.password||'').trim();
+  if(!postedNickname)return fail(400,'닉네임을 입력해 주세요.');
+  if(current.rows[0].role==='admin'&&role!=='admin')return fail(400,'관리자 권한은 이 화면에서 해제할 수 없습니다.');
+  if(password&&password.length<6)return fail(400,'비밀번호는 6자 이상이어야 합니다.');
   if(password){
     const h=await bcrypt.hash(password,10);
     await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]);
@@ -876,8 +880,8 @@ app.post('/admin/users/:id/update',admin,async(req,res)=>{
     await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]);
   }
   await logAdmin(req,'회원 수정','user',userId,nickname);
-  const saved=await q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users WHERE id=$1',[userId]);
-  if(req.get('x-requested-with'))return res.json({ok:true,user:saved.rows[0]});
+  const saved=await q('SELECT id,username,nickname,role,status,COALESCE(is_vendor,false) is_vendor,vendor_id,created_at FROM users WHERE id=$1',[userId]);
+  if(wantsJson)return res.json({ok:true,user:saved.rows[0]});
   res.redirect('/admin#users');
 });
 
@@ -1044,7 +1048,25 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   res.redirect('/admin#vendors');
 });
 app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=img(req.file); if(req.body.id){let p=[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,req.body.id]; await q(`UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6 ${im?', image_data=$8':''} WHERE id=$7`, im?[...p,im]:p)} else await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,im]); await logAdmin(req,req.body.id?'배너 수정':'배너 등록','banner',req.body.id||'new',req.body.title||''); res.redirect('/admin#banners');});
-app.post('/admin/user',admin,async(req,res)=>{const userId=parseInt(req.body.id||0,10); if(!userId)return res.redirect('/admin#users'); const role=['admin','user'].includes(req.body.role)?req.body.role:'user'; const status=['active','blocked'].includes(req.body.status)?req.body.status:'active'; const nickname=(req.body.nickname||'회원').trim().slice(0,50); const password=req.body.password||''; if(password&&password.length<6)return res.redirect('/admin#users'); const h=password?await bcrypt.hash(password,10):null; if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]); else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]); await logAdmin(req,'회원 수정','user',userId,nickname); if(req.get('x-requested-with'))return res.json({ok:true}); res.redirect('/admin#users');});
+app.post('/admin/user',admin,async(req,res)=>{
+  const userId=parseInt(req.body.id||0,10);
+  if(!userId)return res.redirect('/admin#users');
+  const current=await q('SELECT id,nickname,role FROM users WHERE id=$1',[userId]);
+  if(!current.rows[0])return res.redirect('/admin#users');
+  const role=['admin','user'].includes(req.body.role)?req.body.role:current.rows[0].role;
+  const status=['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:'active';
+  const postedNickname=typeof req.body.nickname==='string'?req.body.nickname.trim():'';
+  if(!postedNickname)return res.redirect('/admin#users');
+  if(current.rows[0].role==='admin'&&role!=='admin')return res.redirect('/admin#users');
+  const nickname=(postedNickname||current.rows[0].nickname||'회원').slice(0,50);
+  const password=String(req.body.password||'').trim();
+  if(password&&password.length<6)return res.redirect('/admin#users');
+  if(password){const h=await bcrypt.hash(password,10); await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]);}
+  else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]);
+  await logAdmin(req,'회원 수정','user',userId,nickname);
+  if(req.get('x-requested-with'))return res.json({ok:true});
+  res.redirect('/admin#users');
+});
 app.post('/admin/notice',admin,async(req,res)=>{await q('INSERT INTO notices(title,content,is_pinned) VALUES($1,$2,$3)',[req.body.title,req.body.content,!!req.body.is_pinned]); await logAdmin(req,'공지 등록','notice','new',req.body.title||''); res.redirect('/admin#notices');});
 app.post('/admin/delete/:table/:id',admin,async(req,res)=>runAdminAction(req,res,req.params.table==='vendors'?'/admin#vendors':'/admin#'+req.params.table,async()=>{const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'}; const table=allowed[req.params.table]; const id=parseInt(req.params.id||0,10); if(!table||!id)throw new Error('삭제 대상이 올바르지 않습니다.'); if(table==='users'){const u=await q('SELECT role FROM users WHERE id=$1',[id]); if(u.rows[0]?.role==='admin')throw new Error('관리자 계정은 삭제할 수 없습니다.');} if(table==='vendors'){const r=await q('UPDATE vendors SET status=$1 WHERE id=$2 RETURNING id',['inactive',id]); if(!r.rows[0])throw new Error('업체를 찾을 수 없습니다.'); await logAdmin(req,'업체 비활성화','vendors',id,'관리자 삭제 대신 비활성화'); return;} const r=await q(`DELETE FROM ${table} WHERE id=$1 RETURNING id`,[id]); if(!r.rows[0])throw new Error('삭제 대상을 찾을 수 없습니다.'); await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제');}));
 
