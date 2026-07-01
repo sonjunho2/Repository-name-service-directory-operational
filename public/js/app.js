@@ -8,13 +8,9 @@ if(slides.length>1){
   },2800);
 }
 
-const topNav=document.querySelector('.top nav');
-if(topNav&&!topNav.querySelector('a[href="/advertise"]')){
-  const ad=document.createElement('a'); ad.href='/advertise'; ad.textContent='광고문의';
-  const ap=document.createElement('a'); ap.href='/apply'; ap.textContent='입점신청';
-  const first=topNav.querySelector('a[href="/"]');
-  if(first&&first.nextSibling){topNav.insertBefore(ap,first.nextSibling);topNav.insertBefore(ad,ap)}else{topNav.prepend(ap);topNav.prepend(ad)}
-}
+// 상단 메뉴는 각 EJS 템플릿에서 권한별로 직접 렌더링합니다.
+// 광고문의/입점신청 링크는 마이페이지/업체관리 내부 동선으로 통합했으므로
+// 공통 JS에서 임의로 추가하지 않습니다.
 
 const modal=document.getElementById('vendorModal');
 const modalContent=document.getElementById('vendorModalContent');
