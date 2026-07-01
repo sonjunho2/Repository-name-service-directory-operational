@@ -65,6 +65,7 @@ async function ensureSchema(){
     await q("INSERT INTO app_settings(key,value) VALUES('brand_show_logo','off') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('brand_show_name','on') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('site_logo_data','') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('site_favicon_data','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('site_link_url','/') ON CONFLICT (key) DO NOTHING");
     await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
@@ -296,7 +297,7 @@ function normalizeBrandSettings(raw){
   const showLogo=raw.brand_show_logo==='on'&&!!raw.site_logo_data;
   const showName=raw.brand_show_name!=='off';
   const link=(raw.site_link_url||'/').trim().slice(0,200)||'/';
-  return {name,showLogo,showName,logo:raw.site_logo_data||'',link};
+  return {name,showLogo,showName,logo:raw.site_logo_data||'',favicon:raw.site_favicon_data||'',link};
 }
 async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions),brand:normalizeBrandSettings(raw)};}
 async function homeData(req){
@@ -1006,16 +1007,26 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   res.redirect('/admin#settings');
 });
 
-app.post('/admin/settings/options',admin,upload.single('site_logo'),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)};
+app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCount:1},{name:'site_favicon',maxCount:1}]),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)};
   const current=await getSettings();
   const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,1400),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/'};
+  const logoFile=req.files?.site_logo?.[0];
+  const faviconFile=req.files?.site_favicon?.[0];
   if(req.body.remove_site_logo){
     fields.site_logo_data='';
-  }else if(req.file){
-    const logo=img(req.file);
+  }else if(logoFile){
+    const logo=img(logoFile);
     if(logo)fields.site_logo_data=logo;
   }else{
     fields.site_logo_data=current.raw.site_logo_data||'';
+  }
+  if(req.body.remove_site_favicon){
+    fields.site_favicon_data='';
+  }else if(faviconFile){
+    const favicon=img(faviconFile);
+    if(favicon)fields.site_favicon_data=favicon;
+  }else{
+    fields.site_favicon_data=current.raw.site_favicon_data||'';
   }
   for(const [key,value] of Object.entries(fields)){
     await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",[key,String(value)]);
