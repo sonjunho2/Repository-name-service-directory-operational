@@ -1452,17 +1452,17 @@ document.addEventListener('DOMContentLoaded',function(){
     var row=btn.closest('tr');
     if(!row)return;
     var id=btn.dataset.id||row.dataset.id;
-    var fd=new FormData();
-    fd.append('nickname',row.querySelector('input[name="nickname"]')?.value||'');
-    fd.append('role',row.querySelector('select[name="role"]')?.value||'user');
-    fd.append('status',row.querySelector('select[name="status"]')?.value||'active');
-    fd.append('password',row.querySelector('input[name="password"]')?.value||'');
+    var fd=new URLSearchParams();
+    fd.set('nickname',row.querySelector('input[name="nickname"]')?.value||'');
+    fd.set('role',row.querySelector('select[name="role"]')?.value||'user');
+    fd.set('status',row.querySelector('select[name="status"]')?.value||'active');
+    fd.set('password',row.querySelector('input[name="password"]')?.value||'');
 
     var old=btn.textContent;
     btn.disabled=true;
     btn.textContent='저장중...';
     try{
-      var res=await fetch('/admin/users/'+encodeURIComponent(id)+'/update',{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json'}});
+      var res=await fetch('/admin/users/'+encodeURIComponent(id)+'/update',{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json','Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}});
       var data=null;
       try{data=await res.json();}catch(e){}
       if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
