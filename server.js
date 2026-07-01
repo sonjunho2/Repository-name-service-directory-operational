@@ -244,6 +244,10 @@ async function expireAds(){
       AND expire_at >= CURRENT_DATE
       AND (ad_type IS NULL OR ad_type='' OR ad_type='none')`);
 
+  await q("UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true WHERE status='active' AND banner_active=true AND banner_until IS NOT NULL AND banner_until>=CURRENT_DATE AND expire_at IS NOT NULL AND expire_at>=CURRENT_DATE");
+  await q("UPDATE vendors SET membership_type='recommended',is_recommended=true WHERE ad_type='recommended'");
+  await q("UPDATE vendors SET membership_type='general',is_recommended=false WHERE ad_type='general'");
+  await q("UPDATE vendors SET is_premium=false,banner_active=false,banner_until=NULL WHERE banner_active=true AND (banner_until IS NULL OR banner_until<CURRENT_DATE)");
   await q("UPDATE vendors SET is_premium=false,banner_active=false,banner_until=NULL WHERE banner_until IS NOT NULL AND banner_until < CURRENT_DATE");
   await q("UPDATE vendors SET ad_type='none',membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,expire_at=NULL WHERE expire_at IS NOT NULL AND expire_at < CURRENT_DATE");
 }
@@ -298,6 +302,51 @@ function calcProductPrice(settings,vendor,productType,period,immediateApply=fals
 function addDaysSqlFromExpire(){
   return "expire_at=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END";
 }
+function sqlDaysFromToday(days){
+  const d=parseInt(days||30,10)||30;
+  const dt=new Date();
+  dt.setHours(0,0,0,0);
+  dt.setDate(dt.getDate()+d);
+  return dt.toISOString().slice(0,10);
+}
+function isFutureOrTodayDate(value){
+  if(!value)return false;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const dt=new Date(value); dt.setHours(0,0,0,0);
+  return !Number.isNaN(dt.getTime()) && dt>=today;
+}
+function normalizeAdInput(adType,bannerActive){
+  const raw=['none','general','recommended'].includes(adType)?adType:'none';
+  const hasBanner=!!bannerActive;
+  if(hasBanner)return {ad_type:'recommended',membership_type:'recommended',is_recommended:true,is_premium:true,banner_active:true};
+  if(raw==='recommended')return {ad_type:'recommended',membership_type:'recommended',is_recommended:true,is_premium:false,banner_active:false};
+  if(raw==='general')return {ad_type:'general',membership_type:'general',is_recommended:false,is_premium:false,banner_active:false};
+  return {ad_type:'none',membership_type:'general',is_recommended:false,is_premium:false,banner_active:false};
+}
+async function ensureVendorBanner(vendorId,opts={}){
+  if(!vendorId)return;
+  const r=await q('SELECT * FROM vendors WHERE id=$1',[vendorId]);
+  const v=r.rows[0];
+  if(!v)return;
+  const existing=await q('SELECT id FROM banners WHERE vendor_id=$1 ORDER BY id DESC LIMIT 1',[vendorId]);
+  const title=(opts.title||v.name||'프리미엄배너').slice(0,100);
+  const subtitle=(opts.subtitle||v.description||v.category||'').slice(0,200);
+  const link=(opts.link_url||v.kakao_url||'#').slice(0,300);
+  const image=opts.image_data||v.image_data||'';
+  if(existing.rows[0]){
+    if(image){
+      await q('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=true,image_data=$6 WHERE id=$7',[title,subtitle,link,'premium',0,image,existing.rows[0].id]);
+    }else{
+      await q('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=true WHERE id=$6',[title,subtitle,link,'premium',0,existing.rows[0].id]);
+    }
+  }else{
+    await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[title,subtitle,link,'premium',0,true,image,vendorId]);
+  }
+}
+async function disableVendorBanner(vendorId){
+  if(!vendorId)return;
+  await q('UPDATE banners SET is_active=false WHERE vendor_id=$1',[vendorId]);
+}
 
 async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions)};}
 async function homeData(req){
@@ -328,7 +377,7 @@ async function homeData(req){
   };
   const order=orderMap[sort]||orderMap.default;
   const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 120`,params);
-  const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (v.status='active' AND v.banner_active=true)) ORDER BY b.sort_order, b.id DESC`);
+  const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (v.status='active' AND v.banner_active=true AND v.banner_until IS NOT NULL AND v.banner_until>=CURRENT_DATE AND v.expire_at IS NOT NULL AND v.expire_at>=CURRENT_DATE)) ORDER BY b.sort_order, b.id DESC`);
   const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`);
   const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
   const settings=await getSettings();
@@ -795,16 +844,13 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#bannerRequests');
 
   const v=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
-  const vendor=v.rows[0];
-  const until=vendor?.expire_at||new Date().toISOString().slice(0,10);
+  const vendor=v.rows[0]||{};
+  const settings=await getSettings();
+  const defaultDays=parseInt(settings.raw.default_register_days||30,10)||30;
+  const until=isFutureOrTodayDate(vendor.expire_at)?vendor.expire_at:sqlDaysFromToday(defaultDays);
 
-  const existingBanner=await q('SELECT id FROM banners WHERE vendor_id=$1 ORDER BY id DESC LIMIT 1',[x.vendor_id]);
-  if(existingBanner.rows[0]){
-    await q('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6,image_data=$7 WHERE id=$8',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,existingBanner.rows[0].id]);
-  }else{
-    await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,x.vendor_id]);
-  }
-  await q("UPDATE vendors SET ad_type='recommended',membership_type=$1,is_recommended=true,is_premium=true,banner_active=true,banner_until=$2,status=$3 WHERE id=$4",['recommended',until,'active',x.vendor_id]);
+  await ensureVendorBanner(x.vendor_id,{title:x.title,subtitle:x.subtitle,link_url:x.link_url,image_data:x.image_data});
+  await q("UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,expire_at=$1,banner_until=$1,status='active',scheduled_membership_type=NULL,scheduled_banner_active=NULL,scheduled_change_at=NULL,scheduled_change_note=NULL WHERE id=$2",[until,x.vendor_id]);
   await q('UPDATE vendor_banner_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
   await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||'프리미엄배너 입금확인']);
   await logAdmin(req,'배너 입금확인/추천승격','banner_request',x.id,`만기일 ${until}`);
@@ -832,8 +878,10 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
       await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
     }
   }else if(productType==='renewal_banner'){
-    await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=expire_at, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+    await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+    await ensureVendorBanner(x.vendor_id);
   }
+  if(productType==='renewal_general' || productType==='renewal_recommended')await disableVendorBanner(x.vendor_id);
 
   await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
 
@@ -1040,11 +1088,13 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   req.body.description=(req.body.description||'').trim().slice(0,3000);
   req.body.business_hours=(req.body.business_hours||'').trim().slice(0,200);
   if(!req.body.name)return res.redirect('/admin#vendors');
-  const adType=['none','recommended','premium','banner'].includes(req.body.ad_type)?req.body.ad_type:'none';
-  const membership=adType==='recommended'?'recommended':'general';
-  const bannerActive=!!req.body.banner_active;
-  const isRecommended=adType==='recommended';
-  const isPremium=bannerActive;
+  const bannerRequested=!!req.body.banner_active;
+  const normalized=normalizeAdInput(req.body.ad_type,bannerRequested);
+  const adType=normalized.ad_type;
+  const membership=normalized.membership_type;
+  const bannerActive=normalized.banner_active;
+  const isRecommended=normalized.is_recommended;
+  const isPremium=normalized.is_premium;
 
   if(req.body.id){
     const params=[
@@ -1065,6 +1115,14 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
       membership,adType,req.body.expire_at||null,bannerActive,req.body.banner_until||null,req.body.status||'active',
       req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||''
     ]);
+  }
+  const savedVendorId=req.body.id||((await q('SELECT id FROM vendors WHERE name=$1 ORDER BY id DESC LIMIT 1',[req.body.name])).rows[0]?.id);
+  if(savedVendorId){
+    if(bannerActive){
+      await ensureVendorBanner(savedVendorId);
+    }else{
+      await disableVendorBanner(savedVendorId);
+    }
   }
   await logAdmin(req,req.body.id?'업체 수정':'업체 등록','vendor',req.body.id||'new',req.body.name||'');
   res.redirect('/admin#vendors');
