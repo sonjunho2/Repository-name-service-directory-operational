@@ -241,3 +241,59 @@ body:before{
   .showcase-title{display:block}.showcase-title span{display:block;margin-top:5px}
   .quick-filter-row{gap:7px}.quick-filter-row a{font-size:13px;padding:8px 11px}
 }
+
+
+/* ===========================
+   MAIN SIMPLE SEARCH + HEADER FLOW V14
+   검색 1줄 / 중복 필터 제거 / 이미지 중심 통일
+   =========================== */
+.main-hero{
+  padding:24px 26px;
+  gap:0;
+}
+.hero-copy,.quick-filter-row{display:none!important}
+.hero-filter{
+  margin-top:0;
+  grid-template-columns:minmax(240px,1.6fr) minmax(150px,.8fr) minmax(150px,.8fr) minmax(120px,.65fr) 120px;
+}
+.premium-showcase .showcase-title{margin-bottom:12px}
+.premium-showcase .showcase-title h2,.section-title h2{font-size:28px}
+.premium-showcase .showcase-title span,.section-title span{display:none!important}
+.premium-showcase .premium-row-slider{height:300px}
+.premium-showcase .premium-banner-card{
+  width:360px;
+  flex-basis:360px;
+  height:276px;
+  padding:0;
+  background:#050913;
+}
+.premium-showcase .premium-banner-card img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:contain!important;
+  background:#050913;
+}
+.premium-showcase .premium-banner-card:after{background:linear-gradient(180deg,rgba(0,0,0,.03),rgba(0,0,0,.56))}
+.premium-showcase .premium-banner-card span{margin:14px 14px auto}
+.premium-showcase .premium-banner-card strong{margin:0 16px 4px;font-size:20px}
+.premium-showcase .premium-banner-card small{margin:0 16px 16px}
+.card .thumb{aspect-ratio:4/5!important}
+.normal-card .thumb{aspect-ratio:4/5!important}
+.card .thumb img{object-fit:contain!important;background:#050913}
+.ad-card-meta{padding:10px 13px 12px;min-height:74px}
+.ad-card-meta.compact{min-height:68px}
+.ad-card-meta h3{font-size:18px!important;margin-bottom:4px!important}
+.ad-card-meta p{font-size:13px}
+@media(max-width:1120px){
+  .hero-filter{grid-template-columns:1fr 1fr}
+  .hero-filter input{grid-column:1/-1}
+  .hero-filter button{grid-column:1/-1}
+}
+@media(max-width:760px){
+  .main-hero{padding:16px}
+  .hero-filter{grid-template-columns:1fr}
+  .premium-showcase .premium-row-slider{height:220px}
+  .premium-showcase .premium-banner-card{width:280px;flex-basis:280px;height:196px}
+}

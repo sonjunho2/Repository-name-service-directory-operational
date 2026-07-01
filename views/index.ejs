@@ -19,12 +19,15 @@
 <header class="top">
   <a class="brand" href="/">서비스 디렉터리</a>
   <nav>
-    <a href="/">홈</a>
     <% if(me){ %>
-      <span><%=me.nickname%></span>
-      <% if(me.is_vendor){%><a href="/vendor-dashboard">업체관리</a><%}else{%><a href="/mypage">마이페이지</a><%}%>
+      <% if(me.role==='admin'){ %>
+        <a href="/admin">관리자</a>
+      <% } else if(me.is_vendor){ %>
+        <a href="/vendor-dashboard">업체관리</a>
+      <% } else { %>
+        <a href="/mypage">마이페이지</a>
+      <% } %>
       <a href="/logout">로그아웃</a>
-      <% if(me.role==='admin'){%><a href="/admin">관리자</a><%}%>
     <% }else{ %>
       <a href="/login">로그인</a>
       <a href="/join">회원가입</a>
@@ -34,11 +37,6 @@
 <% const categories=(settings&&settings.categories&&settings.categories.length)?settings.categories:['카페','뷰티','맛집','교육','기타']; const regions=(settings&&settings.regions&&settings.regions.length)?settings.regions:['서울','부산','대구','인천','광주','대전','제주']; %>
 
 <section class="main-hero first-block">
-  <div class="hero-copy">
-    <p>지역별 인기 광고업체</p>
-    <h1>이미지로 먼저 보고<br>원하는 업체를 바로 선택하세요.</h1>
-    <span>업체가 등록한 이미지와 GIF를 중심으로 노출합니다. 카드를 누르면 상세정보, 연락처, 후기 확인으로 이동합니다.</span>
-  </div>
   <form class="hero-filter" autocomplete="off" method="get" action="/">
     <input name="search" value="<%=query.search||''%>" placeholder="업체명, 태그, 키워드 검색" autocomplete="off">
     <select name="category">
@@ -62,26 +60,11 @@
     </select>
     <button>검색</button>
   </form>
-  <div class="quick-filter-row">
-    <b>업종</b>
-    <a class="<%=!query.category?'active':''%>" href="/?<%=query.region?'region='+encodeURIComponent(query.region):''%>">전체</a>
-    <% categories.forEach(x=>{ const q=[]; if(query.region) q.push('region='+encodeURIComponent(query.region)); q.push('category='+encodeURIComponent(x)); if(query.sort) q.push('sort='+encodeURIComponent(query.sort)); %>
-      <a class="<%=query.category===x?'active':''%>" href="/?<%=q.join('&')%>"><%=x%></a>
-    <%})%>
-  </div>
-  <div class="quick-filter-row region-row">
-    <b>지역</b>
-    <a class="<%=!query.region?'active':''%>" href="/?<%=query.category?'category='+encodeURIComponent(query.category):''%>">전체</a>
-    <% regions.forEach(x=>{ const q=[]; if(query.category) q.push('category='+encodeURIComponent(query.category)); q.push('region='+encodeURIComponent(x)); if(query.sort) q.push('sort='+encodeURIComponent(query.sort)); %>
-      <a class="<%=query.region===x?'active':''%>" href="/?<%=q.join('&')%>"><%=x%></a>
-    <%})%>
-  </div>
 </section>
 
 <section class="premium-showcase">
   <div class="showcase-title">
     <h2>프리미엄 배너</h2>
-    <span>이미지/GIF를 크게 보여주는 광고 영역입니다.</span>
   </div>
   <div class="premium-row-slider">
     <div class="premium-track">
@@ -102,7 +85,6 @@
   <section class="content-area">
     <div class="section-title">
       <h2>추천업체</h2>
-      <span>프리미엄과 추천 업체를 먼저 보여줍니다.</span>
     </div>
     <div class="grid featured-grid">
       <% vendors.filter(v=>v.membership_type==='recommended').forEach(v=>{ %>
@@ -121,7 +103,6 @@
 
     <div class="section-title mt">
       <h2>일반업체</h2>
-      <span>최근 등록된 일반 업체 목록입니다.</span>
     </div>
     <div class="grid normal-grid">
       <% vendors.filter(v=>(v.membership_type||'general')==='general').forEach(v=>{ %>
