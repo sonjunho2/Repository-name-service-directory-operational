@@ -515,11 +515,8 @@
     <div class="vendor-form-grid">
       <select name="status"><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select>
       <select name="ad_type"><option value="none">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option></select>
-      <input name="expire_at" type="date" placeholder="광고 만기일">
-      <input name="banner_until" type="date" placeholder="배너 만기일">
+      <input name="expire_at" type="date" placeholder="광고/배너 만기일">
       <label><input type="checkbox" name="banner_active"> 배너활성</label>
-      <label><input type="checkbox" name="is_recommended"> 추천업체</label>
-      <label><input type="checkbox" name="is_premium"> 프리미엄</label>
     </div>
     <p class="vendor-form-help">광고/결제 처리는 광고센터에서 관리하고, 여기서는 업체의 현재 노출 상태만 수정합니다.</p>
   </div>
@@ -1306,6 +1303,13 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,200);});
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,200);});
+  document.addEventListener('change',function(e){
+    if(e.target&&e.target.name==='banner_active'&&e.target.checked){
+      var form=e.target.closest('form');
+      var ad=form&&form.querySelector('[name="ad_type"]');
+      if(ad)ad.value='recommended';
+    }
+  });
   document.addEventListener('click',function(e){
     if(e.target&&e.target.matches('[data-panel],.admin-sidebar a')){
       setTimeout(maybeLoad,250);
@@ -1333,11 +1337,8 @@ document.addEventListener('DOMContentLoaded',function(){
     setInput(f,'status',v.status||'active');
     setInput(f,'ad_type',v.ad_type||'none');
     setInput(f,'expire_at',v.expire_at?String(v.expire_at).slice(0,10):'');
-    setInput(f,'banner_until',v.banner_until?String(v.banner_until).slice(0,10):'');
     setInput(f,'description',v.description);
     setInput(f,'banner_active',!!v.banner_active);
-    setInput(f,'is_recommended',!!v.is_recommended);
-    setInput(f,'is_premium',!!v.is_premium);
     var submit=document.getElementById('vendorSubmitBtn');
     var cancel=document.getElementById('cancelVendorEdit');
     var modal=document.getElementById('vendorModal');
