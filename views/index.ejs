@@ -19,15 +19,12 @@
 <header class="top">
   <a class="brand" href="/">서비스 디렉터리</a>
   <nav>
+    <a href="/">홈</a>
     <% if(me){ %>
-      <% if(me.role==='admin'){ %>
-        <a href="/admin">관리자</a>
-      <% } else if(me.is_vendor){ %>
-        <a href="/vendor-dashboard">업체관리</a>
-      <% } else { %>
-        <a href="/mypage">마이페이지</a>
-      <% } %>
+      <span><%=me.nickname%></span>
+      <% if(me.is_vendor){%><a href="/vendor-dashboard">업체관리</a><%}else{%><a href="/mypage">마이페이지</a><%}%>
       <a href="/logout">로그아웃</a>
+      <% if(me.role==='admin'){%><a href="/admin">관리자</a><%}%>
     <% }else{ %>
       <a href="/login">로그인</a>
       <a href="/join">회원가입</a>
@@ -36,20 +33,56 @@
 </header>
 <% const categories=(settings&&settings.categories&&settings.categories.length)?settings.categories:['카페','뷰티','맛집','교육','기타']; const regions=(settings&&settings.regions&&settings.regions.length)?settings.regions:['서울','부산','대구','인천','광주','대전','제주']; %>
 
-<section class="selector-wrap first-block">
-  <div class="selector-head">★ 업종선택</div>
-  <div class="selector-list">
-    <a href="/">전체</a>
-    <% categories.forEach(x=>{ %><a href="/?category=<%=encodeURIComponent(x)%>"><%=x%></a><%})%>
+<section class="main-hero first-block">
+  <div class="hero-copy">
+    <p>지역별 인기 광고업체</p>
+    <h1>이미지로 먼저 보고<br>원하는 업체를 바로 선택하세요.</h1>
+    <span>업체가 등록한 이미지와 GIF를 중심으로 노출합니다. 카드를 누르면 상세정보, 연락처, 후기 확인으로 이동합니다.</span>
   </div>
-  <div class="selector-head region">▦ 지역선택</div>
-  <div class="selector-list">
-    <a href="/">전체</a>
-    <% regions.forEach(x=>{ %><a href="/?region=<%=encodeURIComponent(x)%>"><%=x%></a><%})%>
+  <form class="hero-filter" autocomplete="off" method="get" action="/">
+    <input name="search" value="<%=query.search||''%>" placeholder="업체명, 태그, 키워드 검색" autocomplete="off">
+    <select name="category">
+      <option value="">전체 업종</option>
+      <% categories.forEach(x=>{ %>
+        <option value="<%=x%>" <%=query.category===x?'selected':''%>><%=x%></option>
+      <%})%>
+    </select>
+    <select name="region">
+      <option value="">전체 지역</option>
+      <% regions.forEach(x=>{ %>
+        <option value="<%=x%>" <%=query.region===x?'selected':''%>><%=x%></option>
+      <%})%>
+    </select>
+    <select name="sort">
+      <option value="default" <%=query.sort==='default'||!query.sort?'selected':''%>>기본순</option>
+      <option value="views" <%=query.sort==='views'?'selected':''%>>조회수순</option>
+      <option value="rating" <%=query.sort==='rating'?'selected':''%>>평점순</option>
+      <option value="reviews" <%=query.sort==='reviews'?'selected':''%>>후기순</option>
+      <option value="latest" <%=query.sort==='latest'?'selected':''%>>최신순</option>
+    </select>
+    <button>검색</button>
+  </form>
+  <div class="quick-filter-row">
+    <b>업종</b>
+    <a class="<%=!query.category?'active':''%>" href="/?<%=query.region?'region='+encodeURIComponent(query.region):''%>">전체</a>
+    <% categories.forEach(x=>{ const q=[]; if(query.region) q.push('region='+encodeURIComponent(query.region)); q.push('category='+encodeURIComponent(x)); if(query.sort) q.push('sort='+encodeURIComponent(query.sort)); %>
+      <a class="<%=query.category===x?'active':''%>" href="/?<%=q.join('&')%>"><%=x%></a>
+    <%})%>
+  </div>
+  <div class="quick-filter-row region-row">
+    <b>지역</b>
+    <a class="<%=!query.region?'active':''%>" href="/?<%=query.category?'category='+encodeURIComponent(query.category):''%>">전체</a>
+    <% regions.forEach(x=>{ const q=[]; if(query.category) q.push('category='+encodeURIComponent(query.category)); q.push('region='+encodeURIComponent(x)); if(query.sort) q.push('sort='+encodeURIComponent(query.sort)); %>
+      <a class="<%=query.region===x?'active':''%>" href="/?<%=q.join('&')%>"><%=x%></a>
+    <%})%>
   </div>
 </section>
 
-<section class="promo-search-wrap">
+<section class="premium-showcase">
+  <div class="showcase-title">
+    <h2>프리미엄 배너</h2>
+    <span>이미지/GIF를 크게 보여주는 광고 영역입니다.</span>
+  </div>
   <div class="premium-row-slider">
     <div class="premium-track">
       <% const loopBanners = banners.length ? banners : [{title:'프리미엄 배너',subtitle:'관리자에서 이미지 업로드 가능',link_url:'#',image_data:null},{title:'이벤트 배너',subtitle:'슬라이드로 노출됩니다',link_url:'#',image_data:null},{title:'광고 배너',subtitle:'여러 개 카드 배너 지원',link_url:'#',image_data:null}]; %>
@@ -63,30 +96,6 @@
       <%})%>
     </div>
   </div>
-
-  <form class="side-search" autocomplete="off" method="get" action="/">
-    <input name="search" value="<%=query.search||''%>" placeholder="업체명검색" autocomplete="off">
-    <select name="category">
-      <option value="">전체업종 선택</option>
-      <% categories.forEach(x=>{ %>
-        <option value="<%=x%>" <%=query.category===x?'selected':''%>><%=x%></option>
-      <%})%>
-    </select>
-    <select name="region">
-      <option value="">전체지역선택</option>
-      <% regions.forEach(x=>{ %>
-        <option value="<%=x%>" <%=query.region===x?'selected':''%>><%=x%></option>
-      <%})%>
-    </select>
-    <select name="sort">
-      <option value="default" <%=query.sort==='default'||!query.sort?'selected':''%>>기본순</option>
-      <option value="views" <%=query.sort==='views'?'selected':''%>>조회수 높은순</option>
-      <option value="rating" <%=query.sort==='rating'?'selected':''%>>평점 높은순</option>
-      <option value="reviews" <%=query.sort==='reviews'?'selected':''%>>후기 많은순</option>
-      <option value="latest" <%=query.sort==='latest'?'selected':''%>>최신등록순</option>
-    </select>
-    <button>검색</button>
-  </form>
 </section>
 
 <main class="layout">
@@ -101,11 +110,11 @@
           <div class="thumb">
             <% if(v.image_data){%><img src="<%=v.image_data%>" alt="" loading="lazy" decoding="async"><%} else {%><div class="noimg">IMAGE</div><%}%>
           </div>
-          <em><%=v.is_premium?'PREMIUM':'RECOMMEND'%></em>
-          <h3><%=v.name%></h3>
-          <span class="card-rating"><%=v.review_count>0?'⭐ '+v.avg_rating+' · 후기 '+v.review_count+'개':'⭐ 평점 없음'%></span>
-          <p><%=v.region%> · <%=v.category%></p>
-          <span><%=v.tags||'등록된 태그가 없습니다.'%></span><small>찜 <%=v.favorite_count||0%>개</small>
+          <div class="ad-card-meta">
+            <em><%=v.is_premium?'PREMIUM':'RECOMMEND'%></em>
+            <h3><%=v.name%></h3>
+            <p><%=v.region%> · <%=v.category%></p>
+          </div>
         </a>
       <%})%>
     </div>
@@ -120,10 +129,10 @@
           <div class="thumb small">
             <% if(v.image_data){%><img src="<%=v.image_data%>" alt="" loading="lazy" decoding="async"><%} else {%><div class="noimg">IMAGE</div><%}%>
           </div>
-          <h3><%=v.name%></h3>
-          <span class="card-rating"><%=v.review_count>0?'⭐ '+v.avg_rating+' · 후기 '+v.review_count+'개':'⭐ 평점 없음'%></span>
-          <p><%=v.region%> · <%=v.category%></p>
-          <span><%=v.tags||''%></span><small>찜 <%=v.favorite_count||0%>개</small>
+          <div class="ad-card-meta compact">
+            <h3><%=v.name%></h3>
+            <p><%=v.region%> · <%=v.category%></p>
+          </div>
         </a>
       <%})%>
     </div>
