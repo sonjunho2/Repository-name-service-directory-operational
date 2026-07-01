@@ -441,3 +441,128 @@ body:before{
   .card.vendor-open .ad-card-meta h3{font-size:19px!important}
   .card.vendor-open .ad-card-meta p{font-size:12px!important;max-width:50%}
 }
+
+/* ===========================
+   MAIN UNIFIED AD CARD V17
+   대표이미지 1개를 프리미엄/추천/일반 동일 카드로 사용
+   결제/만기/업그레이드 로직은 건드리지 않고 메인 노출 UI만 정리
+   =========================== */
+.premium-showcase{
+  width:min(var(--wrap),100%);
+  margin:0 auto 34px;
+  padding:0 28px;
+  box-sizing:border-box;
+}
+.premium-showcase .showcase-title{margin:0 0 18px!important}
+.unified-ad-grid,
+.premium-grid,
+.featured-grid,
+.normal-grid{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:20px!important;
+  align-items:stretch!important;
+}
+.card.vendor-open{
+  border-radius:22px!important;
+  border:1px solid rgba(255,255,255,.14)!important;
+  box-shadow:0 18px 54px rgba(0,0,0,.56)!important;
+  aspect-ratio:4/5!important;
+  min-height:0!important;
+}
+.card.vendor-open.premium{border-color:var(--gold)!important}
+.card.vendor-open.recommend{border-color:rgba(16,217,255,.78)!important}
+.card.vendor-open.normal-card{border-color:rgba(255,255,255,.14)!important}
+.card.vendor-open .thumb,
+.card.vendor-open .thumb.small{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  aspect-ratio:auto!important;
+}
+.card.vendor-open .thumb img{
+  object-fit:contain!important;
+  transition:transform .22s ease;
+}
+.card.vendor-open:hover .thumb img{transform:scale(1.025)}
+.card.vendor-open:before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.42),rgba(0,0,0,0) 30%),
+    linear-gradient(180deg,rgba(0,0,0,0) 52%,rgba(0,0,0,.88));
+  z-index:1;
+  pointer-events:none;
+}
+.card.vendor-open:after{display:none!important}
+.card.vendor-open .ad-card-meta,
+.card.vendor-open .ad-card-meta.compact{
+  position:absolute!important;
+  inset:0!important;
+  z-index:2!important;
+  padding:14px!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  grid-template-rows:auto 1fr auto!important;
+  grid-template-areas:
+    'badge badge'
+    '. .'
+    'name info'!important;
+  align-items:end!important;
+  column-gap:10px!important;
+}
+.card.vendor-open .ad-card-meta em{
+  grid-area:badge!important;
+  position:static!important;
+  transform:none!important;
+  margin:0!important;
+  justify-self:start!important;
+  align-self:start!important;
+  font-size:11px!important;
+  line-height:1!important;
+  padding:6px 10px!important;
+  border-radius:999px!important;
+  max-width:max-content!important;
+}
+.card.vendor-open.normal-card .ad-card-meta em{display:none!important}
+.card.vendor-open .ad-card-meta h3{
+  grid-area:name!important;
+  margin:0!important;
+  min-width:0!important;
+  font-size:21px!important;
+  font-weight:900!important;
+  color:#fff!important;
+  line-height:1.12!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  text-shadow:0 2px 12px rgba(0,0,0,.86)!important;
+}
+.card.vendor-open .ad-card-meta p{
+  grid-area:info!important;
+  margin:0!important;
+  min-width:0!important;
+  max-width:150px!important;
+  color:#d7def4!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  line-height:1.15!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  text-align:right!important;
+  text-shadow:0 2px 10px rgba(0,0,0,.85)!important;
+}
+.premium-row-slider,.premium-track,.premium-banner-card{display:none!important}
+@media(max-width:1120px){
+  .unified-ad-grid,.premium-grid,.featured-grid,.normal-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:760px){
+  .premium-showcase{width:100%;padding:0 16px;margin-bottom:26px}
+  .unified-ad-grid,.premium-grid,.featured-grid,.normal-grid{grid-template-columns:1fr!important;gap:16px!important}
+  .card.vendor-open{aspect-ratio:4/4.8!important}
+  .card.vendor-open .ad-card-meta h3{font-size:20px!important}
+  .card.vendor-open .ad-card-meta p{font-size:12px!important;max-width:46%!important}
+}
