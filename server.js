@@ -340,7 +340,7 @@ async function adminPagedJson(req,res,sql,countSql,params=[]){
   res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows});
 }
 app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,'SELECT * FROM vendors ORDER BY id DESC','SELECT COUNT(*) FROM vendors'));
-app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC','SELECT COUNT(*) FROM users'));
+app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT id,username,nickname,role,status,COALESCE(is_vendor,false) is_vendor,vendor_id,created_at FROM users ORDER BY id DESC','SELECT COUNT(*) FROM users'));
 app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
 app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`,'SELECT COUNT(*) FROM flags'));
@@ -820,17 +820,17 @@ app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>{await q("UPD
 
 app.post('/admin/users/:id/update',admin,async(req,res)=>{
   const userId=parseInt(req.params.id||req.body.id||0,10);
-  if(!userId)return res.status(400).send('잘못된 회원입니다.');
-  const current=await q('SELECT role FROM users WHERE id=$1',[userId]);
-  if(!current.rows[0])return res.status(404).send('회원을 찾을 수 없습니다.');
+  if(!userId)return res.status(400).json({ok:false,error:'잘못된 회원입니다.'});
+  const current=await q('SELECT id,role FROM users WHERE id=$1',[userId]);
+  if(!current.rows[0])return res.status(404).json({ok:false,error:'회원을 찾을 수 없습니다.'});
   const role=['admin','user'].includes(req.body.role)?req.body.role:'user';
   const status=['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:'active';
   const nickname=(req.body.nickname||'회원').trim().slice(0,50)||'회원';
   const password=(req.body.password||'').trim();
   if(current.rows[0].role==='admin'&&role!=='admin'){
-    return res.status(400).send('관리자 권한은 이 화면에서 해제할 수 없습니다.');
+    return res.status(400).json({ok:false,error:'관리자 권한은 이 화면에서 해제할 수 없습니다.'});
   }
-  if(password&&password.length<6)return res.status(400).send('비밀번호는 6자 이상이어야 합니다.');
+  if(password&&password.length<6)return res.status(400).json({ok:false,error:'비밀번호는 6자 이상이어야 합니다.'});
   if(password){
     const h=await bcrypt.hash(password,10);
     await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]);
@@ -838,7 +838,8 @@ app.post('/admin/users/:id/update',admin,async(req,res)=>{
     await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]);
   }
   await logAdmin(req,'회원 수정','user',userId,nickname);
-  if(req.get('x-requested-with'))return res.json({ok:true});
+  const saved=await q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users WHERE id=$1',[userId]);
+  if(req.get('x-requested-with'))return res.json({ok:true,user:saved.rows[0]});
   res.redirect('/admin#users');
 });
 
