@@ -231,6 +231,19 @@ async function expireAds(){
     WHERE scheduled_change_at IS NOT NULL
       AND scheduled_change_at <= CURRENT_DATE
       AND (expire_at IS NULL OR expire_at >= CURRENT_DATE)`);
+
+  // 광고 만기일은 살아 있는데 ad_type만 none/NULL로 남은 과거 데이터 보정.
+  // 이런 행은 관리자에는 '노출 + 만기일 있음'으로 보이지만 메인 목록 조건(v.ad_type <> 'none')에서 제외된다.
+  await q(`UPDATE vendors
+    SET ad_type='general',
+        membership_type='general',
+        is_recommended=false,
+        status='active'
+    WHERE status='active'
+      AND expire_at IS NOT NULL
+      AND expire_at >= CURRENT_DATE
+      AND (ad_type IS NULL OR ad_type='' OR ad_type='none')`);
+
   await q("UPDATE vendors SET is_premium=false,banner_active=false,banner_until=NULL WHERE banner_until IS NOT NULL AND banner_until < CURRENT_DATE");
   await q("UPDATE vendors SET ad_type='none',membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,expire_at=NULL WHERE expire_at IS NOT NULL AND expire_at < CURRENT_DATE");
 }
