@@ -856,7 +856,27 @@ app.post('/admin/delete/users/:id',admin,async(req,res)=>{
   res.redirect('/admin#users');
 });
 
-app.post('/admin/link-user-vendor',admin,async(req,res)=>{const userId=parseInt(req.body.user_id||0,10); const vendorId=parseInt(req.body.vendor_id||0,10); if(userId&&vendorId){await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]); await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);} await logAdmin(req,'회원 수정','user',req.body.id,req.body.nickname||''); res.redirect('/admin#users');});
+app.post('/admin/link-user-vendor',admin,async(req,res)=>{
+  const userId=parseInt(req.body.user_id||0,10);
+  const vendorId=parseInt(req.body.vendor_id||0,10);
+  if(!userId||!vendorId){
+    if(req.get('x-requested-with'))return res.status(400).json({ok:false,error:'회원과 업체를 선택해주세요.'});
+    return res.redirect('/admin#users');
+  }
+  const u=await q('SELECT id,role FROM users WHERE id=$1',[userId]);
+  if(!u.rows[0]){
+    if(req.get('x-requested-with'))return res.status(404).json({ok:false,error:'회원을 찾을 수 없습니다.'});
+    return res.redirect('/admin#users');
+  }
+  if(u.rows[0].role==='admin'){
+    if(req.get('x-requested-with'))return res.status(400).json({ok:false,error:'관리자 계정은 업체회원으로 연결할 수 없습니다.'});
+    return res.redirect('/admin#users');
+  }
+  await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]);
+  await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);
+  if(req.get('x-requested-with'))return res.json({ok:true});
+  res.redirect('/admin#users');
+});
 
 
 
@@ -1042,82 +1062,16 @@ app.get('/admin/api/performance-check',admin,async(req,res)=>{
 });
 
 
-app.get('/admin/api/security-check',admin,async(req,res)=>{
+
+app.get('/admin/api/qa-admin-core',admin,async(req,res)=>{
   const checks=[];
   const add=(name,ok,detail='')=>checks.push({name,ok,detail});
-  add('세션 쿠키 httpOnly',true,'활성');
-  add('sameSite 쿠키',true,'lax');
-  add('운영 secure 쿠키',process.env.NODE_ENV==='production','NODE_ENV=production 권장');
-  add('Origin 검사',true,'POST 요청 보호');
-  add('로그인 제한',true,'10회 실패 시 15분 제한');
-  add('API 제한',true,'분당 240회');
-  add('회원가입 제한',true,'15분 5회');
-  add('문의 제한',true,'15분 10회');
-  add('업로드 MIME 검증',true,'MIME + 파일 시그니처 검사');
-  try{await q('SELECT 1');add('DB 연결',true,'정상');}catch(e){add('DB 연결',false,e.message);}
-  res.json({ok:true,checks});
-});
-app.get('/admin/api/final-qa',admin,async(req,res)=>{
-  const checks=[];
-  const add=(name,ok,detail='')=>checks.push({name,ok,detail});
-  try{
-    const counts=await Promise.all([
-      q('SELECT COUNT(*)::int count FROM users'),
-      q('SELECT COUNT(*)::int count FROM vendors'),
-      q('SELECT COUNT(*)::int count FROM inquiries'),
-      q('SELECT COUNT(*)::int count FROM payment_logs'),
-      q('SELECT COUNT(*)::int count FROM flags')
-    ]);
-    add('회원 테이블',true,counts[0].rows[0].count+'건');
-    add('업체 테이블',true,counts[1].rows[0].count+'건');
-    add('신청 테이블',true,counts[2].rows[0].count+'건');
-    add('결제 테이블',true,counts[3].rows[0].count+'건');
-    add('신고 테이블',true,counts[4].rows[0].count+'건');
-  }catch(e){add('DB 기본 테이블',false,e.message);}
-  add('robots.txt',true,'/robots.txt');
-  add('sitemap.xml',true,'/sitemap.xml');
-  add('성능 체크',true,'/admin/api/performance-check');
-  add('보안 체크',true,'/admin/api/security-check');
-  res.json({ok:true,checks});
+  try{await q('SELECT COUNT(*) FROM users');add('회원 테이블',true,'정상');}catch(e){add('회원 테이블',false,e.message);}
+  try{await q('SELECT COUNT(*) FROM vendors');add('업체 테이블',true,'정상');}catch(e){add('업체 테이블',false,e.message);}
+  try{await q('SELECT COUNT(*) FROM inquiries');add('입점/문의 테이블',true,'정상');}catch(e){add('입점/문의 테이블',false,e.message);}
+  try{await q('SELECT COUNT(*) FROM payment_logs');add('결제 테이블',true,'정상');}catch(e){add('결제 테이블',false,e.message);}
+  try{await q('SELECT COUNT(*) FROM flags');add('신고 테이블',true,'정상');}catch(e){add('신고 테이블',false,e.message);}
+  res.json({ok:checks.every(x=>x.ok),checks});
 });
 
-app.get('/open-check',admin,async(req,res)=>{
-  const checks=[];
-  const add=(name,ok,detail='')=>checks.push({name,ok,detail});
-  try{await q('SELECT 1');add('DB 연결',true,'정상');}catch(e){add('DB 연결',false,e.message);}
-  add('robots.txt',true,'/robots.txt');
-  add('sitemap.xml',true,'/sitemap.xml');
-  add('favicon',true,'/favicon.svg');
-  add('healthz',true,'/healthz');
-  add('성능 체크 API',true,'/admin/api/performance-check');
-  add('보안 체크 API',true,'/admin/api/security-check');
-  add('최종 QA API',true,'/admin/api/final-qa');
-  const cards=checks.map(c=>'<div class="card"><b class="'+(c.ok?'ok':'bad')+'">'+(c.ok?'정상':'확인필요')+'</b> '+c.name+'<br><small>'+c.detail+'</small></div>').join('');
-  res.send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\uc624\ud508 \uccb4\ud06c</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:40px auto;padding:24px}.card{border:1px solid #29324f;border-radius:18px;background:#10182b;padding:18px;margin:10px 0}.ok{color:#1fe087}.bad{color:#ff6b6b}a{color:#10d9ff}</style></head><body><div class=\"wrap\"><h1>\uc624\ud508 \uccb4\ud06c</h1>"+cards+"<p><a href=\"/admin\">\uad00\ub9ac\uc790\ub85c \ub3cc\uc544\uac00\uae30</a></p></div></body></html>");
-});
-
-
-app.use((req,res)=>{
-  res.status(404).send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\ud398\uc774\uc9c0\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class=\"box\"><h1>404</h1><p>\uc694\uccad\ud558\uc2e0 \ud398\uc774\uc9c0\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.</p><a href=\"/\">\ud648\uc73c\ub85c \uc774\ub3d9</a></div></body></html>");
-});
-app.use((err,req,res,next)=>{
-  console.error('server error',err);
-  res.status(500).send("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>\uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4</title><link rel=\"icon\" href=\"/favicon.svg\"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class=\"box\"><h1>500</h1><p>\uc77c\uc2dc\uc801\uc778 \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.</p><a href=\"/\">\ud648\uc73c\ub85c \uc774\ub3d9</a></div></body></html>");
-});
-
-
-process.on('unhandledRejection',err=>{
-  console.error('unhandledRejection',err);
-});
-process.on('uncaughtException',err=>{
-  console.error('uncaughtException',err);
-});
-async function shutdown(signal){
-  console.log(signal+' received, closing database pool');
-  try{await pool.end();}catch(e){console.error('pool close failed',e);}
-  process.exit(0);
-}
-process.on('SIGTERM',()=>shutdown('SIGTERM'));
-process.on('SIGINT',()=>shutdown('SIGINT'));
-
-const port=process.env.PORT||3000; ensureSchema().then(()=>app.listen(port,()=>console.log('server on '+port))).catch(e=>{console.error(e);process.exit(1)});
+a
