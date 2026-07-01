@@ -385,9 +385,18 @@ async function homeData(req){
 }
 app.get('/healthz',async(req,res)=>{try{await q('SELECT 1');res.json({ok:true,db:true,time:new Date().toISOString()});}catch(e){res.status(500).json({ok:false,db:false,error:e.message,time:new Date().toISOString()});}});
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
-app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
-app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
-app.post('/inquiry',upload.fields([{name:'main_image',maxCount:1},{name:'banner_image',maxCount:1}]),async(req,res)=>{try{const type=['apply','ad'].includes(req.body.type)?req.body.type:'ad'; const company=(req.body.company_name||'').trim().slice(0,100); const phone=(req.body.phone||'').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,2000); if(!company||!phone||content.length<5)return res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:false,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',settings:await getSettings()}); const f=req.files||{}; await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,banner_image_data,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[type,company,(req.body.name||'').trim().slice(0,50),phone,(req.body.kakao||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'').trim().slice(0,50),(req.body.region||'').trim().slice(0,50),content,img(f.main_image?.[0]),img(f.banner_image?.[0]),req.session.user?.id||null]); res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:true,error:null,settings:await getSettings()});}catch(e){res.render('inquiry',{type:req.body.type||'ad',title:req.body.type==='apply'?'입점신청':'광고문의',done:false,error:e.message||'신청 저장 실패',settings:await getSettings()});}});
+function redirectToMemberFlow(req,res,kind='apply'){
+  const me=req.session.user;
+  if(!me) return res.redirect('/login');
+  if(me.role==='admin') return res.redirect('/admin');
+  if(me.is_vendor) return res.redirect(kind==='ad'?'/vendor-dashboard?panel=plan':'/vendor-dashboard');
+  return res.redirect('/mypage');
+}
+// 공개 광고문의/입점신청 페이지는 운영 동선 중복 방지를 위해 사용하지 않습니다.
+// 일반회원은 마이페이지에서 업체등록 신청, 업체회원은 업체관리에서 광고/배너 신청만 합니다.
+app.get('/advertise',(req,res)=>redirectToMemberFlow(req,res,'ad'));
+app.get('/apply',(req,res)=>redirectToMemberFlow(req,res,'apply'));
+app.post('/inquiry',(req,res)=>redirectToMemberFlow(req,res,req.body?.type==='ad'?'ad':'apply'));
 
 app.post('/favorite/:id',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){const v=await q('SELECT id FROM vendors WHERE id=$1 AND status=$2',[id,'active']); if(v.rows[0])await q('INSERT INTO favorites(user_id,vendor_id) VALUES($1,$2) ON CONFLICT(user_id,vendor_id) DO NOTHING',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
 app.post('/favorite/:id/delete',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){await q('DELETE FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});

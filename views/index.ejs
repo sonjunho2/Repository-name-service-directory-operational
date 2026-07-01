@@ -19,12 +19,15 @@
 <header class="top">
   <a class="brand" href="/">서비스 디렉터리</a>
   <nav>
-    <a href="/">홈</a>
     <% if(me){ %>
-      <span><%=me.nickname%></span>
-      <% if(me.is_vendor){%><a href="/vendor-dashboard">업체관리</a><%}else{%><a href="/mypage">마이페이지</a><%}%>
+      <% if(me.role==='admin'){ %>
+        <a href="/admin">관리자</a>
+      <% } else if(me.is_vendor){ %>
+        <a href="/vendor-dashboard">업체관리</a>
+      <% } else { %>
+        <a href="/mypage">마이페이지</a>
+      <% } %>
       <a href="/logout">로그아웃</a>
-      <% if(me.role==='admin'){%><a href="/admin">관리자</a><%}%>
     <% }else{ %>
       <a href="/login">로그인</a>
       <a href="/join">회원가입</a>
