@@ -566,3 +566,115 @@ body:before{
   .card.vendor-open .ad-card-meta h3{font-size:20px!important}
   .card.vendor-open .ad-card-meta p{font-size:12px!important;max-width:46%!important}
 }
+
+/* ===========================
+   MAIN PREMIUM SLIDER + CARD POSITION V18
+   프리미엄은 슬라이드 유지, 카드 크기는 추천/일반과 동일
+   =========================== */
+.premium-row-slider.unified-premium-slider,
+.premium-showcase .premium-row-slider.unified-premium-slider{
+  display:block!important;
+  height:auto!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  border-radius:0!important;
+}
+.premium-row-slider.unified-premium-slider:before,
+.premium-row-slider.unified-premium-slider:after{
+  display:none!important;
+}
+.premium-row-slider.unified-premium-slider .premium-track{
+  display:flex!important;
+  gap:20px!important;
+  width:max-content!important;
+  height:auto!important;
+  animation:premiumMarquee 34s linear infinite!important;
+}
+.premium-row-slider.unified-premium-slider:hover .premium-track{
+  animation-play-state:paused!important;
+}
+.premium-row-slider.unified-premium-slider .card.vendor-open{
+  flex:0 0 calc((min(var(--wrap), 100vw) - 96px) / 3)!important;
+  width:calc((min(var(--wrap), 100vw) - 96px) / 3)!important;
+  max-width:100%!important;
+}
+.card.vendor-open{
+  padding:0!important;
+  overflow:hidden!important;
+}
+.card.vendor-open .thumb,
+.card.vendor-open .thumb.small{
+  border:0!important;
+  border-radius:0!important;
+  background:#050913!important;
+}
+.card.vendor-open .thumb img{
+  object-fit:contain!important;
+  background:#050913!important;
+}
+.card.vendor-open .ad-card-meta,
+.card.vendor-open .ad-card-meta.compact{
+  position:absolute!important;
+  inset:0!important;
+  padding:16px!important;
+  z-index:5!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(80px,auto)!important;
+  grid-template-rows:auto minmax(0,1fr) auto!important;
+  grid-template-areas:
+    'badge badge'
+    '. .'
+    'name info'!important;
+  align-items:stretch!important;
+  gap:0 10px!important;
+  pointer-events:none!important;
+}
+.card.vendor-open .ad-card-meta em{
+  grid-area:badge!important;
+  position:static!important;
+  align-self:start!important;
+  justify-self:start!important;
+  transform:none!important;
+  margin:0!important;
+  top:auto!important;
+  left:auto!important;
+  bottom:auto!important;
+  font-size:11px!important;
+  line-height:1!important;
+  padding:7px 11px!important;
+  border-radius:999px!important;
+  z-index:6!important;
+}
+.card.vendor-open .ad-card-meta h3{
+  grid-area:name!important;
+  align-self:end!important;
+  justify-self:start!important;
+  max-width:100%!important;
+  margin:0!important;
+}
+.card.vendor-open .ad-card-meta p{
+  grid-area:info!important;
+  align-self:end!important;
+  justify-self:end!important;
+  max-width:145px!important;
+  margin:0!important;
+}
+@media(max-width:1120px){
+  .premium-row-slider.unified-premium-slider .card.vendor-open{
+    flex-basis:calc((100vw - 76px) / 2)!important;
+    width:calc((100vw - 76px) / 2)!important;
+  }
+}
+@media(max-width:760px){
+  .premium-row-slider.unified-premium-slider .premium-track{gap:16px!important}
+  .premium-row-slider.unified-premium-slider .card.vendor-open{
+    flex-basis:calc(100vw - 32px)!important;
+    width:calc(100vw - 32px)!important;
+  }
+  .card.vendor-open .ad-card-meta,
+  .card.vendor-open .ad-card-meta.compact{padding:14px!important}
+}
