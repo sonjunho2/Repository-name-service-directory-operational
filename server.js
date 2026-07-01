@@ -1068,7 +1068,36 @@ app.post('/admin/user',admin,async(req,res)=>{
   }
 });
 app.post('/admin/notice',admin,async(req,res)=>{await q('INSERT INTO notices(title,content,is_pinned) VALUES($1,$2,$3)',[req.body.title,req.body.content,!!req.body.is_pinned]); await logAdmin(req,'공지 등록','notice','new',req.body.title||''); res.redirect('/admin#notices');});
-app.post('/admin/delete/:table/:id',admin,async(req,res)=>runAdminAction(req,res,req.params.table==='vendors'?'/admin#vendors':'/admin#'+req.params.table,async()=>{const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'}; const table=allowed[req.params.table]; const id=parseInt(req.params.id||0,10); if(!table||!id)throw new Error('삭제 대상이 올바르지 않습니다.'); if(table==='users'){const u=await q('SELECT role FROM users WHERE id=$1',[id]); if(u.rows[0]?.role==='admin')throw new Error('관리자 계정은 삭제할 수 없습니다.');} if(table==='vendors'){const r=await q('UPDATE vendors SET status=$1 WHERE id=$2 RETURNING id',['inactive',id]); if(!r.rows[0])throw new Error('업체를 찾을 수 없습니다.'); await logAdmin(req,'업체 비활성화','vendors',id,'관리자 삭제 대신 비활성화'); return;} const r=await q(`DELETE FROM ${table} WHERE id=$1 RETURNING id`,[id]); if(!r.rows[0])throw new Error('삭제 대상을 찾을 수 없습니다.'); await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제');}));
+app.post('/admin/delete/:table/:id',admin,async(req,res)=>runAdminAction(req,res,req.params.table==='vendors'?'/admin#vendors':'/admin#'+req.params.table,async()=>{
+  const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'};
+  const table=allowed[req.params.table];
+  const id=parseInt(req.params.id||0,10);
+  if(!table||!id)throw new Error('삭제 대상이 올바르지 않습니다.');
+  if(table==='users'){
+    const u=await q('SELECT role FROM users WHERE id=$1',[id]);
+    if(u.rows[0]?.role==='admin')throw new Error('관리자 계정은 삭제할 수 없습니다.');
+  }
+  if(table==='vendors'){
+    await q('BEGIN');
+    try{
+      const r=await q('DELETE FROM vendors WHERE id=$1 RETURNING id,name',[id]);
+      if(!r.rows[0])throw new Error('업체를 찾을 수 없습니다.');
+      await q('UPDATE users SET vendor_id=NULL,is_vendor=false WHERE vendor_id=$1',[id]);
+      await q('DELETE FROM favorites WHERE vendor_id=$1',[id]);
+      await q('DELETE FROM vendor_view_logs WHERE vendor_id=$1',[id]);
+      await q('UPDATE banners SET vendor_id=NULL WHERE vendor_id=$1',[id]);
+      await q('COMMIT');
+      await logAdmin(req,'업체 삭제','vendors',id,r.rows[0].name||'');
+      return {deletedId:id};
+    }catch(e){
+      await q('ROLLBACK');
+      throw e;
+    }
+  }
+  const r=await q(`DELETE FROM ${table} WHERE id=$1 RETURNING id`,[id]);
+  if(!r.rows[0])throw new Error('삭제 대상을 찾을 수 없습니다.');
+  await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제');
+}));
 
 function siteBaseUrl(req){
   return (process.env.SITE_URL||`${req.protocol}://${req.get('host')}`).replace(/\/$/,'');
