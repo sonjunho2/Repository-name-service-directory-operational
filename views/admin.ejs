@@ -1603,30 +1603,38 @@ document.addEventListener('DOMContentLoaded',function(){
   function typeLabel(x){
     return x.type==='apply'?'입점신청':'광고문의';
   }
+  function normInquiryStatus(x){
+    return x.status==='approved'?'approved':(x.status==='rejected'?'rejected':'new');
+  }
   function statusText(x){
-    if(x.status==='approved')return '승인';
-    if(x.status==='rejected')return '반려';
+    var st=normInquiryStatus(x);
+    if(st==='approved')return '업체 등록완료';
+    if(st==='rejected')return '반려';
     return '대기';
   }
   function imageButtons(x){
     var html='';
-    if(x.main_image_data)html+='<a class="mini-btn" target="_blank" href="/admin/inquiry-image/'+esc(x.id)+'/main">대표보기</a> ';
+    if(x.main_image_data)html+='<a class="mini-btn" target="_blank" href="/admin/inquiry-image/'+esc(x.id)+'/main">대표보기</a><br>';
+    else html+='대표없음<br>';
     if(x.banner_image_data)html+='<a class="mini-btn" target="_blank" href="/admin/inquiry-image/'+esc(x.id)+'/banner">배너보기</a>';
-    return html||'-';
+    else html+='배너없음';
+    return html;
   }
   function actions(x){
-    if(x.status!=='new')return '<b>'+esc(statusText(x))+'</b>';
+    var st=normInquiryStatus(x);
+    if(st==='approved')return '<span class="done">업체 등록완료</span>'+(x.banner_status==='approved'?'<br><span class="banner-status">배너 등록완료</span>':'');
+    if(st==='rejected')return '<span class="rejected">반려</span>';
     var html='';
     if(x.type==='apply'){
-      html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button>업체 등록완료</button></form>';
-      if(x.banner_image_data)html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button>배너 등록완료</button></form>';
+      html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn" onclick="return confirm(\'이 신청내용으로 업체를 등록할까요?\')">업체등록</button></form>';
+      if(x.banner_image_data)html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button class="banner-btn" onclick="return confirm(\'이 배너이미지를 프리미엄 배너로 등록할까요?\')">배너등록</button></form>';
     }
-    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button>반려</button></form>';
+    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn" onclick="return confirm(\'이 신청을 반려할까요?\')">반려</button></form>';
     return html;
   }
   function rowHtml(x){
     var search=((x.company_name||'')+' '+(x.name||'')+' '+(x.phone||'')+' '+(x.kakao||'')+' '+(x.email||'')+' '+(x.region||'')+' '+(x.category||'')).toLowerCase();
-    return '<tr class="inquiry-row" data-id="'+esc(x.id)+'" data-status="'+esc(x.status||'new')+'" data-type="'+esc(x.type==='apply'?'apply':'ad')+'" data-search="'+esc(search)+'">'+
+    return '<tr class="inquiry-row" data-id="'+esc(x.id)+'" data-status="'+esc(normInquiryStatus(x))+'" data-type="'+esc(x.type==='apply'?'apply':'ad')+'" data-search="'+esc(search)+'">'+
       '<td>'+esc(x.id)+'</td>'+
       '<td>'+esc(typeLabel(x))+'</td>'+
       '<td>'+esc(x.applicant_username||x.applicant_nickname||'-')+'</td>'+
@@ -1677,7 +1685,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!table)return;
     var pager=ensurePager(table);
     inquiryServerPage=Math.max(1,page||1);
-    if(pager)pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
+    if(pager && !table.querySelector('.inquiry-row'))pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/inquiries?page='+inquiryServerPage+'&limit='+inquiryServerLimit,{headers:{'Accept':'application/json'}});
       var data=await res.json();
