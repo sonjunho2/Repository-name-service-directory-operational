@@ -1074,4 +1074,3 @@ app.get('/admin/api/qa-admin-core',admin,async(req,res)=>{
   res.json({ok:checks.every(x=>x.ok),checks});
 });
 
-a
