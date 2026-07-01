@@ -883,7 +883,7 @@ async function updateAdminUserRecord(req,userId){
   return (await q('SELECT id,username,nickname,role,status,COALESCE(is_vendor,false) is_vendor,vendor_id,created_at FROM users WHERE id=$1',[userId])).rows[0];
 }
 
-app.post('/admin/users/:id/update',admin,async(req,res)=>{
+app.post('/admin/users/:id/update',admin,upload.none(),async(req,res)=>{
   try{
     const userId=parseInt(req.params.id||req.body.id||0,10);
     const user=await updateAdminUserRecord(req,userId);
