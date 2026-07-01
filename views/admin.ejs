@@ -1599,6 +1599,7 @@ document.addEventListener('DOMContentLoaded',function(){
 (function(){
   var inquiryServerPage=1;
   var inquiryServerLimit=20;
+  window.__adminInquiryServerPage=inquiryServerPage;
 
   function typeLabel(x){
     return x.type==='apply'?'입점신청':'광고문의';
@@ -1685,6 +1686,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!table)return;
     var pager=ensurePager(table);
     inquiryServerPage=Math.max(1,page||1);
+    window.__adminInquiryServerPage=inquiryServerPage;
     if(pager && !table.querySelector('.inquiry-row'))pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/inquiries?page='+inquiryServerPage+'&limit='+inquiryServerLimit,{headers:{'Accept':'application/json'}});
@@ -1719,6 +1721,9 @@ document.addEventListener('DOMContentLoaded',function(){
   function maybeLoad(){
     if(activePanelId()==='inquiries')loadInquiries(inquiryServerPage||1);
   }
+  window.__loadAdminInquiries=function(page){
+    loadInquiries(page||inquiryServerPage||1);
+  };
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,220);});
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,220);});
   document.addEventListener('click',function(e){
@@ -1972,6 +1977,20 @@ document.addEventListener('DOMContentLoaded',function(){
       if(!res.ok)throw new Error('HTTP '+res.status);
 
       toast(meta.done,meta.type);
+
+      if(String(action||'').includes('/admin/inquiries/')){
+        var row=nearestRowOrBox(form);
+        if(row)row.classList.add('ajax-row-done');
+        setTimeout(function(){
+          if(typeof window.__loadAdminInquiries==='function'){
+            window.__loadAdminInquiries(window.__adminInquiryServerPage||1);
+          }else{
+            location.reload();
+          }
+        },250);
+        return;
+      }
+
       updateRowAfter(form,meta);
 
       if(meta.reload){
