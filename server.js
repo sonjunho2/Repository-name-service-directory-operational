@@ -1074,3 +1074,34 @@ app.get('/admin/api/qa-admin-core',admin,async(req,res)=>{
   res.json({ok:checks.every(x=>x.ok),checks});
 });
 
+
+
+app.use((req,res)=>{
+  res.status(404).send('<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>페이지를 찾을 수 없습니다</title><link rel="icon" href="/favicon.svg"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class="box"><h1>404</h1><p>요청하신 페이지를 찾을 수 없습니다.</p><a href="/">홈으로 이동</a></div></body></html>');
+});
+app.use((err,req,res,next)=>{
+  console.error('server error',err);
+  res.status(500).send('<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>오류가 발생했습니다</title><link rel="icon" href="/favicon.svg"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class="box"><h1>500</h1><p>일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p><a href="/">홈으로 이동</a></div></body></html>');
+});
+
+process.on('unhandledRejection',err=>{
+  console.error('unhandledRejection',err);
+});
+process.on('uncaughtException',err=>{
+  console.error('uncaughtException',err);
+});
+async function shutdown(signal){
+  console.log(signal+' received, closing database pool');
+  try{await pool.end();}catch(e){console.error('pool close failed',e);}
+  process.exit(0);
+}
+process.on('SIGTERM',()=>shutdown('SIGTERM'));
+process.on('SIGINT',()=>shutdown('SIGINT'));
+
+const port=process.env.PORT||3000;
+ensureSchema()
+  .then(()=>app.listen(port,()=>console.log('server on '+port)))
+  .catch(e=>{
+    console.error('ensureSchema failed',e);
+    process.exit(1);
+  });
