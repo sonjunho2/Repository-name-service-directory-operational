@@ -1903,7 +1903,13 @@ document.addEventListener('DOMContentLoaded',function(){
       loadReports(reportPage||1);
     }
   }
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,240);});
+  document.addEventListener('DOMContentLoaded',function(){
+    try{
+      var saved=sessionStorage.getItem('adminReturnPanel');
+      if(saved){sessionStorage.removeItem('adminReturnPanel'); showAdminPanel(saved); history.replaceState(null,'','#'+saved);}
+    }catch(e){}
+    setTimeout(maybeLoad,240);
+  });
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,240);});
   document.addEventListener('click',function(e){
     if(e.target&&e.target.matches('[data-panel],.admin-sidebar a')){
@@ -2004,10 +2010,12 @@ document.addEventListener('DOMContentLoaded',function(){
       var needsListRefresh=(
         formId==='vendorForm' ||
         formId==='bannerForm' ||
+        !!form.closest('#users') ||
         !!form.closest('#notices') ||
         !!form.closest('#reviews') ||
         !!form.closest('#inquiries') ||
         !!form.closest('#reports') ||
+        !!form.closest('#settings') ||
         (
           !!form.closest('#vendors') &&
           (actionPath.includes('/admin/vendor') || actionPath.includes('/admin/delete/vendors/'))
@@ -2029,7 +2037,14 @@ document.addEventListener('DOMContentLoaded',function(){
       );
       if(needsListRefresh){
         closeAdminEditorIfNeeded();
-        setTimeout(function(){location.reload();},520);
+        var panel=activePanelId ? activePanelId() : '';
+        if(panel){try{sessionStorage.setItem('adminReturnPanel',panel);}catch(e){}}
+        setTimeout(function(){
+          if(panel && location.hash !== '#'+panel){
+            location.hash=panel;
+          }
+          location.reload();
+        },520);
         return;
       }
 
