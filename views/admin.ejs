@@ -1994,7 +1994,28 @@ document.addEventListener('DOMContentLoaded',function(){
       updateRowAfter(form,meta);
 
       var actionPath=String(action||'').toLowerCase();
+      var formId=String(form.id||'');
+      function closeAdminEditorIfNeeded(){
+        var modal=document.getElementById('vendorModal');
+        if(modal&&modal.classList.contains('active')){
+          modal.classList.remove('active');
+        }
+      }
       var needsListRefresh=(
+        formId==='vendorForm' ||
+        formId==='bannerForm' ||
+        !!form.closest('#notices') ||
+        !!form.closest('#reviews') ||
+        !!form.closest('#inquiries') ||
+        !!form.closest('#reports') ||
+        (
+          !!form.closest('#vendors') &&
+          (actionPath.includes('/admin/vendor') || actionPath.includes('/admin/delete/vendors/'))
+        ) ||
+        (
+          !!form.closest('#banners') &&
+          (actionPath.includes('/admin/banner') || actionPath.includes('/admin/delete/banners/'))
+        ) ||
         (
           !!form.closest('#adCenter') &&
           (actionPath.includes('/admin/ad-requests/') || actionPath.includes('/admin/banner-requests/')) &&
@@ -2007,7 +2028,8 @@ document.addEventListener('DOMContentLoaded',function(){
         )
       );
       if(needsListRefresh){
-        setTimeout(function(){location.reload();},650);
+        closeAdminEditorIfNeeded();
+        setTimeout(function(){location.reload();},520);
         return;
       }
 
