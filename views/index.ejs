@@ -76,13 +76,13 @@
       <%
         const premiumVendors = vendors.filter(v=>v.banner_active);
         const bannerItems = (typeof banners !== 'undefined' ? banners : []).map(b=>({
-          id: 'banner-' + b.id,
+          id: b.vendor_id ? b.vendor_id : ('banner-' + b.id),
           name: b.title || '프리미엄 배너',
           region: b.subtitle || '슬라이드로 노출됩니다',
           category: '',
           image_data: b.image_data || null,
-          href: b.link_url || '#',
-          isBannerOnly: true
+          href: b.vendor_id ? ('/vendor/' + b.vendor_id) : (b.link_url || '#'),
+          isBannerOnly: !b.vendor_id
         }));
         const fallbackBanners = [
           {id:'dummy-1',name:'프리미엄 배너',region:'슬라이드로 노출됩니다',category:'',image_data:null,href:'#',isBannerOnly:true},
