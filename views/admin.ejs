@@ -2037,7 +2037,8 @@ document.addEventListener('DOMContentLoaded',function(){
       );
       if(needsListRefresh){
         closeAdminEditorIfNeeded();
-        var panel=activePanelId ? activePanelId() : '';
+        var activePanel=document.querySelector('.admin-panel.active');
+        var panel=activePanel ? activePanel.id : (location.hash||'').replace('#','');
         if(panel){try{sessionStorage.setItem('adminReturnPanel',panel);}catch(e){}}
         setTimeout(function(){
           if(panel && location.hash !== '#'+panel){
