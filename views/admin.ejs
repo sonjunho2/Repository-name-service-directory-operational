@@ -1943,10 +1943,14 @@ document.addEventListener('DOMContentLoaded',function(){
       target.classList.add('ajax-row-done');
       var buttons=target.querySelectorAll('button');
       buttons.forEach(function(b){b.disabled=true;});
-      var status=target.querySelector('.status-pending');
+      var status=target.querySelector('.status-pending,.pending');
       if(status){
-        status.className='status-on';
-        status.textContent='처리됨';
+        status.className='done status-on';
+        status.textContent='처리완료';
+      }
+      var actionCell=target.querySelector('td:last-child');
+      if(actionCell && form.closest('#vendorRequests')){
+        actionCell.innerHTML='<span class="done">처리완료</span>';
       }
     }
   }
@@ -1978,9 +1982,16 @@ document.addEventListener('DOMContentLoaded',function(){
 
       var actionPath=String(action||'').toLowerCase();
       var needsListRefresh=(
-        !!form.closest('#adCenter') &&
-        (actionPath.includes('/admin/ad-requests/') || actionPath.includes('/admin/banner-requests/')) &&
-        (actionPath.includes('/payment-confirm') || actionPath.includes('/reject') || actionPath.includes('/cancel'))
+        (
+          !!form.closest('#adCenter') &&
+          (actionPath.includes('/admin/ad-requests/') || actionPath.includes('/admin/banner-requests/')) &&
+          (actionPath.includes('/payment-confirm') || actionPath.includes('/reject') || actionPath.includes('/cancel'))
+        ) ||
+        (
+          !!form.closest('#vendorRequests') &&
+          actionPath.includes('/admin/vendor-requests/') &&
+          (actionPath.includes('/approve') || actionPath.includes('/reject'))
+        )
       );
       if(needsListRefresh){
         setTimeout(function(){location.reload();},650);
