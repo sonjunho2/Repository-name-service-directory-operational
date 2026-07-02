@@ -1351,6 +1351,8 @@ document.addEventListener('DOMContentLoaded',function(){
         info.textContent='총 '+data.total+'개 업체 · 현재 '+from+'-'+to+'개 표시';
         pager.appendChild(info);
       }
+      window.__adminVendorRowsById = window.__adminVendorRowsById || {};
+      (data.rows||[]).forEach(function(v){ window.__adminVendorRowsById[String(v.id)] = v; });
       vendorServerReady=true;
       if(window.applyPanelPagination)try{window.applyPanelPagination(true);}catch(e){}
     }catch(e){
@@ -2611,4 +2613,102 @@ document.addEventListener('DOMContentLoaded',function(){
   form.addEventListener('submit',normalizeVendorAd);
 })();
 </script>
+
+
+<script>
+(function(){
+  if(window.__vendorEditDelegatedFixV31)return;
+  window.__vendorEditDelegatedFixV31=true;
+
+  function setVal(form,name,value){
+    var el=form&&form.elements&&form.elements[name];
+    if(!el)return;
+    el.value=value==null?'':value;
+  }
+  function setChecked(form,name,value){
+    var el=form&&form.elements&&form.elements[name];
+    if(!el)return;
+    el.checked=!!value;
+  }
+  function showPreviewSafe(src,text){
+    var box=document.getElementById('vendorImagePreview');
+    if(!box)return;
+    var img=box.querySelector('img');
+    var span=box.querySelector('span');
+    if(src){
+      if(img)img.src=src;
+      box.style.display='flex';
+      if(span)span.textContent=text||'현재 등록된 업체 이미지입니다. 새 파일 선택 시 교체됩니다.';
+    }else{
+      box.style.display='none';
+      if(img)img.removeAttribute('src');
+    }
+  }
+  function openVendorModalForEdit(){
+    var modal=document.getElementById('vendorModal');
+    var title=document.getElementById('vendorModalTitle');
+    var submit=document.getElementById('vendorSubmitBtn');
+    var cancel=document.getElementById('cancelVendorEdit');
+    if(title)title.textContent='업체 수정';
+    if(submit)submit.textContent='업체 수정 저장';
+    if(cancel)cancel.style.display='block';
+    if(modal){
+      modal.classList.add('active');
+      document.body.style.overflow='hidden';
+    }
+  }
+  function fillVendorForm(v,row){
+    var form=document.getElementById('vendorForm');
+    if(!form||!v)return;
+    setVal(form,'id',v.id||'');
+    setVal(form,'name',v.name||row?.dataset.vendorName||'');
+    setVal(form,'category',v.category||row?.dataset.category||'');
+    setVal(form,'region',v.region||row?.dataset.region||'');
+    setVal(form,'phone',v.phone||'');
+    setVal(form,'kakao_url',v.kakao_url||'');
+    setVal(form,'business_hours',v.business_hours||row?.dataset.businessHours||'');
+    setVal(form,'tags',v.tags||'');
+    setVal(form,'status',v.status||row?.dataset.status||'active');
+    setVal(form,'description',v.description||'');
+    setVal(form,'ad_type',v.ad_type||row?.dataset.adType||'none');
+    setVal(form,'expire_at',String(v.expire_at||row?.dataset.expire||'').slice(0,10));
+    setChecked(form,'banner_active',!!v.banner_active || row?.dataset.bannerActive==='1');
+    if(form.elements.banner_active&&form.elements.banner_active.checked&&form.elements.ad_type){
+      form.elements.ad_type.value='recommended';
+    }
+    showPreviewSafe(v.image_data||'', '현재 등록된 업체 이미지입니다. 새 파일 선택 시 교체됩니다.');
+    openVendorModalForEdit();
+  }
+  function findVendor(id){
+    var key=String(id||'');
+    var cached=window.__adminVendorRowsById&&window.__adminVendorRowsById[key];
+    if(cached)return cached;
+    if(Array.isArray(window.ADMIN_VENDORS)){
+      return window.ADMIN_VENDORS.find(function(x){return String(x.id)===key;});
+    }
+    return null;
+  }
+  document.addEventListener('click',function(e){
+    var btn=e.target&&e.target.closest&&e.target.closest('.edit-vendor-btn');
+    if(!btn)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var row=btn.closest('.vendor-row');
+    var id=btn.dataset.id || (row&&row.dataset.id);
+    var v=findVendor(id) || {
+      id:id,
+      name:row&&row.dataset.vendorName,
+      region:row&&row.dataset.region,
+      category:row&&row.dataset.category,
+      business_hours:row&&row.dataset.businessHours,
+      status:row&&row.dataset.status,
+      ad_type:row&&row.dataset.adType,
+      expire_at:row&&row.dataset.expire,
+      banner_active:row&&row.dataset.bannerActive==='1'
+    };
+    fillVendorForm(v,row);
+  },true);
+})();
+</script>
+
 </body></html>
