@@ -390,7 +390,20 @@ async function runAdminAction(req,res,redirectTo,fn){
     return sendFail(req,res,500,e.message||'관리자 작업 처리 중 오류가 발생했습니다.',redirectTo);
   }
 }
-app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,'SELECT * FROM vendors ORDER BY id DESC','SELECT COUNT(*) FROM vendors'));
+app.get('/admin/api/vendor/:id',admin,async(req,res)=>{
+  const vendorId=parseInt(req.params.id||0,10);
+  if(!vendorId)return res.status(400).json({ok:false,error:'잘못된 업체입니다.'});
+  const r=await q(`SELECT v.*,
+    (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id ASC LIMIT 1) AS linked_username,
+    (SELECT u.id FROM users u WHERE u.vendor_id=v.id ORDER BY u.id ASC LIMIT 1) AS linked_user_id
+    FROM vendors v WHERE v.id=$1`,[vendorId]);
+  if(!r.rows[0])return res.status(404).json({ok:false,error:'업체를 찾을 수 없습니다.'});
+  res.json({ok:true,vendor:r.rows[0]});
+});
+app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,`SELECT v.*,
+  (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id ASC LIMIT 1) AS linked_username,
+  (SELECT u.id FROM users u WHERE u.vendor_id=v.id ORDER BY u.id ASC LIMIT 1) AS linked_user_id
+  FROM vendors v ORDER BY v.id DESC`,'SELECT COUNT(*) FROM vendors'));
 app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT id,username,nickname,role,status,COALESCE(is_vendor,false) is_vendor,vendor_id,created_at FROM users ORDER BY id DESC','SELECT COUNT(*) FROM users'));
 app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
@@ -478,7 +491,7 @@ app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('S
 app.get('/admin',admin,async(req,res)=>{await expireAds();
   const dashStats={};
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
-const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC LIMIT 300'),q('SELECT * FROM vendors ORDER BY id DESC LIMIT 500'),q('SELECT * FROM banners ORDER BY sort_order,id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]); 
+const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC LIMIT 300'),q(`SELECT v.*, (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id ASC LIMIT 1) AS linked_username, (SELECT u.id FROM users u WHERE u.vendor_id=v.id ORDER BY u.id ASC LIMIT 1) AS linked_user_id FROM vendors v ORDER BY v.id DESC LIMIT 500`),q('SELECT * FROM banners ORDER BY sort_order,id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]); 
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];
@@ -1046,7 +1059,7 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   req.body.description=(req.body.description||'').trim().slice(0,3000);
   req.body.business_hours=(req.body.business_hours||'').trim().slice(0,200);
   if(!req.body.name)return res.redirect('/admin#vendors');
-  const adType=['none','recommended','premium','banner'].includes(req.body.ad_type)?req.body.ad_type:'none';
+  const adType=['none','general','recommended','premium','banner'].includes(req.body.ad_type)?req.body.ad_type:'none';
   const membership=adType==='recommended'?'recommended':'general';
   const bannerActive=!!req.body.banner_active;
   const isRecommended=adType==='recommended';

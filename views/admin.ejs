@@ -547,12 +547,12 @@
 </form>
   </div>
 </div><div class="vendor-admin-filter"><input id="vendorSearch" placeholder="업체명 검색"><select id="vendorTypeFilter"><option value="all">전체 광고</option><option value="noad">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option><option value="banner">프리미엄배너</option><option value="expiring">7일 이내 만료</option></select><select id="vendorStatusFilter"><option value="all">전체 상태</option><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select><select id="vendorSortFilter"><option value="default">기본순</option><option value="views">조회수순</option><option value="reviews">후기순</option><option value="rating">평점순</option><option value="latest">최신등록순</option></select><button type="button" id="vendorFilterReset">초기화</button></div>
-<table><tr><th>ID</th><th>구분</th><th>업체명</th><th>지역/업종</th><th>조회</th><th>후기</th><th>평점</th><th>만기상태</th><th>영업시간</th><th>상태</th><th>관리</th></tr><% vendors.forEach(v=>{ const t=v.is_premium?'premium':v.is_recommended?'recommend':'normal'; const st=vendorReviewStats[v.id]||{count:0,sum:0}; const avg=st.count?(st.sum/st.count).toFixed(1):'-'; %><tr class="vendor-row" data-id="<%=v.id%>" data-views="<%=v.views||0%>" data-reviews="<%=st.count%>" data-rating="<%=avg==='-'?0:avg%>" data-ad-type="<%=v.ad_type||'none'%>" data-membership="<%=v.ad_type||'none'%>" data-expire="<%=v.expire_at||''%>" data-banner-active="<%=v.banner_active?'1':'0'%>" data-banner-until="<%=v.banner_until?fmtDate(v.banner_until):''%>" data-name="<%=String(v.name||'').toLowerCase()%>" data-type="<%=(!v.ad_type||v.ad_type==='none')?'noad':v.banner_active?'banner':v.ad_type==='recommended'?'recommended':'general'%>" data-expiring="<% const _dlFilter=(v.expire_at?Math.ceil((new Date(v.expire_at).setHours(0,0,0,0)-new Date().setHours(0,0,0,0))/(1000*60*60*24)):9999); %><%=_dlFilter>=0&&_dlFilter<=7?'1':'0'%>" data-status="<%=v.status%>" data-region="<%=v.region||''%>" data-category="<%=v.category||''%>" data-vendor-name="<%=v.name||''%>" data-business-hours="<%=v.business_hours||''%>"><td><%=v.id%></td><td>
+<table><tr><th>ID</th><th>구분</th><th>업체명</th><th>연결아이디</th><th>지역/업종</th><th>조회</th><th>후기</th><th>평점</th><th>만기상태</th><th>영업시간</th><th>상태</th><th>관리</th></tr><% vendors.forEach(v=>{ const t=v.is_premium?'premium':v.is_recommended?'recommend':'normal'; const st=vendorReviewStats[v.id]||{count:0,sum:0}; const avg=st.count?(st.sum/st.count).toFixed(1):'-'; %><tr class="vendor-row" data-id="<%=v.id%>" data-views="<%=v.views||0%>" data-reviews="<%=st.count%>" data-rating="<%=avg==='-'?0:avg%>" data-ad-type="<%=v.ad_type||'none'%>" data-membership="<%=v.ad_type||'none'%>" data-expire="<%=v.expire_at||''%>" data-banner-active="<%=v.banner_active?'1':'0'%>" data-banner-until="<%=v.banner_until?fmtDate(v.banner_until):''%>" data-name="<%=String(v.name||'').toLowerCase()%>" data-type="<%=(!v.ad_type||v.ad_type==='none')?'noad':v.banner_active?'banner':v.ad_type==='recommended'?'recommended':'general'%>" data-expiring="<% const _dlFilter=(v.expire_at?Math.ceil((new Date(v.expire_at).setHours(0,0,0,0)-new Date().setHours(0,0,0,0))/(1000*60*60*24)):9999); %><%=_dlFilter>=0&&_dlFilter<=7?'1':'0'%>" data-status="<%=v.status%>" data-region="<%=v.region||''%>" data-category="<%=v.category||''%>" data-vendor-name="<%=v.name||''%>" data-business-hours="<%=v.business_hours||''%>"><td><%=v.id%></td><td>
   <div class="vendor-ad-status">
     <%- v.banner_active?'<span class="ad-badge ad-banner">추천광고 + 프리미엄배너</span>':v.ad_type==='recommended'?'<span class="ad-badge ad-recommended">추천광고</span>':v.ad_type==='general'?'<span class="ad-badge ad-general">일반광고</span>':'<span class="ad-badge ad-none">광고없음</span>' %>
     <small><%=v.banner_active?'배너 사용중':'배너 없음'%></small>
   </div>
-</td><td><%=v.name%></td><td><%=v.region%>/<%=v.category%></td><td class="stat-cell"><%=v.views||0%></td><td class="stat-cell"><%=st.count%></td><td class="stat-cell"><%=avg==='-'?'-':'★ '+avg%></td>
+</td><td><%=v.name%></td><td><%=v.linked_username||"-"%></td><td><%=v.region%>/<%=v.category%></td><td class="stat-cell"><%=v.views||0%></td><td class="stat-cell"><%=st.count%></td><td class="stat-cell"><%=avg==='-'?'-':'★ '+avg%></td>
 <td>
   <% const _todayVendor=new Date(); _todayVendor.setHours(0,0,0,0); let _daysLeft=null; if(v.expire_at){ const _exp=new Date(v.expire_at); _exp.setHours(0,0,0,0); _daysLeft=Math.ceil((_exp-_todayVendor)/(1000*60*60*24)); } %>
   <% if(!v.expire_at){%><span class="expiry-badge expiry-empty">만기없음</span><%}else if(_daysLeft<0||v.status==='expired'){%><span class="expiry-badge expiry-expired">만료</span><%}else if(_daysLeft<=7){%><span class="expiry-badge expiry-soon"><%=_daysLeft%>일 남음</span><%}else{%><span class="expiry-badge expiry-ok"><%=_daysLeft%>일 남음</span><%}%>
@@ -1139,11 +1139,107 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
     });
   }
 
-  document.querySelectorAll('.edit-vendor-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      setTimeout(()=>openModal('edit'),0);
+  window.ADMIN_VENDOR_INDEX = window.ADMIN_VENDOR_INDEX || {};
+  try{
+    (window.ADMIN_VENDORS||[]).forEach(function(v){
+      if(v&&v.id!=null) window.ADMIN_VENDOR_INDEX[String(v.id)] = v;
     });
-  });
+  }catch(e){}
+
+  function dateValue(v){
+    if(!v)return '';
+    var s=String(v);
+    if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+    var d=new Date(v);
+    if(Number.isNaN(d.getTime()))return '';
+    return d.toISOString().slice(0,10);
+  }
+
+  function setValue(name,value){
+    var el=form.elements[name];
+    if(!el)return;
+    if(el.type==='checkbox'){
+      el.checked=!!value;
+      return;
+    }
+    el.value=value==null?'':String(value);
+  }
+
+  function normalizeAdType(v){
+    var ad=v&&v.ad_type?v.ad_type:'none';
+    if(ad==='banner'||ad==='premium')return 'recommended';
+    return ['none','general','recommended'].includes(ad)?ad:'none';
+  }
+
+  function fillVendorForm(v){
+    if(!v)return;
+    form.reset();
+    setValue('id',v.id);
+    setValue('name',v.name);
+    setValue('category',v.category);
+    setValue('region',v.region);
+    setValue('phone',v.phone);
+    setValue('kakao_url',v.kakao_url);
+    setValue('tags',v.tags);
+    setValue('business_hours',v.business_hours);
+    setValue('description',v.description);
+    setValue('status',v.status||'active');
+    setValue('ad_type',normalizeAdType(v));
+    setValue('expire_at',dateValue(v.expire_at));
+    setValue('banner_until',dateValue(v.banner_until));
+    setValue('banner_active',!!v.banner_active);
+    setValue('is_recommended',!!v.is_recommended || v.ad_type==='recommended' || !!v.banner_active);
+    setValue('is_premium',!!v.is_premium || !!v.banner_active);
+    setValue('sns_url',v.sns_url);
+    setValue('line_url',v.line_url);
+    setValue('telegram_url',v.telegram_url);
+    setValue('holiday_info',v.holiday_info);
+    var preview=document.getElementById('vendorImagePreview');
+    var img=preview&&preview.querySelector('img');
+    if(preview&&img&&v.image_data){
+      img.src=v.image_data;
+      preview.style.display='flex';
+    }else if(preview){
+      preview.style.display='none';
+    }
+    if(cancelBtn) cancelBtn.style.display='inline-flex';
+  }
+
+  async function getVendorForEdit(id){
+    if(!id)return null;
+    try{
+      var res=await fetch('/admin/api/vendor/'+encodeURIComponent(id),{headers:{'Accept':'application/json'}});
+      var data=await res.json();
+      if(data&&data.ok&&data.vendor){
+        window.ADMIN_VENDOR_INDEX[String(data.vendor.id)] = data.vendor;
+        return data.vendor;
+      }
+    }catch(e){}
+    return window.ADMIN_VENDOR_INDEX[String(id)] || null;
+  }
+
+  document.addEventListener('click',async function(e){
+    var btn=e.target&&e.target.closest&&e.target.closest('.edit-vendor-btn');
+    if(!btn)return;
+    e.preventDefault();
+    e.stopPropagation();
+    var id=btn.dataset.id;
+    var oldText=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='불러오는 중';
+    try{
+      var vendor=await getVendorForEdit(id);
+      if(!vendor){
+        alert('업체 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.');
+        return;
+      }
+      fillVendorForm(vendor);
+      openModal('edit');
+    }finally{
+      btn.disabled=false;
+      btn.textContent=oldText;
+    }
+  },true);
 
   if(closeBtn) closeBtn.addEventListener('click',closeModal);
   if(cancelBtn) cancelBtn.addEventListener('click',closeModal);
@@ -1262,6 +1358,7 @@ document.addEventListener('DOMContentLoaded',function(){
       '<td>'+esc(v.id)+'</td>'+
       '<td><div class="vendor-ad-status">'+adBadge(v)+'</div></td>'+
       '<td>'+esc(v.name||'')+'</td>'+
+      '<td>'+esc(v.linked_username||'-')+'</td>'+
       '<td>'+esc(v.region||'')+'/'+esc(v.category||'')+'</td>'+
       '<td class="stat-cell">'+esc(v.views||0)+'</td>'+
       '<td class="stat-cell">-</td>'+
@@ -1337,6 +1434,10 @@ document.addEventListener('DOMContentLoaded',function(){
       table.innerHTML='';
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(v){
+        if(v&&v.id!=null){
+          window.ADMIN_VENDOR_INDEX = window.ADMIN_VENDOR_INDEX || {};
+          window.ADMIN_VENDOR_INDEX[String(v.id)] = v;
+        }
         table.insertAdjacentHTML('beforeend',rowHtml(v));
       });
       if(pager){
