@@ -75,26 +75,31 @@
     <div class="premium-track">
       <%
         const premiumVendors = vendors.filter(v=>v.banner_active);
-        const bannerItems = (typeof banners !== 'undefined' ? banners : []).map(b=>({
-          id: b.vendor_id ? b.vendor_id : ('banner-' + b.id),
-          name: b.title || '프리미엄 배너',
-          region: b.subtitle || '슬라이드로 노출됩니다',
-          category: '',
-          image_data: b.image_data || null,
-          href: b.vendor_id ? ('/vendor/' + b.vendor_id) : (b.link_url || '#'),
-          isBannerOnly: !b.vendor_id
-        }));
+        // 관리자 직접 배너는 업체연동 배너와 함께 프리미엄 슬라이더에 노출합니다.
+        // vendor_id가 있는 banners 행은 premiumVendors와 중복될 수 있어 관리자직접 배너만 별도로 합칩니다.
+        const bannerItems = (typeof banners !== 'undefined' ? banners : [])
+          .filter(b=>!b.vendor_id)
+          .map(b=>({
+            id: 'banner-' + b.id,
+            name: b.title || '프리미엄 배너',
+            region: b.subtitle || '슬라이드로 노출됩니다',
+            category: '',
+            image_data: b.image_data || null,
+            href: b.link_url || '#',
+            isBannerOnly: true
+          }));
         const fallbackBanners = [
           {id:'dummy-1',name:'프리미엄 배너',region:'슬라이드로 노출됩니다',category:'',image_data:null,href:'#',isBannerOnly:true},
           {id:'dummy-2',name:'광고 배너',region:'대표이미지/GIF 노출 영역',category:'',image_data:null,href:'#',isBannerOnly:true},
           {id:'dummy-3',name:'이벤트 배너',region:'관리자 배너목록으로 관리',category:'',image_data:null,href:'#',isBannerOnly:true}
         ];
-        const sourcePremium = premiumVendors.length ? premiumVendors : (bannerItems.length ? bannerItems : fallbackBanners);
+        const mergedPremiumItems = premiumVendors.concat(bannerItems);
+        const sourcePremium = mergedPremiumItems.length ? mergedPremiumItems : fallbackBanners;
         const premiumLoop = [];
         for(let i=0;i<6;i++){ sourcePremium.forEach(v=>premiumLoop.push(v)); }
       %>
       <% premiumLoop.forEach(v=>{ %>
-        <a class="card vendor-open premium" href="<%=v.href || ('/vendor/' + v.id)%>" <%- v.isBannerOnly ? '' : ('data-vendor-id="' + v.id + '"') %>>
+        <a class="card <%=v.isBannerOnly ? 'premium banner-direct-open' : 'vendor-open premium'%>" href="<%=v.href || ('/vendor/' + v.id)%>" <%- v.isBannerOnly ? '' : ('data-vendor-id="' + v.id + '"') %>>
           <div class="thumb">
             <% if(v.image_data){%><img src="<%=v.image_data%>" alt="" loading="lazy" decoding="async"><%} else {%><div class="noimg">IMAGE</div><%}%>
           </div>
