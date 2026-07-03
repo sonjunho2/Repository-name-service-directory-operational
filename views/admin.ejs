@@ -2760,25 +2760,60 @@ document.addEventListener('DOMContentLoaded',function(){
     }
     return null;
   }
-  document.addEventListener('click',function(e){
+  function hasEnoughVendorDetail(v){
+    if(!v)return false;
+    return !!(v.name || v.phone || v.kakao_url || v.business_hours || v.tags || v.description || v.image_data || v.category || v.region);
+  }
+  async function fetchVendorDetail(id){
+    var key=String(id||'');
+    if(!key)return null;
+    var res=await fetch('/admin/api/vendors/'+encodeURIComponent(key),{
+      credentials:'same-origin',
+      headers:{'Accept':'application/json','X-Requested-With':'fetch'}
+    });
+    var data=null;
+    try{data=await res.json();}catch(e){}
+    if(!res.ok || !data || data.ok===false || !data.vendor){
+      throw new Error((data&&data.error)||('HTTP '+res.status));
+    }
+    window.__adminVendorRowsById=window.__adminVendorRowsById||{};
+    window.__adminVendorRowsById[key]=data.vendor;
+    if(Array.isArray(window.ADMIN_VENDORS)){
+      var idx=window.ADMIN_VENDORS.findIndex(function(x){return String(x.id)===key;});
+      if(idx>=0)window.ADMIN_VENDORS[idx]=data.vendor;
+      else window.ADMIN_VENDORS.push(data.vendor);
+    }
+    return data.vendor;
+  }
+  document.addEventListener('click',async function(e){
     var btn=e.target&&e.target.closest&&e.target.closest('.edit-vendor-btn');
     if(!btn)return;
     e.preventDefault();
     e.stopImmediatePropagation();
     var row=btn.closest('.vendor-row');
     var id=btn.dataset.id || (row&&row.dataset.id);
-    var v=findVendor(id) || {
-      id:id,
-      name:row&&row.dataset.vendorName,
-      region:row&&row.dataset.region,
-      category:row&&row.dataset.category,
-      business_hours:row&&row.dataset.businessHours,
-      status:row&&row.dataset.status,
-      ad_type:row&&row.dataset.adType,
-      expire_at:row&&row.dataset.expire,
-      banner_active:row&&row.dataset.bannerActive==='1'
-    };
-    fillVendorForm(v,row);
+    var fromBannerPanel=!!btn.closest('#banners');
+    var oldText=btn.textContent;
+    btn.disabled=true;
+    btn.textContent='불러오는중...';
+    try{
+      var v=findVendor(id);
+      // 배너목록의 업체연동 행은 별도 배너 row라 업체 상세정보가 부족할 수 있으므로 항상 최신 업체정보를 서버에서 다시 가져옵니다.
+      if(fromBannerPanel || !hasEnoughVendorDetail(v)){
+        var fresh=await fetchVendorDetail(id);
+        if(fresh)v=fresh;
+      }
+      if(!v){
+        toast('업체 정보를 찾지 못했습니다.','bad');
+        return;
+      }
+      fillVendorForm(v,row);
+    }catch(err){
+      toast('업체 정보를 불러오지 못했습니다.','bad',err&&err.message?err.message:'잠시 후 다시 시도해주세요.');
+    }finally{
+      btn.disabled=false;
+      btn.textContent=oldText;
+    }
   },true);
 })();
 </script>

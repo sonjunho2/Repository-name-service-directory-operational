@@ -391,6 +391,18 @@ async function runAdminAction(req,res,redirectTo,fn){
   }
 }
 app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,'SELECT * FROM vendors ORDER BY id DESC','SELECT COUNT(*) FROM vendors'));
+app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
+  try{
+    const id=parseInt(req.params.id||'0',10);
+    if(!id)return res.status(400).json({ok:false,error:'bad_vendor_id'});
+    const r=await q(`SELECT v.*,u.username linked_username,u.nickname linked_nickname FROM vendors v LEFT JOIN users u ON u.vendor_id=v.id WHERE v.id=$1`,[id]);
+    if(!r.rows[0])return res.status(404).json({ok:false,error:'vendor_not_found'});
+    res.json({ok:true,vendor:r.rows[0]});
+  }catch(e){
+    console.error('admin vendor detail failed',e);
+    res.status(500).json({ok:false,error:e.message||'vendor_detail_failed'});
+  }
+});
 app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT id,username,nickname,role,status,COALESCE(is_vendor,false) is_vendor,vendor_id,created_at FROM users ORDER BY id DESC','SELECT COUNT(*) FROM users'));
 app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
