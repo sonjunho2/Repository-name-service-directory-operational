@@ -26,8 +26,16 @@
 @keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
 .file-guide{border:1px dashed #10d9ff;background:#06111c;border-radius:12px;padding:12px;margin:10px 0;color:#dfe9ff}
 .file-guide b{color:#10d9ff}
+.image-spec-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.image-spec-grid span{display:block;border:1px solid #29324f;background:#070b15;border-radius:10px;padding:10px;color:#dfe9ff;font-size:13px;line-height:1.35}
+.image-spec-grid strong{display:block;color:#10d9ff;margin-bottom:4px;font-size:12px}
+.image-current-preview{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:center;border:1px solid #29324f;background:#070b15;border-radius:14px;padding:12px;margin:12px 0}
+.image-current-preview .preview-frame{width:120px;aspect-ratio:4/5;border-radius:12px;overflow:hidden;border:1px solid #29324f;background:#050913}
+.image-current-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.image-current-preview b{display:block;color:#fff;margin-bottom:6px}
+.image-current-preview small{display:block;color:#8d98b8;line-height:1.45}
 .banner-preview{display:flex;gap:12px;align-items:center;border:1px solid #29324f;background:#070b15;border-radius:14px;padding:12px;margin:12px 0}
-.banner-preview img{width:120px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #29324f}
+.banner-preview img{width:120px;height:150px;object-fit:cover;border-radius:10px;border:1px solid #29324f;background:#050913}
 .vendor-home-section{margin-top:18px}
 .vendor-status-list{display:grid;gap:10px}
 .vendor-status-item{border:1px solid #29324f;background:#070b15;border-radius:14px;padding:14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
@@ -39,8 +47,8 @@
 .vendor-status-approved{background:#123b2b;color:#1fe087}
 .vendor-status-rejected,.vendor-status-cancelled{background:#3b1212;color:#ff6b6b}
 .vendor-empty{border:1px dashed #29324f;background:#070b15;border-radius:14px;padding:16px;color:#8d98b8}
-@media(max-width:900px){.vendor-status-item{grid-template-columns:1fr}}
-.vendor-stat-note{display:block;margin-top:8px;color:#8d98b8;font-size:12px;font-weight:700;line-height:1.35}.vendor-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px}.vendor-stat-card{background:#070b15;border:1px solid #29324f;border-radius:14px;padding:16px;min-height:104px;box-sizing:border-box}.vendor-stat-card b{display:block;color:#8d98b8;margin-bottom:8px}.vendor-stat-card strong{display:block;font-size:26px;color:#10d9ff;line-height:1.2;word-break:keep-all}.vendor-stat-card.good{border-color:#1fe087;background:linear-gradient(135deg,rgba(31,224,135,.12),rgba(16,217,255,.04))}.vendor-stat-card.warn{border-color:#ffdc4d;background:linear-gradient(135deg,rgba(255,220,77,.14),rgba(16,217,255,.04))}.vendor-stat-card.danger{border-color:#ff6b6b;background:linear-gradient(135deg,rgba(255,107,107,.16),rgba(255,63,180,.04))}.vendor-insight{margin-top:14px;border:1px solid #29324f;border-radius:14px;background:#070b15;padding:14px;color:#dfe9ff;line-height:1.6}.vendor-insight b{color:#10d9ff}@media(max-width:1180px){.vendor-stat-grid,.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.vendor-stat-grid,.grid{grid-template-columns:1fr}.layout{grid-template-columns:1fr}.side{position:static}}header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:#080d18;border-bottom:1px solid #29324f;box-sizing:border-box}
+@media(max-width:900px){.vendor-status-item,.image-current-preview{grid-template-columns:1fr}.image-current-preview .preview-frame{width:160px}}
+.vendor-stat-note{display:block;margin-top:8px;color:#8d98b8;font-size:12px;font-weight:700;line-height:1.35}.vendor-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px}.vendor-stat-card{background:#070b15;border:1px solid #29324f;border-radius:14px;padding:16px;min-height:104px;box-sizing:border-box}.vendor-stat-card b{display:block;color:#8d98b8;margin-bottom:8px}.vendor-stat-card strong{display:block;font-size:26px;color:#10d9ff;line-height:1.2;word-break:keep-all}.vendor-stat-card.good{border-color:#1fe087;background:linear-gradient(135deg,rgba(31,224,135,.12),rgba(16,217,255,.04))}.vendor-stat-card.warn{border-color:#ffdc4d;background:linear-gradient(135deg,rgba(255,220,77,.14),rgba(16,217,255,.04))}.vendor-stat-card.danger{border-color:#ff6b6b;background:linear-gradient(135deg,rgba(255,107,107,.16),rgba(255,63,180,.04))}.vendor-insight{margin-top:14px;border:1px solid #29324f;border-radius:14px;background:#070b15;padding:14px;color:#dfe9ff;line-height:1.6}.vendor-insight b{color:#10d9ff}@media(max-width:1180px){.vendor-stat-grid,.grid,.image-spec-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.vendor-stat-grid,.grid,.image-spec-grid{grid-template-columns:1fr}.layout{grid-template-columns:1fr}.side{position:static}}header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;background:#080d18;border-bottom:1px solid #29324f;box-sizing:border-box}
 header b{font-size:18px;color:#fff}
 header span{display:flex;align-items:center;gap:14px}
 header a{color:#c8d0e8;text-decoration:none;font-weight:800}
@@ -76,7 +84,7 @@ header a:hover{color:#10d9ff}
 .table th,.table td{padding:12px 14px}
 .table th{font-weight:900;color:#eef3ff}
 .actions{gap:10px}
-.banner-preview img{width:132px;height:88px}
+.banner-preview img{width:132px;height:165px}
 @media(max-width:1180px){
   .wrap{max-width:980px}
   .layout{grid-template-columns:210px minmax(0,1fr)}
@@ -232,11 +240,23 @@ header a:hover{color:#10d9ff}
             <textarea name="description" placeholder="소개"><%=vendor.description||''%></textarea>
             <div class="file-guide">
               <b>대표 이미지/GIF 권장 규격</b><br>
-              권장 크기: 가로 1200px 이상 / 비율 16:9 또는 4:3<br>
-              권장 용량: 5MB 이하<br>
-              가능 파일: JPG, PNG, WEBP, GIF<br>
-              이 이미지는 일반광고, 추천광고, 프리미엄배너에 공통으로 사용됩니다.
+              홈의 프리미엄/추천/일반 업체카드는 같은 4:5 박스로 노출됩니다. 이미지가 잘리지 않게 아래 기준으로 제작해 주세요.
+              <div class="image-spec-grid">
+                <span><strong>권장 크기</strong>720 × 900px</span>
+                <span><strong>권장 비율</strong>4:5 세로형</span>
+                <span><strong>파일 형식</strong>JPG / PNG / WEBP / GIF</span>
+                <span><strong>최대 용량</strong>5MB 이하</span>
+              </div>
             </div>
+            <% if(vendor.image_data){ %>
+              <div class="image-current-preview">
+                <div class="preview-frame"><img src="<%=vendor.image_data%>" alt="현재 대표이미지"></div>
+                <div>
+                  <b>현재 대표 이미지</b>
+                  <small>홈 카드에서는 이 이미지가 4:5 박스에 맞춰 표시됩니다. 새 이미지를 선택하면 관리자 승인 후 교체됩니다.</small>
+                </div>
+              </div>
+            <% } %>
             <input type="file" name="image" accept="image/*">
             <button>수정요청 보내기</button>
           </form>
@@ -309,16 +329,17 @@ header a:hover{color:#10d9ff}
             </form>
           <% } else { %>
             <div class="file-guide">
-              <b>배너 이미지는 업체 대표 이미지/GIF를 그대로 사용합니다.</b><br>
-              이미지를 바꾸려면 먼저 [업체정보 수정]에서 대표 이미지를 변경 요청하세요.<br>
-              권장 크기: 가로 1200px 이상 / 권장 용량 5MB 이하 / JPG, PNG, WEBP, GIF
+              <b>프리미엄배너 이미지는 업체 대표 이미지/GIF를 그대로 사용합니다.</b><br>
+              홈 프리미엄, 추천업체, 일반업체가 같은 카드 규격을 사용하므로 대표 이미지는 720 × 900px / 4:5 세로형을 권장합니다.<br>
+              이미지를 바꾸려면 먼저 [업체정보 수정]에서 대표 이미지 변경 요청을 보내세요.
             </div>
             <% if(vendor.image_data){ %>
               <div class="banner-preview">
                 <img src="<%=vendor.image_data%>" alt="현재 대표이미지">
                 <div>
                   <b>현재 배너로 사용될 이미지</b><br>
-                  일반광고/추천광고/프리미엄배너에 공통 사용됩니다.
+                  일반광고/추천광고/프리미엄배너에 공통 사용됩니다.<br>
+                  <small>홈에서는 4:5 카드 박스에 맞춰 표시됩니다.</small>
                 </div>
               </div>
             <% } else { %>
