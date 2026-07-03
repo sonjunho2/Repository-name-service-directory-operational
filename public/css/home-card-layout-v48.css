@@ -154,6 +154,85 @@
 }
 .card.vendor-open.normal-card .ad-card-meta em{display:none!important}
 
+/* 업체정보 팝업: 카드 이미지와 같은 4:5 기준으로 정렬 */
+#vendorModal #vendorModalContent{
+  padding:28px!important;
+}
+#vendorModal .modal-vendor-info{
+  padding-bottom:16px!important;
+  margin-bottom:20px!important;
+}
+#vendorModal .modal-vendor-info h2{
+  font-size:clamp(28px,4vw,38px)!important;
+  line-height:1.12!important;
+  margin:12px 0 8px!important;
+}
+#vendorModal .modal-vendor-info p{
+  font-size:14px!important;
+  line-height:1.55!important;
+}
+#vendorModal .modal-vendor-head{
+  display:grid!important;
+  grid-template-columns:minmax(240px,340px) minmax(0,1fr)!important;
+  gap:20px!important;
+  align-items:stretch!important;
+}
+#vendorModal .modal-vendor-photo{
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  aspect-ratio:4/5!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  background:#050913!important;
+}
+#vendorModal .modal-vendor-photo img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  display:block!important;
+}
+#vendorModal .modal-info-list{
+  height:auto!important;
+  min-height:0!important;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  grid-template-rows:auto auto!important;
+  gap:14px!important;
+}
+#vendorModal .modal-info-box{
+  min-height:142px!important;
+  height:auto!important;
+  padding:18px!important;
+  border-radius:16px!important;
+}
+#vendorModal .modal-info-box b{
+  font-size:17px!important;
+  margin-bottom:10px!important;
+}
+#vendorModal .modal-info-box span{
+  font-size:16px!important;
+  line-height:1.5!important;
+}
+#vendorModal .call-btn,
+#vendorModal a[target="_blank"]{
+  min-width:124px!important;
+  height:42px!important;
+  font-size:14px!important;
+}
+#vendorModal .modal-section{
+  margin-top:22px!important;
+  padding-top:20px!important;
+}
+#vendorModal .modal-section h3{
+  font-size:22px!important;
+}
+#vendorModal .vendor-desc{
+  font-size:15px!important;
+  line-height:1.8!important;
+}
+
 /* 큰 화면에서 우측 게시판이 사라지는 구간은 4칸 유지, 작은 화면은 2/1칸 */
 @media(max-width:1120px){
   .content-area .unified-ad-grid,
@@ -165,10 +244,15 @@
   .content-area .featured-grid,
   .content-area .normal-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   :root{--home-premium-card-w:190px;--home-premium-card-h:238px}
+  #vendorModal .modal-vendor-head{grid-template-columns:1fr!important}
+  #vendorModal .modal-vendor-photo{max-width:360px!important;margin:0 auto!important}
 }
 @media(max-width:560px){
   .content-area .unified-ad-grid,
   .content-area .featured-grid,
-  .content-area .normal-grid{grid-template-columns:1fr!important}
+  .normal-grid{grid-template-columns:1fr!important}
   :root{--home-premium-card-w:calc(100vw - 32px);--home-premium-card-h:calc((100vw - 32px) * 1.25)}
+  #vendorModal #vendorModalContent{padding:22px!important}
+  #vendorModal .modal-vendor-photo{max-width:100%!important}
+  #vendorModal .modal-info-box span{display:block!important}
 }
