@@ -2920,4 +2920,115 @@ document.addEventListener('DOMContentLoaded',function(){
   window.enhanceAdminDatePickers=enhanceAdminDatePickers;
 })();
 </script>
+
+<script>
+(function(){
+  if(window.__adminClientPaginationV45)return;
+  window.__adminClientPaginationV45=true;
+
+  var css='.admin-client-pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 22px;padding:12px;border:1px solid #29324f;border-radius:14px;background:#070b15}.admin-client-pager button{height:34px!important;min-width:38px!important;padding:0 12px!important;border-radius:999px!important;background:#222b43!important;color:#dfe9ff!important;border:1px solid #39466c!important}.admin-client-pager button.active{background:linear-gradient(90deg,#ff3fb4,#10d9ff)!important;color:#fff!important;border-color:transparent!important}.admin-client-pager button:disabled{opacity:.45;cursor:not-allowed}.admin-client-pager .pager-info{margin-left:6px;color:#8d98b8;font-size:13px;font-weight:800}.admin-page-hidden{display:none!important}';
+  if(!document.getElementById('adminClientPaginationStyle')){
+    var st=document.createElement('style');
+    st.id='adminClientPaginationStyle';
+    st.textContent=css;
+    document.head.appendChild(st);
+  }
+
+  function makePagerButton(label,disabled,active,fn){
+    var b=document.createElement('button');
+    b.type='button';
+    b.textContent=label;
+    b.className='admin-client-pager-btn';
+    if(disabled)b.disabled=true;
+    if(active)b.classList.add('active');
+    b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();fn();});
+    return b;
+  }
+
+  function setupClientPager(opts){
+    var panel=document.getElementById(opts.panelId);
+    if(!panel)return;
+    var table=panel.querySelector('table');
+    if(!table)return;
+    var page=1;
+    var limit=opts.limit||20;
+    var pager=panel.querySelector('.admin-client-pager[data-pager-for="'+opts.panelId+'"]');
+    if(!pager){
+      pager=document.createElement('div');
+      pager.className='admin-client-pager';
+      pager.setAttribute('data-pager-for',opts.panelId);
+      var anchor=table.closest('.table-wrap')||table;
+      anchor.insertAdjacentElement('afterend',pager);
+    }
+
+    function allRows(){
+      var rows=[].slice.call(table.querySelectorAll(opts.rowSelector));
+      return rows.filter(function(row){return !row.querySelector('th');});
+    }
+    function filterVisible(row){
+      return !row.classList.contains('hidden-row') && !row.classList.contains('hide');
+    }
+    function render(nextPage){
+      var rows=allRows();
+      rows.forEach(function(row){row.classList.remove('admin-page-hidden');});
+      var visible=rows.filter(filterVisible);
+      var total=visible.length;
+      var pages=Math.max(1,Math.ceil(total/limit));
+      page=Math.max(1,Math.min(nextPage||page,pages));
+      var start=(page-1)*limit;
+      var end=start+limit;
+      visible.forEach(function(row,idx){
+        row.classList.toggle('admin-page-hidden',idx<start||idx>=end);
+      });
+
+      pager.innerHTML='';
+      pager.appendChild(makePagerButton('처음',page<=1,false,function(){render(1);}));
+      pager.appendChild(makePagerButton('이전',page<=1,false,function(){render(page-1);}));
+      var from=Math.max(1,page-2);
+      var to=Math.min(pages,from+4);
+      from=Math.max(1,to-4);
+      for(var p=from;p<=to;p++){
+        (function(n){pager.appendChild(makePagerButton(String(n),false,n===page,function(){render(n);}));})(p);
+      }
+      pager.appendChild(makePagerButton('다음',page>=pages,false,function(){render(page+1);}));
+      pager.appendChild(makePagerButton('마지막',page>=pages,false,function(){render(pages);}));
+      var info=document.createElement('span');
+      info.className='pager-info';
+      var showFrom=total?start+1:0;
+      var showTo=Math.min(end,total);
+      info.textContent=(opts.label||'목록')+' '+total+'건 · '+showFrom+'-'+showTo+'건 표시';
+      pager.appendChild(info);
+      pager.style.display=rows.length>limit||total!==rows.length?'flex':'flex';
+    }
+
+    function resetSoon(){setTimeout(function(){render(1);},80);}
+    function refreshSoon(){setTimeout(function(){render(page);},120);}
+
+    panel.addEventListener('input',resetSoon,true);
+    panel.addEventListener('change',resetSoon,true);
+    panel.addEventListener('click',function(e){
+      if(e.target.closest('.admin-client-pager'))return;
+      if(e.target.closest('button,select,input'))resetSoon();
+    },true);
+
+    try{
+      new MutationObserver(function(){refreshSoon();}).observe(table,{childList:true,subtree:true});
+    }catch(e){}
+
+    setTimeout(function(){render(1);},180);
+    return {render:render};
+  }
+
+  function initAdminClientPagination(){
+    setupClientPager({panelId:'notices',rowSelector:'.notice-row',label:'공지',limit:20});
+    setupClientPager({panelId:'reviews',rowSelector:'.review-row',label:'후기',limit:20});
+    setupClientPager({panelId:'adCenter',rowSelector:'.ad-center-row',label:'광고/배너 신청',limit:20});
+    setupClientPager({panelId:'vendorRequests',rowSelector:'tr:not(:first-child)',label:'업체 수정요청',limit:20});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAdminClientPagination);
+  else initAdminClientPagination();
+  window.addEventListener('hashchange',function(){setTimeout(initAdminClientPagination,180);});
+})();
+</script>
 </body></html>
+
