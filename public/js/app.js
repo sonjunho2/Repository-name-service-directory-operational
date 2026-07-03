@@ -77,7 +77,7 @@ async function openVendor(id){
     const reviews=data.reviews||[];
     const badge=v.is_premium?'PREMIUM':v.is_recommended?'RECOMMEND':'NORMAL';
     const ratingText=v.review_count>0?`⭐ ${esc(v.avg_rating)} · 후기 ${esc(v.review_count)}개`:'⭐ 평점 없음';
-    const kakaoBtn=v.kakao_url?`<a href="${esc(v.kakao_url)}" target="_blank" rel="noopener" style="width:130px;min-width:130px;height:44px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;background:#fee500;color:#111;text-decoration:none;font-weight:900;">카카오톡 문의</a>`:'';
+    const kakaoBtn=v.kakao_url?`<a href="${esc(v.kakao_url)}" target="_blank" rel="noopener" class="modal-kakao-btn">카카오톡 문의</a>`:'';
     const favOn=isFav(v.id);
     const favBtn=`<button type="button" onclick="toggleFav(${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid ${favOn?'#ffdc4d':'#39466c'};background:${favOn?'#ffdc4d':'#080d18'};color:${favOn?'#111':'#dfe9ff'};font-weight:900;cursor:pointer;">${favOn?'♥ 찜완료':'♡ 찜하기'}</button>`;
     const flagBtn=`<button type="button" onclick="submitFlag('vendor',${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#c8d0e8;font-weight:900;cursor:pointer;">업체 신고</button>`;
@@ -95,24 +95,27 @@ async function openVendor(id){
       </div>
       <div class="modal-vendor-head">
         <div class="modal-vendor-photo">${v.image_data?`<img src="${v.image_data}" alt="${esc(v.name)}">`:'<div class="noimg">IMAGE</div>'}</div>
-        <div class="info-list modal-info-list">
-          <div class="modal-info-box" style="display:block!important;">
-            <b>영업시간</b>
-            <span style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:20px;margin-top:14px;">
-              <span style="font-size:17px;color:#fff;line-height:1.45;">${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span>
-              ${kakaoBtn}
-            </span>
+        <section class="modal-intro-box">
+          <h3>업체소개</h3>
+          <p class="vendor-desc">${esc(v.description||'등록된 업체소개가 없습니다.')}</p>
+        </section>
+      </div>
+      <div class="modal-contact-grid">
+        <div class="modal-info-box">
+          <b>영업시간</b>
+          <div class="modal-info-row">
+            <span>${esc(v.business_hours||'등록된 영업시간이 없습니다.')}</span>
+            ${kakaoBtn}
           </div>
-          <div class="modal-info-box contact-box" style="display:block!important;">
-            <b>연락처</b>
-            <span style="display:flex;align-items:center;justify-content:space-between;width:100%;gap:20px;margin-top:14px;">
-              <span style="font-size:18px;font-weight:800;color:#fff;">${esc(v.phone||'등록된 연락처가 없습니다.')}</span>
-              ${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}" style="width:130px;min-width:130px;height:44px;margin:0;display:inline-flex;align-items:center;justify-content:center;border-radius:13px;">전화하기</a>`:''}
-            </span>
+        </div>
+        <div class="modal-info-box contact-box">
+          <b>연락처</b>
+          <div class="modal-info-row">
+            <span class="modal-phone-text">${esc(v.phone||'등록된 연락처가 없습니다.')}</span>
+            ${v.phone?`<a class="call-btn" href="tel:${esc(v.phone)}">전화하기</a>`:''}
           </div>
         </div>
       </div>
-      <section class="modal-section"><h3>업체소개</h3><p class="vendor-desc" style="background:transparent!important;border:0!important;padding:0!important;line-height:1.8;">${esc(v.description||'등록된 업체소개가 없습니다.')}</p></section>
       <section class="modal-section review-section"><div class="review-title"><h3>⭐⭐⭐⭐⭐ 후기</h3><a href="/vendor/${esc(v.id)}#review" class="review-write-btn" style="display:inline-flex;align-items:center;text-decoration:none;">후기 작성하기</a></div>${reviewHtml}</section>
     `;
   }catch(e){
