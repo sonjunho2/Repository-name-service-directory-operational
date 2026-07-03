@@ -270,6 +270,26 @@ html:not(.admin-unified-pagination-ready) #adminLogs table tr:nth-of-type(n+22){
 .brand-config-section{padding:20px!important}.brand-config-section h4{font-size:18px!important}.brand-form-grid{grid-template-columns:170px minmax(0,1fr)!important;gap:14px 16px!important}.brand-form-grid>label{justify-content:flex-start!important;background:transparent!important;border:0!important;padding:0!important;color:#b8c5e6!important}.brand-display-options{display:flex;flex-wrap:wrap;gap:10px}.brand-display-options label,.brand-remove-check{height:44px!important;padding:0 16px!important;border-radius:999px!important}.brand-preview-grid{grid-template-columns:1.4fr .8fr!important}.brand-preview-card{min-height:132px!important;background:#080d18!important}.brand-logo-preview{height:72px!important;max-width:320px!important}.brand-favicon-preview{width:68px!important;height:68px!important}.brand-empty-preview{color:#8d98b8;font-weight:900}
 @media(max-width:900px){.top .site-brand-center{position:static!important;transform:none!important;order:2;max-width:100%!important;font-size:21px!important}.top .site-brand-center img{height:38px!important;max-width:220px!important}.top .site-brand-center span{font-size:21px!important}.brand-settings-head{display:block}.brand-live-card{min-height:96px;gap:12px;padding:18px}.brand-live-card img{height:54px;max-width:220px}.brand-live-card span{font-size:28px}.brand-state-row,.brand-preview-grid,.brand-form-grid{grid-template-columns:1fr!important}}
 
+
+
+/* =========================
+   SITE BRANDING V52 - natural header, no box
+   ========================= */
+:root{--brand-logo-height:56px;--brand-name-size:32px;--brand-gap:12px}
+.top .site-brand-center{max-width:min(62vw,760px)!important;gap:var(--brand-gap)!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;text-decoration:none!important;color:#fff!important}
+.top .site-brand-center img{height:var(--brand-logo-height)!important;width:auto!important;max-width:min(42vw,420px)!important;object-fit:contain!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;filter:drop-shadow(0 5px 15px rgba(0,0,0,.55))!important}
+.top .site-brand-center span{display:block!important;max-width:min(44vw,520px)!important;font-size:var(--brand-name-size)!important;line-height:1.05!important;font-weight:1000!important;letter-spacing:-.055em!important;color:#fff!important;background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;text-shadow:0 4px 18px rgba(0,0,0,.75)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.brand-settings-box{background:linear-gradient(135deg,rgba(16,217,255,.07),rgba(255,63,180,.05)),#070b15!important;border-color:rgba(16,217,255,.26)!important}
+.brand-live-preview{border:1px solid rgba(255,255,255,.10)!important;border-radius:20px!important;background:linear-gradient(135deg,rgba(255,255,255,.045),rgba(16,217,255,.045)),#080d18!important;padding:18px!important;box-shadow:none!important}
+.brand-live-card{min-height:112px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:16px!important;gap:16px!important;overflow:visible!important}
+.brand-live-card img{height:var(--brand-preview-logo-h,76px)!important;max-width:420px!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;filter:drop-shadow(0 6px 18px rgba(0,0,0,.65))!important}
+.brand-live-card span{font-size:var(--brand-preview-name-fs,42px)!important;color:#fff!important;background:none!important;text-shadow:0 5px 22px rgba(0,0,0,.75)!important}
+.brand-size-controls{display:grid;grid-template-columns:170px 1fr 170px 1fr;gap:12px 14px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid #29324f}
+.brand-size-controls label{justify-content:flex-start!important;background:transparent!important;border:0!important;padding:0!important;color:#b8c5e6!important;font-weight:900!important}
+.brand-size-controls input{height:42px!important}
+.brand-size-note{grid-column:1/5;color:#8d98b8;font-size:13px;line-height:1.55;margin:0!important}
+@media(max-width:900px){:root{--brand-logo-height:42px;--brand-name-size:24px}.top .site-brand-center{max-width:100%!important}.top .site-brand-center img{max-width:220px!important}.top .site-brand-center span{max-width:100%!important}.brand-size-controls{grid-template-columns:1fr}.brand-size-note{grid-column:1}.brand-live-card img{height:var(--brand-preview-logo-h,58px)!important;max-width:240px!important}.brand-live-card span{font-size:var(--brand-preview-name-fs,30px)!important}}
+
 </style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
@@ -835,7 +855,7 @@ html:not(.admin-unified-pagination-ready) #adminLogs table tr:nth-of-type(n+22){
 
         <div class="brand-live-preview" data-brand-preview>
           <div class="brand-preview-label"><span>상단 중앙 브랜드 미리보기</span><small>저장 전 실시간 반영</small></div>
-          <a class="brand-live-card" data-brand-live-card href="<%=(settings?.raw?.site_link_url)||'/'%>">
+          <a class="brand-live-card" data-brand-live-card style="--brand-preview-logo-h:<%=(settings?.raw?.brand_logo_height)||56%>px;--brand-preview-name-fs:<%=(settings?.raw?.brand_name_size)||32%>px" href="<%=(settings?.raw?.site_link_url)||'/'%>">
             <% if(settings?.raw?.site_logo_data){%><img data-brand-live-logo src="<%=settings.raw.site_logo_data%>" alt="브랜드 로고"><%}else{%><img data-brand-live-logo src="" alt="브랜드 로고" style="display:none"><%}%>
             <span data-brand-live-name><%=(settings?.raw?.site_name)||'서비스 디렉터리'%></span>
           </a>
@@ -894,6 +914,13 @@ html:not(.admin-unified-pagination-ready) #adminLogs table tr:nth-of-type(n+22){
             <label><input type="checkbox" name="brand_show_logo" <%=settings?.raw?.brand_show_logo==='on'?'checked':''%>> 로고 사용</label>
             <label><input type="checkbox" name="brand_show_name" <%=settings?.raw?.brand_show_name==='off'?'':'checked'%>> 사이트명 사용</label>
           </div>
+          <div class="brand-size-controls">
+            <label for="brandLogoHeightInput">로고 높이</label>
+            <input id="brandLogoHeightInput" name="brand_logo_height" type="number" min="24" max="120" value="<%=(settings?.raw?.brand_logo_height)||56%>" placeholder="56">
+            <label for="brandNameSizeInput">사이트명 크기</label>
+            <input id="brandNameSizeInput" name="brand_name_size" type="number" min="14" max="72" value="<%=(settings?.raw?.brand_name_size)||32%>" placeholder="32">
+            <p class="brand-size-note">크기는 px 기준입니다. 로고가 이미지 중심이면 로고 높이를 키우고, 텍스트 중심이면 사이트명 크기를 키우면 됩니다.</p>
+          </div>
           <p class="settings-help">로고와 사이트명은 각각 선택해서 상단 중앙에 표시됩니다. 둘 다 꺼도 기본 사이트명은 관리자 설정값으로 유지됩니다.</p>
         </div>
       </div>
@@ -921,6 +948,8 @@ html:not(.admin-unified-pagination-ready) #adminLogs table tr:nth-of-type(n+22){
       <input type="hidden" name="regions" value="<%=(settings?.raw?.regions)||''%>">
       <input type="hidden" name="site_name" value="<%=(settings?.raw?.site_name)||'서비스 디렉터리'%>">
       <input type="hidden" name="site_link_url" value="<%=(settings?.raw?.site_link_url)||'/'%>">
+      <input type="hidden" name="brand_logo_height" value="<%=(settings?.raw?.brand_logo_height)||56%>">
+      <input type="hidden" name="brand_name_size" value="<%=(settings?.raw?.brand_name_size)||32%>">
       <% if(settings?.raw?.brand_show_logo==='on'){%><input type="hidden" name="brand_show_logo" value="on"><%}%>
       <% if(settings?.raw?.brand_show_name!=='off'){%><input type="hidden" name="brand_show_name" value="on"><%}%>
 
@@ -3147,6 +3176,34 @@ document.addEventListener('DOMContentLoaded',function(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAdminBrandingV51);
   else initAdminBrandingV51();
   document.addEventListener('click',function(e){if(e.target&&e.target.closest('[data-settings-tab],a[data-panel="settings"]'))setTimeout(initAdminBrandingV51,120);},true);
+})();
+</script>
+
+
+<script>
+(function(){
+  function initBrandSizeV52(){
+    var box=document.querySelector('.brand-settings-box');
+    if(!box)return;
+    var logoSize=document.getElementById('brandLogoHeightInput');
+    var nameSize=document.getElementById('brandNameSizeInput');
+    var liveCard=box.querySelector('[data-brand-live-card]');
+    function clamp(v,min,max,d){v=parseInt(v,10);return Number.isFinite(v)?Math.max(min,Math.min(max,v)):d;}
+    function apply(){
+      var lh=clamp(logoSize&&logoSize.value,24,120,56);
+      var ns=clamp(nameSize&&nameSize.value,14,72,32);
+      if(liveCard){
+        liveCard.style.setProperty('--brand-preview-logo-h',lh+'px');
+        liveCard.style.setProperty('--brand-preview-name-fs',ns+'px');
+      }
+      document.documentElement.style.setProperty('--brand-logo-height',lh+'px');
+      document.documentElement.style.setProperty('--brand-name-size',ns+'px');
+    }
+    [logoSize,nameSize].forEach(function(el){if(el){el.addEventListener('input',apply);el.addEventListener('change',apply);}});
+    apply();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initBrandSizeV52); else initBrandSizeV52();
+  document.addEventListener('click',function(e){if(e.target&&e.target.closest('[data-settings-tab],a[data-panel="settings"]'))setTimeout(initBrandSizeV52,120);},true);
 })();
 </script>
 
