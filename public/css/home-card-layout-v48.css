@@ -1,0 +1,174 @@
+/* HOME CARD GRID V48
+   - 메인 업체 카드 규격 통일
+   - 추천/일반 업체 4칸 정렬
+   - 이미지 원본 비율과 무관하게 카드 안을 꽉 채움
+   - 권장 대표 이미지: 720x900px, 4:5, 최대 5MB
+*/
+:root{
+  --home-card-gap:16px;
+  --home-card-radius:18px;
+  --home-card-ratio:1.25;
+  --home-premium-card-w:210px;
+  --home-premium-card-h:263px;
+}
+
+/* 추천업체 / 일반업체: 우측 공백이 크게 남지 않도록 4칸 기준으로 고정 */
+.content-area .unified-ad-grid,
+.content-area .featured-grid,
+.content-area .normal-grid{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:var(--home-card-gap)!important;
+  justify-content:stretch!important;
+  align-items:start!important;
+  width:100%!important;
+}
+
+/* 프리미엄 / 추천 / 일반 카드 공통 규격 */
+.card.vendor-open,
+.featured-grid .card.vendor-open,
+.normal-grid .card.vendor-open{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  aspect-ratio:4/5!important;
+  padding:0!important;
+  overflow:hidden!important;
+  border-radius:var(--home-card-radius)!important;
+}
+
+/* 프리미엄 슬라이더는 같은 비율의 고정 카드로 흐르게 함 */
+.premium-row-slider.unified-premium-slider,
+.premium-showcase .premium-row-slider.unified-premium-slider{
+  height:var(--home-premium-card-h)!important;
+  min-height:var(--home-premium-card-h)!important;
+  max-height:var(--home-premium-card-h)!important;
+  overflow:hidden!important;
+}
+.premium-row-slider.unified-premium-slider .premium-track{
+  height:var(--home-premium-card-h)!important;
+  align-items:stretch!important;
+  gap:var(--home-card-gap)!important;
+}
+.premium-row-slider.unified-premium-slider .card.vendor-open,
+.premium-row-slider.unified-premium-slider .card.premium{
+  width:var(--home-premium-card-w)!important;
+  min-width:var(--home-premium-card-w)!important;
+  max-width:var(--home-premium-card-w)!important;
+  height:var(--home-premium-card-h)!important;
+  min-height:var(--home-premium-card-h)!important;
+  max-height:var(--home-premium-card-h)!important;
+  flex:0 0 var(--home-premium-card-w)!important;
+  aspect-ratio:4/5!important;
+  padding:0!important;
+  overflow:hidden!important;
+  border-radius:var(--home-card-radius)!important;
+}
+
+/* 이미지 박스는 카드 전체를 사용하고 object-fit:cover로 통일 */
+.card.vendor-open .thumb,
+.card.vendor-open .thumb.small,
+.card.premium .thumb,
+.card.recommend .thumb,
+.card.normal-card .thumb,
+.premium-row-slider.unified-premium-slider .card .thumb{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:100%!important;
+  border:0!important;
+  border-radius:0!important;
+  background:#050913!important;
+  display:block!important;
+  overflow:hidden!important;
+}
+.card.vendor-open .thumb img,
+.card.vendor-open .thumb.small img,
+.card.premium .thumb img,
+.card.recommend .thumb img,
+.card.normal-card .thumb img,
+.premium-row-slider.unified-premium-slider .card .thumb img{
+  width:100%!important;
+  height:100%!important;
+  object-fit:cover!important;
+  object-position:center!important;
+  display:block!important;
+  background:#050913!important;
+}
+
+/* 이미지가 꽉 차도 하단 업체명/지역은 읽히도록 오버레이 유지 */
+.card.vendor-open:after,
+.premium-row-slider.unified-premium-slider .card:after{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:2!important;
+  pointer-events:none!important;
+  background:linear-gradient(180deg,rgba(0,0,0,.10) 0%,rgba(0,0,0,0) 38%,rgba(0,0,0,.76) 100%)!important;
+}
+.card.vendor-open .ad-card-meta,
+.card.vendor-open .ad-card-meta.compact{
+  position:absolute!important;
+  inset:0!important;
+  z-index:5!important;
+  padding:14px!important;
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(72px,auto)!important;
+  grid-template-rows:auto 1fr auto!important;
+  grid-template-areas:'badge badge' '. .' 'name info'!important;
+  gap:0 8px!important;
+  pointer-events:none!important;
+}
+.card.vendor-open .ad-card-meta em{
+  grid-area:badge!important;
+  justify-self:start!important;
+  align-self:start!important;
+  margin:0!important;
+  position:static!important;
+}
+.card.vendor-open .ad-card-meta h3{
+  grid-area:name!important;
+  align-self:end!important;
+  justify-self:start!important;
+  max-width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+  text-overflow:ellipsis!important;
+}
+.card.vendor-open .ad-card-meta p{
+  grid-area:info!important;
+  align-self:end!important;
+  justify-self:end!important;
+  max-width:94px!important;
+  margin:0!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+  text-overflow:ellipsis!important;
+  text-align:right!important;
+}
+.card.vendor-open.normal-card .ad-card-meta em{display:none!important}
+
+/* 큰 화면에서 우측 게시판이 사라지는 구간은 4칸 유지, 작은 화면은 2/1칸 */
+@media(max-width:1120px){
+  .content-area .unified-ad-grid,
+  .content-area .featured-grid,
+  .content-area .normal-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+}
+@media(max-width:900px){
+  .content-area .unified-ad-grid,
+  .content-area .featured-grid,
+  .content-area .normal-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  :root{--home-premium-card-w:190px;--home-premium-card-h:238px}
+}
+@media(max-width:560px){
+  .content-area .unified-ad-grid,
+  .content-area .featured-grid,
+  .content-area .normal-grid{grid-template-columns:1fr!important}
+  :root{--home-premium-card-w:calc(100vw - 32px);--home-premium-card-h:calc((100vw - 32px) * 1.25)}
+}
