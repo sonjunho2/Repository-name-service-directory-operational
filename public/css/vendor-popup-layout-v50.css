@@ -9,17 +9,22 @@
 #vendorModal .modal-vendor-head{display:grid!important;grid-template-columns:300px minmax(0,1fr)!important;gap:16px!important;align-items:stretch!important}
 #vendorModal .modal-vendor-photo{width:300px!important;height:auto!important;min-height:0!important;aspect-ratio:4/5!important;border-radius:18px!important;overflow:hidden!important;background:#050913!important;border:1px solid #29324f!important}
 #vendorModal .modal-vendor-photo img{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;display:block!important}
+#vendorModal .modal-intro-box{min-height:0!important;padding:20px!important;border-radius:16px!important;background:#080d18!important;border:1px solid #29324f!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important}
+#vendorModal .modal-intro-box h3{margin:0 0 12px!important;font-size:20px!important;line-height:1.2!important;color:#fff!important}
+#vendorModal .modal-intro-box .vendor-desc{margin:0!important;background:transparent!important;border:0!important;padding:0!important;font-size:15px!important;line-height:1.75!important;color:#e7ecff!important;white-space:pre-wrap!important;word-break:keep-all!important}
+#vendorModal .modal-contact-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:12px!important;margin-top:14px!important}
 #vendorModal .modal-info-list{height:auto!important;min-height:0!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto auto!important;gap:12px!important}
-#vendorModal .modal-info-box{min-height:118px!important;height:auto!important;padding:18px!important;border-radius:16px!important;background:#080d18!important;border:1px solid #29324f!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
+#vendorModal .modal-info-box{min-height:112px!important;height:auto!important;padding:18px!important;border-radius:16px!important;background:#080d18!important;border:1px solid #29324f!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
 #vendorModal .modal-info-box b{font-size:17px!important;line-height:1.2!important;margin:0 0 10px!important;color:#10d9ff!important}
-#vendorModal .modal-info-box span{font-size:16px!important;line-height:1.45!important}
-#vendorModal .modal-info-box > span{margin-top:0!important}
-#vendorModal .call-btn{width:auto!important;min-width:112px!important;height:40px!important;min-height:40px!important;font-size:14px!important;border-radius:12px!important}
+#vendorModal .modal-info-row{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important;width:100%!important}
+#vendorModal .modal-info-row span{font-size:16px!important;line-height:1.45!important;color:#fff!important}
+#vendorModal .modal-phone-text{font-size:18px!important;font-weight:900!important}
+#vendorModal .call-btn,#vendorModal .modal-kakao-btn{width:auto!important;min-width:112px!important;height:40px!important;min-height:40px!important;margin:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:12px!important;text-decoration:none!important;font-size:14px!important;font-weight:900!important;white-space:nowrap!important}
+#vendorModal .modal-kakao-btn{background:#fee500!important;color:#111!important}
 #vendorModal .modal-section{margin-top:18px!important;padding-top:16px!important;border-top:1px solid #29324f!important}
 #vendorModal .modal-section h3{font-size:21px!important;line-height:1.2!important;margin:0 0 10px!important}
-#vendorModal .vendor-desc{font-size:15px!important;line-height:1.7!important;color:#e7ecff!important}
 #vendorModal .review-title{align-items:center!important;gap:10px!important}
 #vendorModal .review-write-btn{height:38px!important;min-height:38px!important;padding:0 14px!important;border-radius:12px!important;font-size:14px!important}
-@media(max-width:900px){#vendorModal > div:nth-child(2){width:min(720px,calc(100% - 28px))!important;margin:3vh auto!important}#vendorModal .modal-vendor-head{grid-template-columns:minmax(220px,300px) minmax(0,1fr)!important}#vendorModal .modal-vendor-photo{width:100%!important;max-width:300px!important;aspect-ratio:4/5!important;margin:0!important}#vendorModal .modal-info-box{min-height:110px!important}}
-@media(max-width:720px){#vendorModal .modal-vendor-head{grid-template-columns:1fr!important}#vendorModal .modal-vendor-photo{width:100%!important;max-width:330px!important;margin:0 auto!important}#vendorModal .modal-info-list{grid-template-rows:auto auto!important}}
-@media(max-width:560px){#vendorModal #vendorModalContent{padding:20px!important}#vendorModal .modal-vendor-info > div:first-child{align-items:flex-start!important;flex-direction:column!important}#vendorModal .modal-vendor-info h2{font-size:27px!important}#vendorModal .modal-info-box span{display:block!important}}
+@media(max-width:900px){#vendorModal > div:nth-child(2){width:min(720px,calc(100% - 28px))!important;margin:3vh auto!important}#vendorModal .modal-vendor-head{grid-template-columns:minmax(220px,300px) minmax(0,1fr)!important}#vendorModal .modal-vendor-photo{width:100%!important;max-width:300px!important;aspect-ratio:4/5!important;margin:0!important}#vendorModal .modal-info-box{min-height:106px!important}#vendorModal .modal-contact-grid{grid-template-columns:1fr 1fr!important}}
+@media(max-width:720px){#vendorModal .modal-vendor-head{grid-template-columns:1fr!important}#vendorModal .modal-vendor-photo{width:100%!important;max-width:330px!important;margin:0 auto!important}#vendorModal .modal-contact-grid{grid-template-columns:1fr!important}.modal-info-row{align-items:flex-start!important;flex-direction:column!important}}
+@media(max-width:560px){#vendorModal #vendorModalContent{padding:20px!important}#vendorModal .modal-vendor-info > div:first-child{align-items:flex-start!important;flex-direction:column!important}#vendorModal .modal-vendor-info h2{font-size:27px!important}#vendorModal .modal-info-row span{display:block!important}}
