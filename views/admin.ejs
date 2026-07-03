@@ -1,6 +1,13 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>관리자</title><link rel="stylesheet" href="/public/css/style.css"><style>.admin-shell{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 68px)}.admin-sidebar{background:#080d18;border-right:1px solid #29324f;padding:22px 16px}.admin-sidebar h2{margin:0 0 18px;padding:0 6px;font-size:24px;line-height:1.2}.admin-sidebar a{display:flex;align-items:center;width:100%;height:42px;margin:0 0 6px;padding:0 12px;border-radius:12px;color:#dfe9ff;text-decoration:none;font-weight:900;box-sizing:border-box}.admin-sidebar a.active,.admin-sidebar a:hover{background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff}.admin-sidebar .line{display:none}.admin-content{padding:26px;min-width:0}.admin-panel{display:none}.admin-panel.active{display:block}.admin-content .panel{max-width:none;width:100%;margin:0;padding:28px}.admin-content input,.admin-content select,.admin-content textarea{width:100%;height:42px;box-sizing:border-box;border-radius:10px;padding:0 12px;background:#070b15;border:1px solid #29324f;color:#fff}.admin-content textarea{height:82px;padding:12px}.gridform{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:center}.gridform textarea,.form-actions,.img-preview{grid-column:1/5}.form-actions{display:grid;grid-template-columns:1fr 140px;gap:10px;align-items:center}.admin-content label{height:42px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid #29324f;border-radius:10px;background:#070b15}.admin-content button{height:38px;border:0;border-radius:999px;padding:0 16px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;font-weight:900;cursor:pointer}.admin-content table{width:100%;border-collapse:collapse;margin-top:14px;background:#070b15}.admin-content th,.admin-content td{border:1px solid #29324f;padding:11px;white-space:nowrap;vertical-align:middle}.admin-content th{background:#171d30}.row-actions{display:flex;gap:8px}.cancel-edit{background:#222b43!important}.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}.dash-card{padding:22px;border:1px solid #29324f;border-radius:18px;background:#070b15}.dash-card b{display:block;color:#c8d0e8;margin-bottom:10px}.dash-card strong{font-size:34px}.dash-card.hot{background:linear-gradient(135deg,rgba(255,63,180,.25),rgba(16,217,255,.13))}.dash-card.today{border-color:#10d9ff;background:linear-gradient(135deg,rgba(16,217,255,.16),rgba(255,63,180,.08))}.dash-card.alert{border-color:#ff6b6b;background:linear-gradient(135deg,rgba(255,107,107,.2),rgba(255,63,180,.08))}.dash-card.warn{border-color:#ffdc4d;background:linear-gradient(135deg,rgba(255,220,77,.16),rgba(16,217,255,.06))}.dash-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}.dash-row.three{grid-template-columns:repeat(3,1fr)}.dash-list.scroll{max-height:360px;overflow:auto}.dash-list .rank{font-weight:900;color:#10d9ff}.table-wrap{width:100%;overflow-x:auto}.dash-list{padding:18px;border:1px solid #29324f;border-radius:18px;background:#070b15}.dash-list a,.dash-list div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;color:#dfe9ff;text-decoration:none;border-bottom:1px solid #1d263d}.dash-list a:last-child,.dash-list div:last-child{border-bottom:0}.dash-list small{color:#8d98b8}.vendor-admin-filter,.banner-admin-filter,.user-admin-filter{display:grid;grid-template-columns:1.5fr 1fr 1fr 120px;gap:10px;margin:0 0 18px}.banner-admin-filter{grid-template-columns:1.5fr 1fr 1fr 1fr 120px}.user-admin-filter{grid-template-columns:1.5fr 1fr 1fr 1fr 120px}.notice-admin-filter,.review-admin-filter{display:grid;grid-template-columns:1.5fr 1fr 1fr 120px;gap:10px;margin:0 0 18px}.vendor-admin-filter button,.banner-admin-filter button,.user-admin-filter button,.notice-admin-filter button,.review-admin-filter button{height:42px}.vendor-admin-filter{grid-template-columns:1.5fr 1fr 1fr 1fr 120px}.status-on{color:#1fe087;font-weight:900}.status-off{color:#ff6b6b;font-weight:900}.status-pin{color:#ffdc4d;font-weight:900}.stat-cell{font-weight:900;color:#dfe9ff}.hidden-row{display:none!important}.img-preview{display:none;align-items:flex-start;gap:14px;padding:14px;border:1px solid #29324f;border-radius:14px;background:#070b15;color:#c8d0e8}.img-preview img{max-width:260px;max-height:150px;border-radius:12px;object-fit:cover;border:1px solid #29324f}.img-preview b{display:block;margin-bottom:6px;color:#fff}@media(max-width:800px){.admin-content{padding:14px}.admin-content .panel{padding:18px}.admin-sidebar{padding:14px}.admin-content table{font-size:13px}.dash-card strong{font-size:28px}.dash-list a,.dash-list div{align-items:flex-start;flex-direction:column;gap:4px}}@media(max-width:1200px){.gridform,.dash-grid,.dash-row,.vendor-admin-filter,.banner-admin-filter,.user-admin-filter,.notice-admin-filter,.review-admin-filter{grid-template-columns:1fr 1fr}.gridform textarea,.form-actions,.img-preview{grid-column:1/3}}@media(max-width:800px){.admin-shell,.gridform,.dash-grid,.dash-row,.vendor-admin-filter,.banner-admin-filter,.user-admin-filter,.notice-admin-filter,.review-admin-filter{grid-template-columns:1fr}.gridform textarea,.form-actions,.img-preview{grid-column:1}}.integrated-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0 0 18px}.integrated-card{padding:16px;border:1px solid #29324f;border-radius:16px;background:#070b15}.integrated-card b{display:block;color:#c8d0e8;margin-bottom:8px}.integrated-card strong{font-size:28px}.admin-sub-filter{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}.admin-sub-filter button{height:38px;padding:0 14px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#dfe9ff;font-weight:900;cursor:pointer}.admin-sub-filter button.on{background:linear-gradient(90deg,#ff3fb4,#10d9ff);border-color:transparent;color:#fff}.admin-searchbar{display:grid;grid-template-columns:1fr 170px 110px;gap:10px;margin:0 0 18px}.admin-searchbar input,.admin-searchbar select{height:42px;border-radius:12px;border:1px solid #39466c;background:#080d18;color:#fff;padding:0 14px}.admin-searchbar button{height:42px;border:0;border-radius:999px;background:#222b43;color:#dfe9ff;font-weight:900;cursor:pointer}.memo{max-width:420px;white-space:pre-wrap;line-height:1.55}.image-links a{display:inline-block;margin:3px 0;padding:6px 10px;border:1px solid #2aa8ff;border-radius:8px;color:#dfe9ff;text-decoration:none}.approve-btn{margin-top:8px;padding:7px 10px;border:0;border-radius:8px;background:#ffdc4d!important;color:#111!important;font-weight:900;cursor:pointer}.banner-btn{margin-top:8px;padding:7px 10px;border:0;border-radius:8px;background:#10d9ff!important;color:#111!important;font-weight:900;cursor:pointer}.done{color:#1fe087;font-weight:900}.pending{color:#ffdc4d;font-weight:900}.rejected{color:#ff6b6b;font-weight:900}.banner-status{display:inline-block;margin-top:8px;color:#10d9ff;font-weight:900}@media(max-width:900px){.integrated-tools,.admin-searchbar{grid-template-columns:1fr}}
 .admin-content input[type="checkbox"]{width:18px!important;height:18px!important;min-width:18px;margin:0;accent-color:#10d9ff}
 .admin-content input[type="file"]{padding:9px 12px;line-height:20px}
+
+.admin-content input[type="date"]{color-scheme:dark;cursor:pointer}
+.admin-content input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.9;cursor:pointer}
+.admin-date-wrap{display:grid;grid-template-columns:1fr 46px;gap:8px;align-items:center;width:100%}
+.admin-date-wrap input[type="date"]{min-width:0}
+.admin-date-pick-btn{height:42px!important;border-radius:10px!important;padding:0!important;min-width:46px!important;background:#222b43!important;color:#fff!important;border:1px solid #29324f!important;font-size:18px!important}
+.admin-date-pick-btn:hover{border-color:#10d9ff!important;background:#10182b!important}
 .admin-content label{justify-content:center;font-weight:900}
 .gridform{align-items:center}
 .gridform button{width:100%}
@@ -2773,4 +2780,51 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script>
 
+
+<script>
+(function(){
+  if(window.__adminDatePickerEnhance)return;
+  window.__adminDatePickerEnhance=true;
+  function openNativeDatePicker(input){
+    if(!input)return;
+    try{
+      if(typeof input.showPicker==='function'){ input.showPicker(); return; }
+    }catch(e){}
+    try{ input.focus(); input.click(); }catch(e){ try{ input.focus(); }catch(_){} }
+  }
+  function enhanceDateInput(input){
+    if(!input||input.dataset.dateEnhanced==='1')return;
+    input.dataset.dateEnhanced='1';
+    input.classList.add('admin-date-input');
+    input.setAttribute('autocomplete','off');
+    if(!input.getAttribute('title'))input.setAttribute('title','달력에서 날짜를 선택하세요.');
+    var wrap=input.closest('.admin-date-wrap');
+    if(!wrap){
+      wrap=document.createElement('div');
+      wrap.className='admin-date-wrap';
+      input.parentNode.insertBefore(wrap,input);
+      wrap.appendChild(input);
+    }
+    if(!wrap.querySelector('.admin-date-pick-btn')){
+      var btn=document.createElement('button');
+      btn.type='button';
+      btn.className='admin-date-pick-btn';
+      btn.setAttribute('aria-label','달력 열기');
+      btn.title='달력 열기';
+      btn.textContent='📅';
+      btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();openNativeDatePicker(input);});
+      wrap.appendChild(btn);
+    }
+    input.addEventListener('focus',function(){openNativeDatePicker(input);});
+  }
+  function enhanceAdminDatePickers(){
+    document.querySelectorAll('.admin-content input[type="date"]').forEach(enhanceDateInput);
+  }
+  document.addEventListener('DOMContentLoaded',enhanceAdminDatePickers);
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.matches('.admin-content input[type="date"]'))openNativeDatePicker(e.target);
+  },true);
+  window.enhanceAdminDatePickers=enhanceAdminDatePickers;
+})();
+</script>
 </body></html>
