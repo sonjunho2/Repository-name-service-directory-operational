@@ -862,3 +862,13 @@ body:before{
 .top>nav,.top>span{position:relative!important;z-index:3!important}.top>.brand,.top>b{position:relative!important;z-index:3!important}
 .settings-brand-preview{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border:1px solid #29324f;border-radius:14px;background:#080d18;color:#c8d0e8;font-size:13px}.settings-brand-preview img{height:42px;max-width:180px;object-fit:contain;border-radius:8px;background:#111827}
 @media(max-width:760px){.site-brand-center{position:static!important;transform:none!important;order:2;max-width:100%!important;font-size:16px!important}.top{flex-wrap:wrap!important}.top nav,.top span{margin-left:auto!important}.site-brand-center img{height:28px!important;max-width:130px!important}}
+
+/* =========================
+   SITE BRANDING V52 - append to the END of public/css/style.css
+   Applies to every page that uses .site-brand-center
+   ========================= */
+:root{--brand-logo-height:56px;--brand-name-size:32px;--brand-gap:12px}
+.top .site-brand-center{max-width:min(62vw,760px)!important;gap:var(--brand-gap)!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;text-decoration:none!important;color:#fff!important}
+.top .site-brand-center img{height:var(--brand-logo-height)!important;width:auto!important;max-width:min(42vw,420px)!important;object-fit:contain!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;filter:drop-shadow(0 5px 15px rgba(0,0,0,.55))!important}
+.top .site-brand-center span{display:block!important;max-width:min(44vw,520px)!important;font-size:var(--brand-name-size)!important;line-height:1.05!important;font-weight:1000!important;letter-spacing:-.055em!important;color:#fff!important;background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;text-shadow:0 4px 18px rgba(0,0,0,.75)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+@media(max-width:900px){:root{--brand-logo-height:42px;--brand-name-size:24px}.top .site-brand-center{max-width:100%!important}.top .site-brand-center img{max-width:220px!important}.top .site-brand-center span{max-width:100%!important}}
