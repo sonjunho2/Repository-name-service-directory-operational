@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express=require('express'), session=require('express-session'), bcrypt=require('bcryptjs'), multer=require('multer');
+const fs=require('fs'), path=require('path');
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
 const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg|webp)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF, WEBP만 가능합니다.'))}});
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
@@ -67,6 +68,8 @@ async function ensureSchema(){
     await q("INSERT INTO app_settings(key,value) VALUES('site_logo_data','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('site_favicon_data','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('site_link_url','/') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('brand_logo_height','56') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('brand_name_size','32') ON CONFLICT (key) DO NOTHING");
     await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
     await q("ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int");
@@ -89,7 +92,42 @@ async function ensureSchema(){
     await q("CREATE INDEX IF NOT EXISTS idx_vendor_requests_status_created ON vendor_update_requests(status,created_at DESC)");
 
   }
-app.set('trust proxy',1); app.set('view engine','ejs'); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.json({limit:'10mb'})); app.use('/public',express.static('public',{maxAge:'30d',etag:true,lastModified:true,immutable:true}));
+app.set('trust proxy',1);
+app.set('view engine','ejs');
+app.use(express.urlencoded({extended:true,limit:'10mb'}));
+app.use(express.json({limit:'10mb'}));
+
+/* SITE BRANDING V53
+   style.css를 로드하는 모든 페이지에 관리자 브랜딩 크기값을 자동 반영합니다.
+   views 파일마다 별도 snippet을 넣지 않아도 홈/마이페이지/업체관리/업체등록/업체상세에 공통 적용됩니다. */
+app.get('/public/css/style.css',async(req,res,next)=>{
+  try{
+    const cssPath=path.join(__dirname,'public','css','style.css');
+    let css=await fs.promises.readFile(cssPath,'utf8');
+
+    const r=await q("SELECT key,value FROM app_settings WHERE key IN ('brand_logo_height','brand_name_size')");
+    const raw=Object.fromEntries((r.rows||[]).map(x=>[x.key,x.value||'']));
+    const clamp=(v,min,max,d)=>{const n=parseInt(v,10);return Number.isFinite(n)?Math.max(min,Math.min(max,n)):d;};
+    const logoHeight=clamp(raw.brand_logo_height,24,120,56);
+    const nameSize=clamp(raw.brand_name_size,14,72,32);
+
+    css += `
+/* SITE BRANDING V53 - runtime values from admin settings */
+:root{--brand-logo-height:${logoHeight}px;--brand-name-size:${nameSize}px;--brand-gap:12px}
+.top .site-brand-center,header .site-brand-center{max-width:min(62vw,760px)!important;gap:var(--brand-gap)!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;text-decoration:none!important;color:#fff!important}
+.top .site-brand-center img,header .site-brand-center img{height:var(--brand-logo-height)!important;width:auto!important;max-width:min(42vw,420px)!important;object-fit:contain!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;filter:drop-shadow(0 5px 15px rgba(0,0,0,.55))!important}
+.top .site-brand-center span,header .site-brand-center span{display:block!important;max-width:min(44vw,520px)!important;font-size:var(--brand-name-size)!important;line-height:1.05!important;font-weight:1000!important;letter-spacing:-.055em!important;color:#fff!important;background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;text-shadow:0 4px 18px rgba(0,0,0,.75)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+@media(max-width:900px){:root{--brand-logo-height:${Math.max(24,Math.round(logoHeight*0.75))}px;--brand-name-size:${Math.max(16,Math.round(nameSize*0.75))}px}.top .site-brand-center,header .site-brand-center{max-width:100%!important}.top .site-brand-center img,header .site-brand-center img{max-width:220px!important}.top .site-brand-center span,header .site-brand-center span{max-width:100%!important}}
+`;
+
+    res.setHeader('Content-Type','text/css; charset=utf-8');
+    res.setHeader('Cache-Control','no-store');
+    res.send(css);
+  }catch(e){
+    next(e);
+  }
+});
+app.use('/public',express.static('public',{maxAge:'30d',etag:true,lastModified:true,immutable:true}));
 app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12,httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production'}}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
 app.use((req,res,next)=>{
@@ -293,11 +331,14 @@ function addDaysSqlFromExpire(){
 }
 
 function normalizeBrandSettings(raw){
+  const clamp=(v,min,max,d)=>{const n=parseInt(v,10);return Number.isFinite(n)?Math.max(min,Math.min(max,n)):d;};
   const name=(raw.site_name||'서비스 디렉터리').trim()||'서비스 디렉터리';
   const showLogo=raw.brand_show_logo==='on'&&!!raw.site_logo_data;
   const showName=raw.brand_show_name!=='off';
   const link=(raw.site_link_url||'/').trim().slice(0,200)||'/';
-  return {name,showLogo,showName,logo:raw.site_logo_data||'',favicon:raw.site_favicon_data||'',link};
+  const logoHeight=clamp(raw.brand_logo_height,24,120,56);
+  const nameSize=clamp(raw.brand_name_size,14,72,32);
+  return {name,showLogo,showName,logo:raw.site_logo_data||'',favicon:raw.site_favicon_data||'',link,logoHeight,nameSize};
 }
 async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions),brand:normalizeBrandSettings(raw)};}
 async function homeData(req){
@@ -1036,9 +1077,9 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   res.redirect('/admin#settings');
 });
 
-app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCount:1},{name:'site_favicon',maxCount:1}]),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)};
+app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCount:1},{name:'site_favicon',maxCount:1}]),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)}; const size=(v,d,min,max)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=min&&n<=max?String(n):String(d)};
   const current=await getSettings();
-  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,1400),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/'};
+  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,1400),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/',brand_logo_height:size(req.body.brand_logo_height,current.raw.brand_logo_height||56,24,120),brand_name_size:size(req.body.brand_name_size,current.raw.brand_name_size||32,14,72)};
   const logoFile=req.files?.site_logo?.[0];
   const faviconFile=req.files?.site_favicon?.[0];
   if(req.body.remove_site_logo){
