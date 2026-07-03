@@ -224,6 +224,16 @@
 .banner-kind-admin{background:#172e45;color:#10d9ff}
 @media(max-width:1100px){.banner-form-labeled{grid-template-columns:1fr 1fr}.banner-form-labeled .img-preview,.banner-form-labeled .form-actions{grid-column:1/3}}
 @media(max-width:700px){.banner-form-labeled{grid-template-columns:1fr}.banner-form-labeled .img-preview,.banner-form-labeled .form-actions,.banner-form-labeled .admin-field.file-field{grid-column:1}}
+
+
+/* admin pagination v46 initial + centered */
+html:not(.admin-pagination-ready) #notices table tr.notice-row:nth-of-type(n+22),
+html:not(.admin-pagination-ready) #reviews table tr.review-row:nth-of-type(n+22),
+html:not(.admin-pagination-ready) #adCenter table tr.ad-center-row:nth-of-type(n+22),
+html:not(.admin-pagination-ready) #vendorRequests table tr:nth-of-type(n+22){display:none!important}
+.admin-client-pager,.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager{justify-content:center!important;text-align:center!important}
+.admin-client-pager .pager-info,.admin-pager .pager-info,.server-vendor-pager .server-vendor-info,.server-user-pager .server-user-info,.server-inquiry-pager .server-inquiry-info,.server-payment-pager .server-payment-info,.server-report-pager .server-report-info{width:100%!important;margin:6px 0 0!important;text-align:center!important}
+@media(max-width:700px){.admin-client-pager,.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager{justify-content:center!important}.admin-client-pager .pager-info,.admin-pager .pager-info{width:100%!important;margin:6px 0 0!important;text-align:center!important}}
 </style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
@@ -2923,10 +2933,10 @@ document.addEventListener('DOMContentLoaded',function(){
 
 <script>
 (function(){
-  if(window.__adminClientPaginationV45)return;
-  window.__adminClientPaginationV45=true;
+  if(window.__adminClientPaginationV46)return;
+  window.__adminClientPaginationV46=true;
 
-  var css='.admin-client-pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 22px;padding:12px;border:1px solid #29324f;border-radius:14px;background:#070b15}.admin-client-pager button{height:34px!important;min-width:38px!important;padding:0 12px!important;border-radius:999px!important;background:#222b43!important;color:#dfe9ff!important;border:1px solid #39466c!important}.admin-client-pager button.active{background:linear-gradient(90deg,#ff3fb4,#10d9ff)!important;color:#fff!important;border-color:transparent!important}.admin-client-pager button:disabled{opacity:.45;cursor:not-allowed}.admin-client-pager .pager-info{margin-left:6px;color:#8d98b8;font-size:13px;font-weight:800}.admin-page-hidden{display:none!important}';
+  var css='.admin-client-pager{display:flex!important;align-items:center!important;justify-content:center!important;gap:8px;flex-wrap:wrap;margin:18px 0 24px;padding:12px;border:1px solid #29324f;border-radius:14px;background:#070b15;text-align:center!important}.admin-client-pager button{height:34px!important;min-width:38px!important;padding:0 12px!important;border-radius:999px!important;background:#222b43!important;color:#dfe9ff!important;border:1px solid #39466c!important}.admin-client-pager button.active{background:linear-gradient(90deg,#ff3fb4,#10d9ff)!important;color:#fff!important;border-color:transparent!important}.admin-client-pager button:disabled{opacity:.45;cursor:not-allowed}.admin-client-pager .pager-info{width:100%!important;margin:6px 0 0!important;text-align:center!important;color:#8d98b8;font-size:13px;font-weight:800}.admin-page-hidden{display:none!important}.admin-client-empty{padding:14px;text-align:center;color:#8d98b8}.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager{justify-content:center!important;text-align:center!important}.admin-pager .pager-info,.server-vendor-pager .server-vendor-info,.server-user-pager .server-user-info,.server-inquiry-pager .server-inquiry-info,.server-payment-pager .server-payment-info,.server-report-pager .server-report-info{width:100%!important;margin:6px 0 0!important;text-align:center!important}';
   if(!document.getElementById('adminClientPaginationStyle')){
     var st=document.createElement('style');
     st.id='adminClientPaginationStyle';
@@ -2947,9 +2957,9 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function setupClientPager(opts){
     var panel=document.getElementById(opts.panelId);
-    if(!panel)return;
+    if(!panel)return null;
     var table=panel.querySelector('table');
-    if(!table)return;
+    if(!table)return null;
     var page=1;
     var limit=opts.limit||20;
     var pager=panel.querySelector('.admin-client-pager[data-pager-for="'+opts.panelId+'"]');
@@ -2998,11 +3008,11 @@ document.addEventListener('DOMContentLoaded',function(){
       var showTo=Math.min(end,total);
       info.textContent=(opts.label||'목록')+' '+total+'건 · '+showFrom+'-'+showTo+'건 표시';
       pager.appendChild(info);
-      pager.style.display=rows.length>limit||total!==rows.length?'flex':'flex';
+      pager.style.display='flex';
     }
 
-    function resetSoon(){setTimeout(function(){render(1);},80);}
-    function refreshSoon(){setTimeout(function(){render(page);},120);}
+    function resetSoon(){setTimeout(function(){render(1);},50);}
+    function refreshSoon(){setTimeout(function(){render(page);},80);}
 
     panel.addEventListener('input',resetSoon,true);
     panel.addEventListener('change',resetSoon,true);
@@ -3015,7 +3025,7 @@ document.addEventListener('DOMContentLoaded',function(){
       new MutationObserver(function(){refreshSoon();}).observe(table,{childList:true,subtree:true});
     }catch(e){}
 
-    setTimeout(function(){render(1);},180);
+    render(1);
     return {render:render};
   }
 
@@ -3024,11 +3034,11 @@ document.addEventListener('DOMContentLoaded',function(){
     setupClientPager({panelId:'reviews',rowSelector:'.review-row',label:'후기',limit:20});
     setupClientPager({panelId:'adCenter',rowSelector:'.ad-center-row',label:'광고/배너 신청',limit:20});
     setupClientPager({panelId:'vendorRequests',rowSelector:'tr:not(:first-child)',label:'업체 수정요청',limit:20});
+    document.documentElement.classList.add('admin-pagination-ready');
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAdminClientPagination);
   else initAdminClientPagination();
-  window.addEventListener('hashchange',function(){setTimeout(initAdminClientPagination,180);});
+  window.addEventListener('hashchange',function(){setTimeout(initAdminClientPagination,80);});
 })();
 </script>
 </body></html>
-
