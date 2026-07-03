@@ -226,14 +226,30 @@
 @media(max-width:700px){.banner-form-labeled{grid-template-columns:1fr}.banner-form-labeled .img-preview,.banner-form-labeled .form-actions,.banner-form-labeled .admin-field.file-field{grid-column:1}}
 
 
-/* admin pagination v46 initial + centered */
-html:not(.admin-pagination-ready) #notices table tr.notice-row:nth-of-type(n+22),
-html:not(.admin-pagination-ready) #reviews table tr.review-row:nth-of-type(n+22),
-html:not(.admin-pagination-ready) #adCenter table tr.ad-center-row:nth-of-type(n+22),
-html:not(.admin-pagination-ready) #vendorRequests table tr:nth-of-type(n+22){display:none!important}
-.admin-client-pager,.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager{justify-content:center!important;text-align:center!important}
-.admin-client-pager .pager-info,.admin-pager .pager-info,.server-vendor-pager .server-vendor-info,.server-user-pager .server-user-info,.server-inquiry-pager .server-inquiry-info,.server-payment-pager .server-payment-info,.server-report-pager .server-report-info{width:100%!important;margin:6px 0 0!important;text-align:center!important}
-@media(max-width:700px){.admin-client-pager,.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager{justify-content:center!important}.admin-client-pager .pager-info,.admin-pager .pager-info{width:100%!important;margin:6px 0 0!important;text-align:center!important}}
+
+
+/* admin pagination v47 unified */
+html:not(.admin-unified-pagination-ready) #vendors table tr.vendor-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #banners table tr.banner-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #users table tr.user-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #inquiries table tr.inquiry-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #revenue table tr.payment-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #reports table tr.report-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #notices table tr.notice-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #reviews table tr.review-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #adCenter table tr.ad-center-row:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #vendorRequests table tr:nth-of-type(n+22),
+html:not(.admin-unified-pagination-ready) #adminLogs table tr:nth-of-type(n+22){display:none!important}
+.admin-page-hidden{display:none!important}
+.admin-client-pager,.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager{display:none!important}
+.admin-unified-pager{display:flex!important;align-items:center!important;justify-content:center!important;gap:8px;flex-wrap:wrap;margin:18px auto 24px!important;padding:12px 14px!important;border:1px solid #29324f!important;border-radius:14px!important;background:#070b15!important;text-align:center!important;box-sizing:border-box!important;width:100%!important;max-width:100%!important}
+.admin-unified-pager button{height:34px!important;min-width:38px!important;padding:0 13px!important;border-radius:999px!important;border:1px solid #39466c!important;background:#080d18!important;color:#dfe9ff!important;font-weight:900!important;cursor:pointer!important}
+.admin-unified-pager button.active{background:linear-gradient(90deg,#ff3fb4,#10d9ff)!important;color:#fff!important;border-color:transparent!important}
+.admin-unified-pager button:disabled{opacity:.45!important;cursor:not-allowed!important}
+.admin-unified-pager .pager-info{width:100%!important;margin:6px 0 0!important;text-align:center!important;color:#8d98b8!important;font-size:13px!important;font-weight:800!important}
+.admin-unified-empty{padding:14px;text-align:center;color:#8d98b8}
+@media(max-width:700px){.admin-unified-pager{gap:6px;padding:10px!important}.admin-unified-pager button{min-width:34px!important;padding:0 10px!important}}
+
 </style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
@@ -1396,9 +1412,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var p=document.querySelector('.admin-panel.active');
     return p&&p.id;
   }
-  function maybeLoad(){
-    if(activePanelId()==='vendors')loadVendors(vendorServerPage||1);
-  }
+  function maybeLoad(){return;}
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,200);});
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,200);});
   document.addEventListener('click',function(e){
@@ -1601,15 +1615,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var p=document.querySelector('.admin-panel.active');
     return p&&p.id;
   }
-  function maybeLoad(){
-    if(activePanelId()!=='users')return;
-    if(!firstAutoLoadSkipped){
-      firstAutoLoadSkipped=true;
-      // 서버가 렌더링한 최초 화면을 유지해서 화면이 2번 바뀌는 현상을 막습니다.
-      return;
-    }
-    loadUsers(userServerPage||1);
-  }
+  function maybeLoad(){return;}
   document.addEventListener('click',function(e){
     var save=e.target.closest('.user-save-btn');
     if(save){e.preventDefault();e.stopPropagation();saveUser(save);return;}
@@ -1739,15 +1745,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var p=document.querySelector('.admin-panel.active');
     return p&&p.id;
   }
-  function maybeLoad(){
-    if(activePanelId()!=='inquiries')return;
-    if(!firstAutoLoadSkipped){
-      firstAutoLoadSkipped=true;
-      // 최초 진입 시 서버 렌더링 목록을 그대로 사용합니다.
-      return;
-    }
-    loadInquiries(inquiryServerPage||1);
-  }
+  function maybeLoad(){return;}
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,220);});
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,220);});
   document.addEventListener('click',function(e){
@@ -1911,24 +1909,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var p=document.querySelector('.admin-panel.active');
     return p&&p.id;
   }
-  function maybeLoad(){
-    var id=activePanelId();
-    if(id==='revenue'){
-      if(!firstPaymentAutoLoadSkipped){
-        firstPaymentAutoLoadSkipped=true;
-        // 최초 결제내역 화면은 서버 렌더링 상태를 유지합니다.
-        return;
-      }
-      loadPayments(paymentPage||1);
-    }
-    if(id==='reports'){
-      if(!firstReportAutoLoadSkipped){
-        firstReportAutoLoadSkipped=true;
-        return;
-      }
-      loadReports(reportPage||1);
-    }
-  }
+  function maybeLoad(){return;}
   document.addEventListener('DOMContentLoaded',function(){
     try{
       var saved=sessionStorage.getItem('adminReturnPanel');
@@ -2931,114 +2912,143 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script>
 
+
 <script>
 (function(){
-  if(window.__adminClientPaginationV46)return;
-  window.__adminClientPaginationV46=true;
+  if(window.__adminUnifiedPaginationV47)return;
+  window.__adminUnifiedPaginationV47=true;
 
-  var css='.admin-client-pager{display:flex!important;align-items:center!important;justify-content:center!important;gap:8px;flex-wrap:wrap;margin:18px 0 24px;padding:12px;border:1px solid #29324f;border-radius:14px;background:#070b15;text-align:center!important}.admin-client-pager button{height:34px!important;min-width:38px!important;padding:0 12px!important;border-radius:999px!important;background:#222b43!important;color:#dfe9ff!important;border:1px solid #39466c!important}.admin-client-pager button.active{background:linear-gradient(90deg,#ff3fb4,#10d9ff)!important;color:#fff!important;border-color:transparent!important}.admin-client-pager button:disabled{opacity:.45;cursor:not-allowed}.admin-client-pager .pager-info{width:100%!important;margin:6px 0 0!important;text-align:center!important;color:#8d98b8;font-size:13px;font-weight:800}.admin-page-hidden{display:none!important}.admin-client-empty{padding:14px;text-align:center;color:#8d98b8}.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager{justify-content:center!important;text-align:center!important}.admin-pager .pager-info,.server-vendor-pager .server-vendor-info,.server-user-pager .server-user-info,.server-inquiry-pager .server-inquiry-info,.server-payment-pager .server-payment-info,.server-report-pager .server-report-info{width:100%!important;margin:6px 0 0!important;text-align:center!important}';
-  if(!document.getElementById('adminClientPaginationStyle')){
-    var st=document.createElement('style');
-    st.id='adminClientPaginationStyle';
-    st.textContent=css;
-    document.head.appendChild(st);
-  }
+  var pagers={};
+  var configs=[
+    {panelId:'vendors',rowSelector:'tr.vendor-row',label:'업체',limit:20},
+    {panelId:'banners',rowSelector:'tr.banner-row',label:'배너',limit:20},
+    {panelId:'users',rowSelector:'tr.user-row',label:'회원',limit:20},
+    {panelId:'inquiries',rowSelector:'tr.inquiry-row',label:'입점승인',limit:20},
+    {panelId:'revenue',rowSelector:'tr.payment-row',label:'결제내역',limit:20},
+    {panelId:'reports',rowSelector:'tr.report-row',label:'신고',limit:20},
+    {panelId:'notices',rowSelector:'tr.notice-row',label:'공지',limit:20},
+    {panelId:'reviews',rowSelector:'tr.review-row',label:'후기',limit:20},
+    {panelId:'adCenter',rowSelector:'tr.ad-center-row',label:'광고/배너 신청',limit:20},
+    {panelId:'vendorRequests',rowSelector:'table tr:not(:first-child)',label:'업체 수정요청',limit:20},
+    {panelId:'adminLogs',rowSelector:'table tr:not(:first-child)',label:'관리자 로그',limit:20}
+  ];
 
-  function makePagerButton(label,disabled,active,fn){
+  function makeBtn(label,disabled,active,fn){
     var b=document.createElement('button');
     b.type='button';
     b.textContent=label;
-    b.className='admin-client-pager-btn';
     if(disabled)b.disabled=true;
     if(active)b.classList.add('active');
     b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();fn();});
     return b;
   }
 
-  function setupClientPager(opts){
-    var panel=document.getElementById(opts.panelId);
-    if(!panel)return null;
-    var table=panel.querySelector('table');
-    if(!table)return null;
-    var page=1;
-    var limit=opts.limit||20;
-    var pager=panel.querySelector('.admin-client-pager[data-pager-for="'+opts.panelId+'"]');
+  function rowIsFilteredOut(row){
+    return row.classList.contains('hidden-row') || row.classList.contains('hide');
+  }
+
+  function ensurePager(panel,table,panelId){
+    panel.querySelectorAll('.admin-client-pager,.admin-pager,.server-vendor-pager,.server-user-pager,.server-inquiry-pager,.server-payment-pager,.server-report-pager').forEach(function(x){x.remove();});
+    var pager=panel.querySelector('.admin-unified-pager[data-pager-for="'+panelId+'"]');
     if(!pager){
       pager=document.createElement('div');
-      pager.className='admin-client-pager';
-      pager.setAttribute('data-pager-for',opts.panelId);
+      pager.className='admin-unified-pager';
+      pager.setAttribute('data-pager-for',panelId);
       var anchor=table.closest('.table-wrap')||table;
       anchor.insertAdjacentElement('afterend',pager);
     }
+    return pager;
+  }
+
+  function setupPager(cfg){
+    var panel=document.getElementById(cfg.panelId);
+    if(!panel)return;
+    var table=panel.querySelector('table');
+    if(!table)return;
+    var state=pagers[cfg.panelId]||{page:1,timer:null,observer:null};
+    pagers[cfg.panelId]=state;
+    var pager=ensurePager(panel,table,cfg.panelId);
+    var limit=cfg.limit||20;
 
     function allRows(){
-      var rows=[].slice.call(table.querySelectorAll(opts.rowSelector));
-      return rows.filter(function(row){return !row.querySelector('th');});
+      return [].slice.call(table.querySelectorAll(cfg.rowSelector)).filter(function(row){
+        return row && !row.querySelector('th');
+      });
     }
-    function filterVisible(row){
-      return !row.classList.contains('hidden-row') && !row.classList.contains('hide');
-    }
+
     function render(nextPage){
       var rows=allRows();
       rows.forEach(function(row){row.classList.remove('admin-page-hidden');});
-      var visible=rows.filter(filterVisible);
+      var visible=rows.filter(function(row){return !rowIsFilteredOut(row);});
       var total=visible.length;
       var pages=Math.max(1,Math.ceil(total/limit));
-      page=Math.max(1,Math.min(nextPage||page,pages));
-      var start=(page-1)*limit;
+      state.page=Math.max(1,Math.min(nextPage||state.page||1,pages));
+      var start=(state.page-1)*limit;
       var end=start+limit;
-      visible.forEach(function(row,idx){
-        row.classList.toggle('admin-page-hidden',idx<start||idx>=end);
-      });
+      visible.forEach(function(row,idx){row.classList.toggle('admin-page-hidden',idx<start||idx>=end);});
 
       pager.innerHTML='';
-      pager.appendChild(makePagerButton('처음',page<=1,false,function(){render(1);}));
-      pager.appendChild(makePagerButton('이전',page<=1,false,function(){render(page-1);}));
-      var from=Math.max(1,page-2);
+      pager.appendChild(makeBtn('처음',state.page<=1,false,function(){render(1);}));
+      pager.appendChild(makeBtn('이전',state.page<=1,false,function(){render(state.page-1);}));
+      var from=Math.max(1,state.page-2);
       var to=Math.min(pages,from+4);
       from=Math.max(1,to-4);
-      for(var p=from;p<=to;p++){
-        (function(n){pager.appendChild(makePagerButton(String(n),false,n===page,function(){render(n);}));})(p);
+      if(from>1){
+        pager.appendChild(makeBtn('1',false,state.page===1,function(){render(1);}));
+        if(from>2){var dots=document.createElement('span');dots.textContent='...';dots.style.color='#8d98b8';dots.style.fontWeight='900';pager.appendChild(dots);}
       }
-      pager.appendChild(makePagerButton('다음',page>=pages,false,function(){render(page+1);}));
-      pager.appendChild(makePagerButton('마지막',page>=pages,false,function(){render(pages);}));
+      for(var p=from;p<=to;p++){
+        (function(n){pager.appendChild(makeBtn(String(n),false,n===state.page,function(){render(n);}));})(p);
+      }
+      if(to<pages){
+        if(to<pages-1){var dots2=document.createElement('span');dots2.textContent='...';dots2.style.color='#8d98b8';dots2.style.fontWeight='900';pager.appendChild(dots2);}
+        pager.appendChild(makeBtn(String(pages),false,state.page===pages,function(){render(pages);}));
+      }
+      pager.appendChild(makeBtn('다음',state.page>=pages,false,function(){render(state.page+1);}));
+      pager.appendChild(makeBtn('마지막',state.page>=pages,false,function(){render(pages);}));
       var info=document.createElement('span');
       info.className='pager-info';
       var showFrom=total?start+1:0;
       var showTo=Math.min(end,total);
-      info.textContent=(opts.label||'목록')+' '+total+'건 · '+showFrom+'-'+showTo+'건 표시';
+      info.textContent=(cfg.label||'목록')+' '+total+'건 · 현재 '+showFrom+'-'+showTo+'건 표시';
       pager.appendChild(info);
-      pager.style.display='flex';
     }
 
-    function resetSoon(){setTimeout(function(){render(1);},50);}
-    function refreshSoon(){setTimeout(function(){render(page);},80);}
+    function schedule(reset){
+      clearTimeout(state.timer);
+      state.timer=setTimeout(function(){render(reset?1:state.page);},70);
+    }
 
-    panel.addEventListener('input',resetSoon,true);
-    panel.addEventListener('change',resetSoon,true);
-    panel.addEventListener('click',function(e){
-      if(e.target.closest('.admin-client-pager'))return;
-      if(e.target.closest('button,select,input'))resetSoon();
-    },true);
-
-    try{
-      new MutationObserver(function(){refreshSoon();}).observe(table,{childList:true,subtree:true});
-    }catch(e){}
-
-    render(1);
-    return {render:render};
+    if(!state.bound){
+      state.bound=true;
+      panel.addEventListener('input',function(){schedule(true);},true);
+      panel.addEventListener('change',function(){schedule(true);},true);
+      panel.addEventListener('click',function(e){
+        if(e.target.closest('.admin-unified-pager'))return;
+        if(e.target.closest('[data-filter],#inquirySearchReset,#reportSearchReset,#noticeFilterReset,#reviewFilterReset,#bannerFilterReset,#vendorFilterReset,#userFilterReset,button,select,input'))schedule(true);
+      },true);
+      try{
+        state.observer=new MutationObserver(function(){schedule(false);});
+        state.observer.observe(table,{childList:true,subtree:true});
+      }catch(e){}
+    }
+    render(state.page||1);
   }
 
-  function initAdminClientPagination(){
-    setupClientPager({panelId:'notices',rowSelector:'.notice-row',label:'공지',limit:20});
-    setupClientPager({panelId:'reviews',rowSelector:'.review-row',label:'후기',limit:20});
-    setupClientPager({panelId:'adCenter',rowSelector:'.ad-center-row',label:'광고/배너 신청',limit:20});
-    setupClientPager({panelId:'vendorRequests',rowSelector:'tr:not(:first-child)',label:'업체 수정요청',limit:20});
-    document.documentElement.classList.add('admin-pagination-ready');
+  function initAll(){
+    configs.forEach(setupPager);
+    document.documentElement.classList.add('admin-unified-pagination-ready');
+    document.documentElement.classList.remove('admin-pagination-ready');
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAdminClientPagination);
-  else initAdminClientPagination();
-  window.addEventListener('hashchange',function(){setTimeout(initAdminClientPagination,80);});
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(initAll,0);});
+  else setTimeout(initAll,0);
+  document.addEventListener('click',function(e){
+    if(e.target && e.target.closest('[data-panel],.admin-sidebar a,.dashboard-card-link,.admin-live-task'))setTimeout(initAll,120);
+  },true);
+  window.addEventListener('hashchange',function(){setTimeout(initAll,120);});
+  window.adminRefreshUnifiedPagination=function(){setTimeout(initAll,80);};
 })();
 </script>
+
 </body></html>
