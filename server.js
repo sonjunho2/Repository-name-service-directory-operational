@@ -390,7 +390,10 @@ async function runAdminAction(req,res,redirectTo,fn){
     return sendFail(req,res,500,e.message||'관리자 작업 처리 중 오류가 발생했습니다.',redirectTo);
   }
 }
-app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,'SELECT * FROM vendors ORDER BY id DESC','SELECT COUNT(*) FROM vendors'));
+app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,`SELECT v.*,
+  (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
+  (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname
+  FROM vendors v ORDER BY v.id DESC`,'SELECT COUNT(*) FROM vendors'));
 app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
   try{
     const id=parseInt(req.params.id||'0',10);
@@ -490,7 +493,10 @@ app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('S
 app.get('/admin',admin,async(req,res)=>{await expireAds();
   const dashStats={};
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
-const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC LIMIT 300'),q('SELECT * FROM vendors ORDER BY id DESC LIMIT 500'),q('SELECT b.*, v.name vendor_name FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id ORDER BY b.sort_order,b.id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]); 
+const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC LIMIT 300'),q(`SELECT v.*,
+  (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
+  (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname
+  FROM vendors v ORDER BY v.id DESC LIMIT 500`),q('SELECT b.*, v.name vendor_name FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id ORDER BY b.sort_order,b.id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname FROM inquiries i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]); 
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];
@@ -925,7 +931,7 @@ app.post('/admin/link-user-vendor',admin,async(req,res)=>{
     if(req.get('x-requested-with'))return res.status(400).json({ok:false,error:'회원과 업체를 선택해주세요.'});
     return res.redirect('/admin#users');
   }
-  const u=await q('SELECT id,role FROM users WHERE id=$1',[userId]);
+  const u=await q('SELECT id,role,username,vendor_id FROM users WHERE id=$1',[userId]);
   if(!u.rows[0]){
     if(req.get('x-requested-with'))return res.status(404).json({ok:false,error:'회원을 찾을 수 없습니다.'});
     return res.redirect('/admin#users');
@@ -934,9 +940,20 @@ app.post('/admin/link-user-vendor',admin,async(req,res)=>{
     if(req.get('x-requested-with'))return res.status(400).json({ok:false,error:'관리자 계정은 업체회원으로 연결할 수 없습니다.'});
     return res.redirect('/admin#users');
   }
+  const vendor=await q('SELECT id,name FROM vendors WHERE id=$1',[vendorId]);
+  if(!vendor.rows[0]){
+    if(req.get('x-requested-with'))return res.status(404).json({ok:false,error:'연결할 업체를 찾을 수 없습니다.'});
+    return res.redirect('/admin#users');
+  }
+  const already=await q('SELECT id,username FROM users WHERE vendor_id=$1 AND id<>$2 LIMIT 1',[vendorId,userId]);
+  if(already.rows[0]){
+    const msg=`이미 ${already.rows[0].username} 아이디와 연결된 업체입니다.`;
+    if(req.get('x-requested-with'))return res.status(409).json({ok:false,error:msg});
+    return res.redirect('/admin#users');
+  }
   await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2',[vendorId,userId]);
-  await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId}`);
-  if(req.get('x-requested-with'))return res.json({ok:true});
+  await logAdmin(req,'회원 업체연결','user',userId,`vendor_id=${vendorId} / ${vendor.rows[0].name||''}`);
+  if(req.get('x-requested-with'))return res.json({ok:true,vendor_id:vendorId,user_id:userId});
   res.redirect('/admin#users');
 });
 
@@ -1048,44 +1065,69 @@ app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCou
 });
 app.post('/admin/settings/admin-account',admin,async(req,res)=>{const username=(req.body.username||'').trim(); const nickname=(req.body.nickname||'관리자').trim().slice(0,50); const password=(req.body.password||'').trim(); if(!/^[a-zA-Z0-9_]{4,30}$/.test(username))return res.redirect('/admin#settings'); if(password&&password.length<8)return res.redirect('/admin#settings'); if(password){const h=await bcrypt.hash(password,10); await q('UPDATE users SET username=$1,nickname=$2,password_hash=$3 WHERE id=$4 AND role=$5',[username,nickname||'관리자',h,req.session.user.id,'admin']);}else{await q('UPDATE users SET username=$1,nickname=$2 WHERE id=$3 AND role=$4',[username,nickname||'관리자',req.session.user.id,'admin']);} req.session.user.username=username; req.session.user.nickname=nickname||'관리자'; await logAdmin(req,'관리자 계정 수정','settings','admin-account',username); res.redirect('/admin#settings');});
 app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
-  const im=img(req.file);
-  req.body.name=(req.body.name||'').trim().slice(0,100);
-  req.body.category=(req.body.category||'기타').trim().slice(0,50);
-  req.body.region=(req.body.region||'기타').trim().slice(0,50);
-  req.body.phone=(req.body.phone||'').trim().slice(0,50);
-  req.body.kakao_url=(req.body.kakao_url||'').trim().slice(0,200);
-  req.body.tags=(req.body.tags||'').trim().slice(0,300);
-  req.body.description=(req.body.description||'').trim().slice(0,3000);
-  req.body.business_hours=(req.body.business_hours||'').trim().slice(0,200);
-  if(!req.body.name)return res.redirect('/admin#vendors');
-  const adType=['none','recommended','premium','banner'].includes(req.body.ad_type)?req.body.ad_type:'none';
-  const membership=adType==='recommended'?'recommended':'general';
-  const bannerActive=!!req.body.banner_active;
-  const isRecommended=adType==='recommended';
-  const isPremium=bannerActive;
+  const wantsJson=!!req.get('x-requested-with') || (req.get('accept')||'').includes('application/json');
+  try{
+    const im=img(req.file);
+    const id=parseInt(req.body.id||0,10);
+    const name=(req.body.name||'').trim().slice(0,100);
+    const category=(req.body.category||'기타').trim().slice(0,50)||'기타';
+    const region=(req.body.region||'기타').trim().slice(0,50)||'기타';
+    const phone=(req.body.phone||'').trim().slice(0,50);
+    const kakaoUrl=(req.body.kakao_url||'').trim().slice(0,200);
+    const tags=(req.body.tags||'').trim().slice(0,300);
+    const description=(req.body.description||'').trim().slice(0,3000);
+    const businessHours=(req.body.business_hours||'').trim().slice(0,200);
+    const status=['pending','active','hidden','expired','inactive'].includes(req.body.status)?req.body.status:'active';
+    const bannerActive=!!req.body.banner_active;
+    const requestedAdType=['none','general','recommended'].includes(req.body.ad_type)?req.body.ad_type:'none';
+    const adType=bannerActive?'recommended':requestedAdType;
+    const membership=adType==='recommended'?'recommended':'general';
+    const isRecommended=adType==='recommended';
+    const isPremium=bannerActive;
+    const expireAt=(req.body.expire_at||'').trim()||null;
+    const bannerUntil=bannerActive?expireAt:null;
+    const snsUrl=(req.body.sns_url||'').trim().slice(0,200);
+    const lineUrl=(req.body.line_url||'').trim().slice(0,200);
+    const telegramUrl=(req.body.telegram_url||'').trim().slice(0,200);
+    const holidayInfo=(req.body.holiday_info||'').trim().slice(0,500);
 
-  if(req.body.id){
-    const params=[
-      req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,
-      req.body.tags,req.body.description,req.body.business_hours,isRecommended,isPremium,
-      req.body.status||'active',membership,adType,req.body.expire_at||null,bannerActive,req.body.banner_until||null,
-      req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||'',req.body.id
-    ];
-    if(im){
-      await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11,membership_type=$12,ad_type=$13,expire_at=$14,banner_active=$15,banner_until=$16,sns_url=$17,line_url=$18,telegram_url=$19,holiday_info=$20,image_data=$22,image_updated_at=now() WHERE id=$21',[...params,im]);
-    }else{
-      await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11,membership_type=$12,ad_type=$13,expire_at=$14,banner_active=$15,banner_until=$16,sns_url=$17,line_url=$18,telegram_url=$19,holiday_info=$20 WHERE id=$21',params);
+    if(!name){
+      if(wantsJson)return res.status(400).json({ok:false,error:'업체명을 입력해주세요.'});
+      return res.redirect('/admin#vendors');
     }
-  }else{
-    await q('INSERT INTO vendors(name,category,region,phone,kakao_url,tags,description,business_hours,is_recommended,is_premium,image_data,membership_type,ad_type,expire_at,banner_active,banner_until,status,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)',[
-      req.body.name,req.body.category,req.body.region,req.body.phone,req.body.kakao_url,
-      req.body.tags,req.body.description,req.body.business_hours,isRecommended,isPremium,im,
-      membership,adType,req.body.expire_at||null,bannerActive,req.body.banner_until||null,req.body.status||'active',
-      req.body.sns_url||'',req.body.line_url||'',req.body.telegram_url||'',req.body.holiday_info||''
-    ]);
+
+    let row;
+    if(id){
+      const params=[
+        name,category,region,phone,kakaoUrl,tags,description,businessHours,isRecommended,isPremium,
+        status,membership,adType,expireAt,bannerActive,bannerUntil,snsUrl,lineUrl,telegramUrl,holidayInfo,id
+      ];
+      if(im){
+        const r=await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11,membership_type=$12,ad_type=$13,expire_at=$14,banner_active=$15,banner_until=$16,sns_url=$17,line_url=$18,telegram_url=$19,holiday_info=$20,image_data=$22,image_updated_at=now() WHERE id=$21 RETURNING *',[...params,im]);
+        row=r.rows[0];
+      }else{
+        const r=await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,tags=$6,description=$7,business_hours=$8,is_recommended=$9,is_premium=$10,status=$11,membership_type=$12,ad_type=$13,expire_at=$14,banner_active=$15,banner_until=$16,sns_url=$17,line_url=$18,telegram_url=$19,holiday_info=$20 WHERE id=$21 RETURNING *',params);
+        row=r.rows[0];
+      }
+      if(!row){
+        if(wantsJson)return res.status(404).json({ok:false,error:'수정할 업체를 찾지 못했습니다.'});
+        return res.redirect('/admin#vendors');
+      }
+    }else{
+      const r=await q('INSERT INTO vendors(name,category,region,phone,kakao_url,tags,description,business_hours,is_recommended,is_premium,image_data,membership_type,ad_type,expire_at,banner_active,banner_until,status,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *',[
+        name,category,region,phone,kakaoUrl,tags,description,businessHours,isRecommended,isPremium,im,
+        membership,adType,expireAt,bannerActive,bannerUntil,status,snsUrl,lineUrl,telegramUrl,holidayInfo
+      ]);
+      row=r.rows[0];
+    }
+    await logAdmin(req,id?'업체 수정':'관리자 업체 선등록','vendor',id||row?.id||'new',name);
+    if(wantsJson)return res.json({ok:true,mode:id?'update':'create',vendor:row});
+    res.redirect('/admin#vendors');
+  }catch(e){
+    console.error('admin vendor save failed',e);
+    if(wantsJson)return res.status(500).json({ok:false,error:e.message||'업체 저장 중 오류가 발생했습니다.'});
+    res.redirect('/admin#vendors');
   }
-  await logAdmin(req,req.body.id?'업체 수정':'업체 등록','vendor',req.body.id||'new',req.body.name||'');
-  res.redirect('/admin#vendors');
 });
 app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=img(req.file); if(req.body.id){let p=[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,req.body.id]; await q(`UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6 ${im?', image_data=$8':''} WHERE id=$7`, im?[...p,im]:p)} else await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,im]); await logAdmin(req,req.body.id?'배너 수정':'배너 등록','banner',req.body.id||'new',req.body.title||''); res.redirect('/admin#banners');});
 app.post('/admin/user',admin,async(req,res)=>{const userId=parseInt(req.body.id||0,10); if(!userId)return res.redirect('/admin#users'); const role=['admin','user'].includes(req.body.role)?req.body.role:'user'; const status=['active','blocked'].includes(req.body.status)?req.body.status:'active'; const nickname=(req.body.nickname||'회원').trim().slice(0,50); const password=req.body.password||''; if(password&&password.length<6)return res.redirect('/admin#users'); const h=password?await bcrypt.hash(password,10):null; if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]); else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]); await logAdmin(req,'회원 수정','user',userId,nickname); if(req.get('x-requested-with'))return res.json({ok:true}); res.redirect('/admin#users');});
