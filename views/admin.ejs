@@ -1930,176 +1930,170 @@ document.addEventListener('DOMContentLoaded',function(){
   if(window.__adminAjaxStage2)return;
   window.__adminAjaxStage2=true;
 
+  function isPostAdminForm(form){
+    if(!form)return false;
+    if(String(form.method||'').toLowerCase()!=='post')return false;
+    var action=String(form.getAttribute('action')||'');
+    if(!action)return false;
+    if(form.hasAttribute('data-no-ajax'))return false;
 
-  function actionText(path,btnText){
-    path=String(path||'').toLowerCase();
-    btnText=String(btnText||'');
-    if(path.includes('/delete')||btnText.includes('삭제'))return {doing:'삭제중...',done:'삭제되었습니다.',type:'warn',remove:true};
-    if(path.includes('/approve')||btnText.includes('승인')||btnText.includes('등록완료'))return {doing:'승인중...',done:'승인 처리되었습니다.',type:'ok',doneRow:true};
-    if(path.includes('/reject')||btnText.includes('반려'))return {doing:'반려중...',done:'반려 처리되었습니다.',type:'warn',doneRow:true};
-    if(path.includes('/done')||btnText.includes('처리완료'))return {doing:'처리중...',done:'처리 완료되었습니다.',type:'ok',doneRow:true};
-    if(path.includes('/paid')||btnText.includes('입금'))return {doing:'입금확인중...',done:'입금확인 처리되었습니다.',type:'ok',doneRow:true};
-    if(path.includes('/settings')||btnText.includes('저장'))return {doing:'저장중...',done:'저장되었습니다.',type:'ok'};
-    if(path.includes('/restore-json'))return {doing:'복원중...',done:'복원 요청이 처리되었습니다.',type:'warn',reload:true};
-    if(path.includes('/reset-data'))return {doing:'초기화중...',done:'초기화 요청이 처리되었습니다.',type:'warn',reload:true};
+    // 위험 작업과 다운로드/복원 계열은 기존 브라우저 흐름과 확인창을 그대로 유지합니다.
+    if(action.includes('/admin/backup'))return false;
+    if(action.includes('/admin/restore-json'))return false;
+    if(action.includes('/admin/settings/reset-data'))return false;
+
+    return true;
+  }
+
+  function buttonText(btn){
+    return String((btn&&(btn.innerText||btn.textContent||btn.value))||'').trim();
+  }
+
+  function actionMeta(action,btn){
+    var path=String(action||'').toLowerCase();
+    var text=buttonText(btn);
+    if(path.includes('/delete')||text.includes('삭제'))return {doing:'삭제중...',done:'삭제되었습니다.',type:'warn'};
+    if(path.includes('/reject')||text.includes('반려'))return {doing:'반려중...',done:'반려 처리되었습니다.',type:'warn'};
+    if(path.includes('/approve')||text.includes('승인')||text.includes('등록완료'))return {doing:'승인중...',done:'승인 처리되었습니다.',type:'ok'};
+    if(path.includes('/paid')||text.includes('입금'))return {doing:'입금확인중...',done:'입금확인 처리되었습니다.',type:'ok'};
+    if(path.includes('/done')||text.includes('처리완료'))return {doing:'처리중...',done:'처리 완료되었습니다.',type:'ok'};
+    if(text.includes('수정'))return {doing:'수정중...',done:'수정되었습니다.',type:'ok'};
+    if(text.includes('등록'))return {doing:'등록중...',done:'등록되었습니다.',type:'ok'};
+    if(text.includes('저장')||path.includes('/settings'))return {doing:'저장중...',done:'저장되었습니다.',type:'ok'};
     return {doing:'처리중...',done:'처리되었습니다.',type:'ok'};
   }
 
-  function shouldSkip(form){
-    if(!form||String(form.method||'').toLowerCase()!=='post')return true;
-    var action=String(form.getAttribute('action')||'');
-    if(!action)return true;
-    if(form.hasAttribute('data-no-ajax'))return true;
-    if(action.includes('/admin/backup'))return true;
-    return false;
+  function activePanelId(){
+    var p=document.querySelector('.admin-panel.active');
+    return p&&p.id ? p.id : String(location.hash||'').replace('#','');
   }
 
-  function nearestRowOrBox(form){
-    return form.closest('tr') || form.closest('.admin-activity-item') || form.closest('.card') || form.closest('.box');
+  function panelForForm(form){
+    if(!form)return activePanelId()||'dashboard';
+    if(form.id==='vendorForm')return activePanelId()||'vendors';
+    if(form.id==='bannerForm')return 'banners';
+    var panel=form.closest('.admin-panel');
+    if(panel&&panel.id)return panel.id;
+    return activePanelId()||'dashboard';
   }
 
-  function updateRowAfter(form,meta){
-    var target=nearestRowOrBox(form);
-    if(!target)return;
-    if(meta.remove){
-      target.classList.add('ajax-row-remove');
-      setTimeout(function(){target.remove();},240);
-      return;
-    }
-    if(meta.doneRow){
-      target.classList.add('ajax-row-done');
-      var buttons=target.querySelectorAll('button');
-      buttons.forEach(function(b){b.disabled=true;});
-      var status=target.querySelector('.status-pending,.pending');
-      if(status){
-        status.className='done status-on';
-        status.textContent='처리완료';
+  function rememberReturnState(panel){
+    try{
+      if(panel)sessionStorage.setItem('adminReturnPanel',panel);
+      var activeSettings=document.querySelector('.settings-tab.active');
+      if(activeSettings&&activeSettings.dataset&&activeSettings.dataset.settingsTab){
+        sessionStorage.setItem('adminReturnSettingsTab',activeSettings.dataset.settingsTab);
       }
-      var actionCell=target.querySelector('td:last-child');
-      if(actionCell && form.closest('#vendorRequests')){
-        actionCell.innerHTML='<span class="done">처리완료</span>';
-      }
+    }catch(e){}
+  }
+
+  function restoreSettingsTab(){
+    try{
+      var tabName=sessionStorage.getItem('adminReturnSettingsTab');
+      if(!tabName)return;
+      sessionStorage.removeItem('adminReturnSettingsTab');
+      var btn=document.querySelector('.settings-tab[data-settings-tab="'+tabName+'"]');
+      var panel=document.getElementById('settings-'+tabName);
+      if(!btn||!panel)return;
+      document.querySelectorAll('.settings-tab').forEach(function(x){x.classList.remove('active');});
+      document.querySelectorAll('.settings-panel').forEach(function(x){x.classList.remove('active');});
+      btn.classList.add('active');
+      panel.classList.add('active');
+    }catch(e){}
+  }
+
+  function closeOpenEditors(){
+    var vendorModal=document.getElementById('vendorModal');
+    if(vendorModal&&vendorModal.classList.contains('active')){
+      vendorModal.classList.remove('active');
+      document.body.style.overflow='';
     }
+  }
+
+  function reloadToPanel(panel){
+    rememberReturnState(panel);
+    closeOpenEditors();
+    setTimeout(function(){
+      if(panel){
+        try{history.replaceState(null,'','#'+panel);}catch(e){}
+      }
+      location.reload();
+    },420);
+  }
+
+  async function readResponse(res){
+    var data=null;
+    var text='';
+    try{data=await res.clone().json();}catch(e){}
+    if(!data){
+      try{text=await res.clone().text();}catch(e){}
+    }
+    return {json:data,text:text};
   }
 
   async function submitAjax(form,submitter){
-    var action=form.getAttribute('action');
-    var btn=submitter || form.querySelector('button[type="submit"],button:not([type])');
-    var oldText=btn?btn.textContent:'';
-    var meta=actionText(action,oldText);
+    var action=form.getAttribute('action')||location.pathname;
+    var btn=submitter && submitter.closest ? submitter.closest('button,input[type="submit"]') : null;
+    if(!btn)btn=form.querySelector('button[type="submit"],button:not([type]),input[type="submit"]');
+    var meta=actionMeta(action,btn);
+    var panel=panelForForm(form);
+    var oldText=btn?buttonText(btn):'';
 
     if(btn){
-      btn.classList.add('ajax-loading');
       btn.disabled=true;
-      btn.textContent=meta.doing;
+      if(btn.tagName==='INPUT')btn.value=meta.doing;
+      else btn.textContent=meta.doing;
     }
 
     try{
-      var fd=new FormData(form);
       var res=await fetch(action,{
         method:'POST',
-        body:fd,
+        body:new FormData(form),
         credentials:'same-origin',
         headers:{'X-Requested-With':'fetch','Accept':'application/json'}
       });
-      var data=null;
-      try{data=await res.clone().json();}catch(parseErr){}
-      if(!res.ok || (data&&data.ok===false))throw new Error((data&&data.error)||('HTTP '+res.status));
+      var body=await readResponse(res);
+      if(!res.ok || (body.json&&body.json.ok===false)){
+        throw new Error((body.json&&body.json.error)||('HTTP '+res.status));
+      }
 
       toast(meta.done,meta.type);
-      updateRowAfter(form,meta);
-
-      var actionPath=String(action||'').toLowerCase();
-      var formId=String(form.id||'');
-      function closeAdminEditorIfNeeded(){
-        var modal=document.getElementById('vendorModal');
-        if(modal&&modal.classList.contains('active')){
-          modal.classList.remove('active');
-          document.body.style.overflow='';
-        }
-      }
-      var needsListRefresh=(
-        formId==='vendorForm' ||
-        formId==='bannerForm' ||
-        !!form.closest('#users') ||
-        !!form.closest('#notices') ||
-        !!form.closest('#reviews') ||
-        !!form.closest('#inquiries') ||
-        !!form.closest('#reports') ||
-        !!form.closest('#settings') ||
-        (
-          !!form.closest('#vendors') &&
-          (actionPath.includes('/admin/vendor') || actionPath.includes('/admin/delete/vendors/'))
-        ) ||
-        (
-          !!form.closest('#banners') &&
-          (actionPath.includes('/admin/banner') || actionPath.includes('/admin/delete/banners/'))
-        ) ||
-        (
-          !!form.closest('#adCenter') &&
-          (actionPath.includes('/admin/ad-requests/') || actionPath.includes('/admin/banner-requests/')) &&
-          (actionPath.includes('/payment-confirm') || actionPath.includes('/reject') || actionPath.includes('/cancel'))
-        ) ||
-        (
-          !!form.closest('#vendorRequests') &&
-          actionPath.includes('/admin/vendor-requests/') &&
-          (actionPath.includes('/approve') || actionPath.includes('/reject'))
-        )
-      );
-      if(needsListRefresh){
-        closeAdminEditorIfNeeded();
-        var activePanel=document.querySelector('.admin-panel.active');
-        var panel=activePanel ? activePanel.id : (location.hash||'').replace('#','');
-        if(panel){try{sessionStorage.setItem('adminReturnPanel',panel);}catch(e){}}
-        setTimeout(function(){
-          if(panel && location.hash !== '#'+panel){
-            location.hash=panel;
-          }
-          location.reload();
-        },520);
-        return;
-      }
-
-      if(meta.reload){
-        setTimeout(function(){location.reload();},700);
-      }
+      reloadToPanel(panel);
     }catch(err){
       toast('처리하지 못했습니다.','bad',err&&err.message?err.message:'잠시 후 다시 시도해주세요.');
-    }finally{
-      if(btn&&!meta.remove&&!meta.doneRow&&!meta.reload){
-        btn.classList.remove('ajax-loading');
+      if(btn){
         btn.disabled=false;
-        btn.textContent=oldText;
+        if(btn.tagName==='INPUT')btn.value=oldText;
+        else btn.textContent=oldText;
       }
     }
   }
 
+  document.addEventListener('DOMContentLoaded',function(){
+    setTimeout(restoreSettingsTab,80);
+  });
+
   document.addEventListener('submit',function(e){
     var form=e.target;
-    if(shouldSkip(form))return;
-
-    var action=String(form.getAttribute('action')||'');
-    if(action.includes('/admin/restore-json')||action.includes('/admin/settings/reset-data')){
-      return;
-    }
+    if(!isPostAdminForm(form))return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    var submitter=e.submitter || document.activeElement;
     if(form.dataset.ajaxSubmitting==='1')return;
     form.dataset.ajaxSubmitting='1';
 
+    var submitter=e.submitter || form.__lastSubmitter || document.activeElement;
     submitAjax(form,submitter).finally(function(){
-      setTimeout(function(){form.dataset.ajaxSubmitting='0';},500);
+      setTimeout(function(){form.dataset.ajaxSubmitting='0';},900);
     });
   },true);
 
   document.addEventListener('click',function(e){
-    var btn=e.target.closest('button');
+    var btn=e.target&&e.target.closest&&e.target.closest('button,input[type="submit"]');
     if(!btn)return;
-    var form=btn.closest('form');
-    if(!form||shouldSkip(form))return;
+    var form=btn.closest&&btn.closest('form');
+    if(!form||!isPostAdminForm(form))return;
     form.__lastSubmitter=btn;
   },true);
 })();
