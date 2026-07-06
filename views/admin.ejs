@@ -232,10 +232,13 @@
 .banner-kind-admin{background:#172e45;color:#10d9ff}
 @media(max-width:1100px){.banner-form-labeled{grid-template-columns:1fr 1fr}.banner-form-labeled .img-preview,.banner-form-labeled .form-actions{grid-column:1/3}}
 @media(max-width:700px){.banner-form-labeled{grid-template-columns:1fr}.banner-form-labeled .img-preview,.banner-form-labeled .form-actions,.banner-form-labeled .admin-field.file-field{grid-column:1}}
+
+.admin-notify{position:relative;display:inline-flex;align-items:center;margin-right:10px}.admin-notify-btn{height:36px!important;border:1px solid #29324f!important;border-radius:999px!important;background:#080d18!important;color:#dfe9ff!important;padding:0 12px!important;font-weight:900!important;cursor:pointer!important}.admin-notify-btn.has-unread{border-color:#10d9ff!important;box-shadow:0 0 0 3px rgba(16,217,255,.14)!important}.admin-notify-count{display:none;margin-left:6px;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:999px;background:#ff3fb4;color:#fff;font-size:12px;font-weight:1000}.admin-notify-btn.has-unread .admin-notify-count{display:inline-block}.admin-notify-panel{display:none;position:absolute;right:0;top:44px;width:360px;max-width:calc(100vw - 24px);border:1px solid #29324f;border-radius:16px;background:#080d18;box-shadow:0 24px 80px rgba(0,0,0,.55);z-index:9999;overflow:hidden}.admin-notify.open .admin-notify-panel{display:block}.admin-notify-head{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:1px solid #29324f;font-weight:1000}.admin-notify-head button{height:30px!important;border-radius:999px!important;border:1px solid #29324f!important;background:#101525!important;color:#dfe9ff!important;padding:0 10px!important}.admin-notify-list{max-height:360px;overflow:auto}.admin-notify-item{display:block;padding:13px 14px;border-bottom:1px solid #1d263d;color:#dfe9ff;text-decoration:none}.admin-notify-item:hover{background:#101525}.admin-notify-item.unread{background:linear-gradient(90deg,rgba(16,217,255,.10),rgba(255,63,180,.06))}.admin-notify-item b{display:block;color:#fff;margin-bottom:5px}.admin-notify-item p{margin:0;color:#c8d0e8;font-size:13px;line-height:1.45}.admin-notify-item small{display:block;margin-top:6px;color:#8d98b8}.admin-notify-empty{padding:18px;color:#8d98b8;text-align:center}@media(max-width:700px){.admin-notify-panel{right:-70px;width:320px}.admin-notify-btn{padding:0 9px!important}.admin-notify-label{display:none}}
+
 </style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; function _extractPaidUsdtValue(x){return x?.paid_usdt_amount||((String(x?.admin_memo||x?.memo||'').match(/실제입금:\s*([0-9.]+)/)||[])[1]||'');} function _centerPaidUsdt(x){return _extractPaidUsdtValue(x);} function _cleanCenterMemo(x){return String(x?.admin_memo||'').replace(/\s*실제입금:\s*[0-9.]+\s*USDT\s*/g,'').trim();} %><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
-  </a><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
+  </a><div class="admin-notify" id="adminNotificationCenter"><button type="button" class="admin-notify-btn" id="adminNotifyBtn"><span class="admin-notify-label">알림</span><span class="admin-notify-count" id="adminNotifyCount">0</span></button><div class="admin-notify-panel"><div class="admin-notify-head"><span>실시간 알림센터</span><button type="button" id="adminNotifyReadAll">전체읽음</button></div><div class="admin-notify-list" id="adminNotifyList"><div class="admin-notify-empty">알림을 불러오는 중...</div></div></div></div><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
   <a class="active" href="#dashboard" data-panel="dashboard">홈</a>
@@ -2991,4 +2994,48 @@ document.addEventListener('DOMContentLoaded',function(){
   window.enhanceAdminDatePickers=enhanceAdminDatePickers;
 })();
 </script>
+
+<script>
+(function(){
+  if(window.__notificationCenterV62)return;
+  window.__notificationCenterV62=true;
+  var root=document.getElementById('adminNotificationCenter');
+  if(!root)return;
+  var btn=document.getElementById('adminNotifyBtn');
+  var count=document.getElementById('adminNotifyCount');
+  var list=document.getElementById('adminNotifyList');
+  var readAll=document.getElementById('adminNotifyReadAll');
+  function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function fmt(v){try{return new Date(v).toLocaleString('ko-KR',{hour12:false});}catch(e){return '';}}
+  async function load(){
+    try{
+      var r=await fetch('/api/notifications',{headers:{'Accept':'application/json'}});
+      var j=await r.json();
+      if(!j.ok)throw new Error(j.error||'failed');
+      var unread=Number(j.unread||0);
+      count.textContent=unread;
+      btn.classList.toggle('has-unread',unread>0);
+      var items=j.items||[];
+      if(!items.length){list.innerHTML='<div class="admin-notify-empty">새 알림이 없습니다.</div>';return;}
+      list.innerHTML=items.map(function(x){
+        var href=x.link_url||'#';
+        return '<a class="admin-notify-item '+(x.is_read?'':'unread')+'" href="'+esc(href)+'" data-id="'+x.id+'"><b>'+esc(x.title||'알림')+'</b><p>'+esc(x.message||'')+'</p><small>'+esc(fmt(x.created_at))+'</small></a>';
+      }).join('');
+    }catch(e){
+      list.innerHTML='<div class="admin-notify-empty">알림을 불러오지 못했습니다.</div>';
+    }
+  }
+  btn.addEventListener('click',function(e){e.preventDefault();root.classList.toggle('open');load();});
+  document.addEventListener('click',function(e){if(!root.contains(e.target))root.classList.remove('open');});
+  list.addEventListener('click',function(e){
+    var a=e.target.closest('.admin-notify-item');
+    if(!a)return;
+    fetch('/api/notifications/'+a.dataset.id+'/read',{method:'POST'}).catch(function(){});
+  });
+  if(readAll)readAll.addEventListener('click',async function(e){e.preventDefault();await fetch('/api/notifications/read-all',{method:'POST'}).catch(function(){});load();});
+  load();
+  setInterval(load,15000);
+})();
+</script>
+
 </body></html>
