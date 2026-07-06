@@ -237,6 +237,52 @@
 
 
 
+
+/* V65 알림센터 위치 고정 보정: 브랜딩 헤더와 분리해서 항상 클릭 가능하게 표시 */
+#adminNotificationCenter.admin-notify{
+  position:fixed!important;
+  right:24px!important;
+  bottom:24px!important;
+  left:auto!important;
+  top:auto!important;
+  margin:0!important;
+  z-index:2147483000!important;
+  display:flex!important;
+  align-items:flex-end!important;
+}
+#adminNotificationCenter .admin-notify-btn{
+  height:44px!important;
+  min-width:92px!important;
+  padding:0 16px!important;
+  border-radius:999px!important;
+  background:#101525!important;
+  border:1px solid #39466c!important;
+  box-shadow:0 14px 40px rgba(0,0,0,.48)!important;
+}
+#adminNotificationCenter .admin-notify-btn.has-unread{
+  border-color:#10d9ff!important;
+  box-shadow:0 0 0 3px rgba(16,217,255,.16),0 14px 40px rgba(0,0,0,.52)!important;
+}
+#adminNotificationCenter .admin-notify-panel{
+  position:absolute!important;
+  right:0!important;
+  left:auto!important;
+  top:auto!important;
+  bottom:54px!important;
+  width:390px!important;
+  max-width:calc(100vw - 28px)!important;
+  max-height:calc(100vh - 110px)!important;
+  z-index:2147483001!important;
+}
+#adminNotificationCenter .admin-notify-list{
+  max-height:calc(100vh - 220px)!important;
+}
+@media(max-width:700px){
+  #adminNotificationCenter.admin-notify{right:12px!important;bottom:12px!important}
+  #adminNotificationCenter .admin-notify-panel{right:0!important;bottom:52px!important;width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important}
+  #adminNotificationCenter .admin-notify-label{display:inline!important}
+}
+
 /* V64 입점신청/알림센터 단일화 보정 */
 .admin-notify-sound{margin-left:6px!important}
 .admin-notify-sound.on{border-color:#10d9ff!important;color:#10d9ff!important}
