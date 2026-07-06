@@ -70,6 +70,13 @@ async function ensureSchema(){
     await q("INSERT INTO app_settings(key,value) VALUES('site_link_url','/') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('brand_logo_height','56') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('brand_name_size','32') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_auto','on') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_source','auto') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_margin_percent','0') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_last_value','') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_last_source','') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_updated_at','') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_error','') ON CONFLICT (key) DO NOTHING");
     await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
     await q("ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int");
@@ -286,6 +293,102 @@ function calcUsdt(krw,rate){
   if(!k||!r)return '0.00';
   return (k/r).toFixed(2);
 }
+
+const USDT_RATE_CACHE={value:null,source:'',updatedAt:0,error:''};
+const USDT_RATE_CACHE_MS=1000*60*10;
+function safeNumber(v){
+  const n=Number(v);
+  return Number.isFinite(n)?n:0;
+}
+function clampNumber(v,min,max,d){
+  const n=safeNumber(v);
+  return n?Math.max(min,Math.min(max,n)):d;
+}
+async function fetchJsonWithTimeout(url,timeoutMs=4500){
+  if(typeof fetch!=='function')throw new Error('fetch unavailable');
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const res=await fetch(url,{headers:{'Accept':'application/json'},signal:controller.signal});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    return await res.json();
+  }finally{
+    clearTimeout(timer);
+  }
+}
+async function fetchUpbitUsdtKrw(){
+  const data=await fetchJsonWithTimeout('https://api.upbit.com/v1/ticker?markets=KRW-USDT');
+  const price=Number(Array.isArray(data)?data[0]?.trade_price:data?.trade_price);
+  if(!Number.isFinite(price)||price<=0)throw new Error('upbit invalid price');
+  return {value:price,source:'upbit'};
+}
+async function fetchBithumbUsdtKrw(){
+  const data=await fetchJsonWithTimeout('https://api.bithumb.com/public/ticker/USDT_KRW');
+  const price=Number(data?.data?.closing_price||data?.data?.trade_price||data?.data?.prev_closing_price);
+  if(!Number.isFinite(price)||price<=0)throw new Error('bithumb invalid price');
+  return {value:price,source:'bithumb'};
+}
+async function fetchExternalUsdtKrw(source){
+  const normalized=['upbit','bithumb'].includes(source)?source:'auto';
+  const errors=[];
+  const sources=normalized==='auto'?['upbit','bithumb']:[normalized];
+  for(const src of sources){
+    try{
+      return src==='bithumb'?await fetchBithumbUsdtKrw():await fetchUpbitUsdtKrw();
+    }catch(e){
+      errors.push(src+': '+(e.message||'failed'));
+    }
+  }
+  throw new Error(errors.join(' / ')||'rate fetch failed');
+}
+function applyUsdtRateMargin(value,marginPercent){
+  const base=Number(value||0);
+  const margin=Number(marginPercent||0);
+  if(!Number.isFinite(base)||base<=0)return 0;
+  const boundedMargin=Number.isFinite(margin)?Math.max(-10,Math.min(10,margin)):0;
+  return Math.round(base*(1+(boundedMargin/100)));
+}
+async function resolveUsdtKrwRate(raw={},force=false){
+  const manual=clampNumber(raw.usdt_krw_rate,100,100000,1400);
+  const auto=raw.usdt_rate_auto!=='off';
+  const source=(raw.usdt_rate_source||'auto').trim()||'auto';
+  const margin=Number(raw.usdt_rate_margin_percent||0);
+  const last=clampNumber(raw.usdt_rate_last_value,100,100000,0);
+
+  if(!auto){
+    return {value:manual,source:'manual',auto:false,updatedAt:raw.usdt_rate_updated_at||'',error:''};
+  }
+
+  if(!force&&USDT_RATE_CACHE.value&&Date.now()-USDT_RATE_CACHE.updatedAt<USDT_RATE_CACHE_MS){
+    return {value:USDT_RATE_CACHE.value,source:USDT_RATE_CACHE.source,auto:true,updatedAt:new Date(USDT_RATE_CACHE.updatedAt).toISOString(),error:USDT_RATE_CACHE.error||''};
+  }
+
+  try{
+    const fetched=await fetchExternalUsdtKrw(source);
+    const effective=applyUsdtRateMargin(fetched.value,margin);
+    const nowIso=new Date().toISOString();
+    USDT_RATE_CACHE.value=effective;
+    USDT_RATE_CACHE.source=fetched.source;
+    USDT_RATE_CACHE.updatedAt=Date.now();
+    USDT_RATE_CACHE.error='';
+    await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",['usdt_rate_last_value',String(effective)]);
+    await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",['usdt_rate_last_source',fetched.source]);
+    await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",['usdt_rate_updated_at',nowIso]);
+    await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",['usdt_rate_error','']);
+    return {value:effective,source:fetched.source,auto:true,updatedAt:nowIso,error:''};
+  }catch(e){
+    const msg=String(e.message||'자동 환율 조회 실패').slice(0,500);
+    USDT_RATE_CACHE.value=last||manual;
+    USDT_RATE_CACHE.source=last?'last_success':'manual_fallback';
+    USDT_RATE_CACHE.updatedAt=Date.now();
+    USDT_RATE_CACHE.error=msg;
+    try{
+      await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",['usdt_rate_error',msg]);
+    }catch(_e){}
+    return {value:last||manual,source:last?'last_success':'manual_fallback',auto:true,updatedAt:raw.usdt_rate_updated_at||'',error:msg};
+  }
+}
+
 function daysLeftUntil(dateValue){
   if(!dateValue)return 0;
   const today=new Date(); today.setHours(0,0,0,0);
@@ -340,7 +443,20 @@ function normalizeBrandSettings(raw){
   const nameSize=clamp(raw.brand_name_size,14,72,32);
   return {name,showLogo,showName,logo:raw.site_logo_data||'',favicon:raw.site_favicon_data||'',link,logoHeight,nameSize};
 }
-async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); return {raw,categories:split(raw.categories),regions:split(raw.regions),brand:normalizeBrandSettings(raw)};}
+async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); const rate=await resolveUsdtKrwRate(raw,false); raw.usdt_krw_manual_rate=raw.usdt_krw_rate||'1400'; raw.usdt_rate_auto=raw.usdt_rate_auto||'on'; raw.usdt_rate_source=raw.usdt_rate_source||'auto'; raw.usdt_rate_margin_percent=raw.usdt_rate_margin_percent||'0'; raw.usdt_rate_effective_value=String(rate.value); raw.usdt_rate_effective_source=rate.source; raw.usdt_rate_effective_auto=rate.auto?'on':'off'; raw.usdt_rate_effective_updated_at=rate.updatedAt||raw.usdt_rate_updated_at||''; raw.usdt_rate_effective_error=rate.error||raw.usdt_rate_error||''; raw.usdt_krw_rate=String(rate.value); return {raw,categories:split(raw.categories),regions:split(raw.regions),brand:normalizeBrandSettings(raw)};}
+app.post('/admin/settings/usdt-rate-refresh',admin,async(req,res)=>{
+  try{
+    const r=await q('SELECT key,value FROM app_settings');
+    const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||'']));
+    const rate=await resolveUsdtKrwRate(raw,true);
+    await logAdmin(req,'USDT 환율 수동갱신','settings','usdt-rate',`${rate.value}원 / ${rate.source}`);
+    if(wantsJson(req))return res.json({ok:true,rate});
+  }catch(e){
+    console.error('usdt rate refresh failed',e);
+    if(wantsJson(req))return res.status(500).json({ok:false,error:e.message||'환율 갱신 실패'});
+  }
+  res.redirect('/admin#settings');
+});
 async function homeData(req){
   await expireAds();
   const search=(req.query.search||'').trim().slice(0,80), region=(req.query.region||'').trim().slice(0,50), category=(req.query.category||'').trim().slice(0,50), sort=(req.query.sort||'default').trim();
@@ -1077,9 +1193,11 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   res.redirect('/admin#settings');
 });
 
-app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCount:1},{name:'site_favicon',maxCount:1}]),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)}; const size=(v,d,min,max)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=min&&n<=max?String(n):String(d)};
+app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCount:1},{name:'site_favicon',maxCount:1}]),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)}; const size=(v,d,min,max)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=min&&n<=max?String(n):String(d)}; const decimal=(v,d,min,max)=>{const n=parseFloat(v);return Number.isFinite(n)?String(Math.max(min,Math.min(max,n))):String(d)};
   const current=await getSettings();
-  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,1400),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/',brand_logo_height:size(req.body.brand_logo_height,current.raw.brand_logo_height||56,24,120),brand_name_size:size(req.body.brand_name_size,current.raw.brand_name_size||32,14,72)};
+  const hasRateFields=Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_source')||Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_margin_percent')||Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_auto');
+  const rateSource=['auto','upbit','bithumb'].includes(req.body.usdt_rate_source)?req.body.usdt_rate_source:(current.raw.usdt_rate_source||'auto');
+  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,current.raw.usdt_krw_rate||1400),usdt_rate_auto:hasRateFields?(req.body.usdt_rate_auto?'on':'off'):(current.raw.usdt_rate_auto||'on'),usdt_rate_source:rateSource,usdt_rate_margin_percent:hasRateFields?decimal(req.body.usdt_rate_margin_percent,current.raw.usdt_rate_margin_percent||0,-10,10):(current.raw.usdt_rate_margin_percent||'0'),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/',brand_logo_height:size(req.body.brand_logo_height,current.raw.brand_logo_height||56,24,120),brand_name_size:size(req.body.brand_name_size,current.raw.brand_name_size||32,14,72)};
   const logoFile=req.files?.site_logo?.[0];
   const faviconFile=req.files?.site_favicon?.[0];
   if(req.body.remove_site_logo){
