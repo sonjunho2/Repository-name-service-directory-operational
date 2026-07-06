@@ -237,6 +237,10 @@
 
 
 
+/* V64 입점신청/알림센터 단일화 보정 */
+.admin-notify-sound{margin-left:6px!important}
+.admin-notify-sound.on{border-color:#10d9ff!important;color:#10d9ff!important}
+.admin-notify-sound.off{border-color:#ff6b6b!important;color:#ffb3b3!important}
 /* V63 입점신청 이미지 미리보기 + 실시간 알림 보정 */
 .image-preview-btn{height:34px;border:1px solid #2aa8ff!important;border-radius:9px!important;background:#07101f!important;color:#dfe9ff!important;padding:0 12px!important;font-weight:900!important;cursor:pointer}
 .image-preview-btn:hover{background:#10203a!important;border-color:#10d9ff!important}
@@ -255,7 +259,7 @@
 </style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; function _extractPaidUsdtValue(x){return x?.paid_usdt_amount||((String(x?.admin_memo||x?.memo||'').match(/실제입금:\s*([0-9.]+)/)||[])[1]||'');} function _centerPaidUsdt(x){return _extractPaidUsdtValue(x);} function _cleanCenterMemo(x){return String(x?.admin_memo||'').replace(/\s*실제입금:\s*[0-9.]+\s*USDT\s*/g,'').trim();} %><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
-  </a><div class="admin-notify" id="adminNotificationCenter"><button type="button" class="admin-notify-btn" id="adminNotifyBtn"><span class="admin-notify-label">알림</span><span class="admin-notify-count" id="adminNotifyCount">0</span></button><div class="admin-notify-panel"><div class="admin-notify-head"><span>실시간 알림센터</span><button type="button" id="adminNotifyReadAll">전체읽음</button></div><div class="admin-notify-list" id="adminNotifyList"><div class="admin-notify-empty">알림을 불러오는 중...</div></div></div></div><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
+  </a><div class="admin-notify" id="adminNotificationCenter"><button type="button" class="admin-notify-btn" id="adminNotifyBtn"><span class="admin-notify-label">알림</span><span class="admin-notify-count" id="adminNotifyCount">0</span></button><div class="admin-notify-panel"><div class="admin-notify-head"><span>실시간 알림센터</span><span><button type="button" id="adminNotifySound" class="admin-notify-sound on">알림음 ON</button><button type="button" id="adminNotifyReadAll">전체읽음</button></span></div><div class="admin-notify-list" id="adminNotifyList"><div class="admin-notify-empty">알림을 불러오는 중...</div></div></div></div><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
   <a class="active" href="#dashboard" data-panel="dashboard">홈</a>
@@ -615,7 +619,7 @@
   <div class="admin-summary-card"><b>업체회원</b><strong><%=_vendorUsers%></strong></div>
   <div class="admin-summary-card"><b>관리자</b><strong><%=_adminUsers%></strong></div>
 </div>
-<div class="user-admin-filter"><input id="userSearch" placeholder="아이디/닉네임 검색"><select id="userRoleFilter"><option value="all">전체 권한</option><option value="user">일반회원</option><option value="vendor">업체회원</option><option value="admin">관리자</option></select><select id="userStatusFilter"><option value="all">전체 상태</option><option value="active">정상</option><option value="blocked">차단</option></select><select id="userSortFilter"><option value="default">기본순</option><option value="latest">최신가입순</option><option value="admin">관리자 우선</option><option value="blocked">차단회원 우선</option></select><button type="button" id="userFilterReset">초기화</button></div><table><tr><th>ID</th><th>아이디</th><th>계정구분</th><th>닉네임</th><th>권한</th><th>상태</th><th>새 비밀번호</th><th>관리</th></tr><% users.forEach(u=>{%><tr class="user-row" data-id="<%=u.id%>" data-text="<%=String((u.username||'')+' '+(u.nickname||'')).toLowerCase()%>" data-role="<%=u.role==='admin'?'admin':u.is_vendor?'vendor':'user'%>" data-status="<%=u.status%>"><td><%=u.id%></td><td><%=u.username%></td><td><% if(u.role==='admin'){%><span class="role-badge role-admin">관리자</span><%}else if(u.is_vendor||u.vendor_id){%><span class="role-badge role-vendor">업체회원</span><%}else{%><span class="role-badge role-user">일반회원</span><%}%></td><td><input form="userForm<%=u.id%>" name="nickname" value="<%=u.nickname%>"></td><td><select form="userForm<%=u.id%>" name="role"><option <%=u.role==='user'?'selected':''%>>user</option><option <%=u.role==='admin'?'selected':''%>>admin</option></select></td><td><select form="userForm<%=u.id%>" name="status"><option <%=u.status==='active'?'selected':''%>>active</option><option <%=u.status==='blocked'?'selected':''%>>blocked</option></select></td><td><form id="userForm<%=u.id%>" method="post" action="/admin/user" class="row-actions"><input type="hidden" name="id" value="<%=u.id%>"><input name="password" placeholder="새 비번"><button>저장</button></form></td></tr><%})%></table><div class="settings-box" style="margin-top:18px"><h3>회원 → 업체회원 연결</h3><form method="post" action="/admin/link-user-vendor" class="settings-form"><div class="admin-account-grid"><select name="user_id" required><option value="">회원 선택</option><% users.forEach(u=>{%><option value="<%=u.id%>"><%=u.username%> / <%=u.nickname%> <%=u.is_vendor?'(업체회원)':''%></option><%})%></select><select name="vendor_id" required><option value="">업체 선택</option><% vendors.forEach(v=>{%><option value="<%=v.id%>"><%=v.name%> / <%=v.region%> <%=v.linked_username?'(연결됨: '+v.linked_username+')':'(미연결)'%></option><%})%></select><button>업체회원으로 연결</button></div></form><p class="settings-help">관리자가 먼저 업체를 선등록한 뒤, 나중에 회원가입한 아이디와 연결할 수 있습니다. 연결 후 해당 회원은 업체관리에서 광고신청/업체정보 관리를 진행합니다. 이미 다른 아이디와 연결된 업체는 중복 연결되지 않습니다.</p></div></section><section id="notices" class="panel admin-panel"><h2>공지 관리</h2><form method="post" action="/admin/notice" class="gridform"><input name="title" placeholder="제목" required><textarea name="content" placeholder="내용" required></textarea><label><input type="checkbox" name="is_pinned">상단 고정</label><button>공지 등록</button></form><div class="notice-admin-filter"><input id="noticeSearch" placeholder="공지 제목 검색"><select id="noticePinnedFilter"><option value="all">전체 공지</option><option value="pinned">상단고정</option><option value="normal">일반공지</option></select><select id="noticeSortFilter"><option value="default">기본순</option><option value="latest">최신등록순</option><option value="pinned">상단고정 우선</option><option value="normal">일반공지 우선</option></select><button type="button" id="noticeFilterReset">초기화</button></div><table><tr><th>ID</th><th>제목</th><th>고정상태</th><th>삭제</th></tr><% notices.forEach(n=>{%><tr class="notice-row" data-id="<%=n.id%>" data-title="<%=String(n.title||'').toLowerCase()%>" data-pinned="<%=n.is_pinned?'pinned':'normal'%>"><td><%=n.id%></td><td><%=n.title%></td><td><span class="<%=n.is_pinned?'status-pin':'status-off'%>"><%=n.is_pinned?'● 상단고정':'● 일반공지'%></span></td><td><form method="post" action="/admin/delete/notices/<%=n.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></td></tr><%})%></table></section><section id="reviews" class="panel admin-panel"><h2>후기 관리</h2><div class="review-admin-filter"><input id="reviewSearch" placeholder="업체명/후기제목 검색"><select id="reviewRatingFilter"><option value="all">전체 평점</option><option value="5">5점</option><option value="4">4점</option><option value="low">3점 이하</option></select><select id="reviewSortFilter"><option value="default">기본순</option><option value="latest">최신작성순</option><option value="high">평점 높은순</option><option value="low">평점 낮은순</option></select><button type="button" id="reviewFilterReset">초기화</button></div><table><tr><th>ID</th><th>업체</th><th>제목</th><th>평점</th><th>삭제</th></tr><% reviews.forEach(r=>{%><tr class="review-row" data-id="<%=r.id%>" data-text="<%=String((r.vendor_name||'')+' '+(r.title||'')).toLowerCase()%>" data-rating="<%=r.rating%>"><td><%=r.id%></td><td><%=r.vendor_name%></td><td><%=r.title%></td><td>★ <%=r.rating%></td><td><form method="post" action="/admin/delete/reviews/<%=r.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></td></tr><%})%></table></section><section id="inquiries" class="panel admin-panel"><h2>광고문의 / 입점신청</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 신청</b><strong><%=inquiries.length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=inquiries.filter(x=>x.status!=="approved"&&x.status!=="rejected").length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=inquiries.filter(x=>x.status==="approved").length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=inquiries.filter(x=>x.status==="rejected").length%></strong></div></div><div class="admin-sub-filter inquiry-filterbar"><button type="button" class="on" data-filter="all">전체 <%=inquiries.length%></button><button type="button" data-filter="new">대기 <%=inquiries.filter(x=>x.status!=="approved"&&x.status!=="rejected").length%></button><button type="button" data-filter="approved">승인 <%=inquiries.filter(x=>x.status==="approved").length%></button><button type="button" data-filter="rejected">반려 <%=inquiries.filter(x=>x.status==="rejected").length%></button><button type="button" data-filter="apply">입점신청 <%=inquiries.filter(x=>x.type==="apply").length%></button><button type="button" data-filter="ad">광고문의 <%=inquiries.filter(x=>x.type!=="apply").length%></button></div><div class="admin-searchbar"><input id="inquirySearch" placeholder="업체명 / 담당자 / 연락처 / 지역 / 업종 검색"><select id="inquirySort"><option value="latest">신청일 최신순</option><option value="oldest">신청일 오래된순</option><option value="status">처리상태순</option><option value="type">구분순</option></select><button type="button" id="inquirySearchReset">초기화</button></div><table><tr><th>ID</th><th>구분</th><th>신청회원</th><th>업체명</th><th>담당자</th><th>연락처</th><th>지역/업종</th><th>내용</th><th>이미지</th><th>처리</th></tr><% inquiries.forEach(x=>{%><tr class="inquiry-row" data-id="<%=x.id%>" data-status="<%=x.status==='approved'?'approved':x.status==='rejected'?'rejected':'new'%>" data-type="<%=x.type==='apply'?'apply':'ad'%>" data-search="<%=String((x.company_name||'')+' '+(x.name||'')+' '+(x.phone||'')+' '+(x.kakao||'')+' '+(x.email||'')+' '+(x.region||'')+' '+(x.category||'')).toLowerCase()%>"><td><%=x.id%></td><td><%=x.type==='apply'?'입점신청':'광고문의'%></td><td><%=x.applicant_username?x.applicant_username:'비회원/미연결'%><br><small><%=x.applicant_nickname||''%></small></td><td><%=x.company_name%></td><td><%=x.name||'-'%></td><td><%=x.phone%><br><%=x.kakao||''%><br><%=x.email||''%></td><td><%=x.region||'-'%>/<%=x.category||'-'%></td><td class="memo"><%=x.content%></td><td class="image-links"><% const _inqPreviewUrl=x.main_image_data?(`/admin/inquiry-image/${x.id}/main`):(x.banner_image_data?(`/admin/inquiry-image/${x.id}/banner`):''); %><% if(_inqPreviewUrl){%><button type="button" class="image-preview-btn inquiry-image-preview" data-src="<%=_inqPreviewUrl%>" data-title="<%=x.company_name||'대표 이미지'%>">대표보기</button><%}else{%><span class="image-none">대표없음</span><%}%></td><td><% if(x.status==='approved'){%><span class="done">업체 등록완료</span><%}else if(x.status==='rejected'){%><span class="rejected">반려</span><%}else{%><% if(x.type==='apply'){%><form method="post" action="/admin/inquiries/<%=x.id%>/approve"><button class="approve-btn" onclick="return confirm('이 신청내용으로 업체를 등록할까요?')">업체등록</button></form><%}%><form method="post" action="/admin/inquiries/<%=x.id%>/reject"><button class="reject-btn" onclick="return confirm('이 신청을 반려할까요?')">반려</button></form><%}%><% if(x.banner_status==='approved'){%><br><span class="banner-status">배너 등록완료</span><%}else if(x.banner_image_data){%><form method="post" action="/admin/inquiries/<%=x.id%>/banner"><button class="banner-btn" onclick="return confirm('이 배너이미지를 프리미엄 배너로 등록할까요?')">배너등록</button></form><%}%></td></tr><%})%></table></section><section id="reports" class="panel admin-panel"><% const reasonStats=Object.entries((flags||[]).reduce((m,x)=>{const k=x.reason||'기타';m[k]=(m[k]||0)+1;return m;},{})).sort((a,b)=>b[1]-a[1]); %><h2>업체 / 후기 신고내역</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 신고</b><strong><%=flags.length%></strong></div><div class="integrated-card"><b>미처리</b><strong><%=flags.filter(x=>x.status!=='done').length%></strong></div><div class="integrated-card"><b>처리완료</b><strong><%=flags.filter(x=>x.status==='done').length%></strong></div><div class="integrated-card"><b>주요 사유</b><strong><%=reasonStats[0]?reasonStats[0][0]:'-'%></strong></div></div><div class="admin-sub-filter report-filterbar"><button type="button" class="on" data-filter="all">전체 <%=flags.length%></button><button type="button" data-filter="new">미처리 <%=flags.filter(x=>x.status!=='done').length%></button><button type="button" data-filter="done">처리완료 <%=flags.filter(x=>x.status==='done').length%></button><button type="button" data-filter="vendor">업체신고 <%=flags.filter(x=>x.type==='vendor').length%></button><button type="button" data-filter="review">후기신고 <%=flags.filter(x=>x.type==='review').length%></button></div><div class="admin-searchbar"><input id="reportSearch" placeholder="대상명 / 사유 / 신고내용 검색"><select id="reportSort"><option value="latest">신고일 최신순</option><option value="oldest">신고일 오래된순</option><option value="status">미처리 우선</option><option value="reason">신고사유순</option></select><button type="button" id="reportSearchReset">초기화</button></div><div class="integrated-tools"><% reasonStats.slice(0,8).forEach(([reason,count])=>{%><div class="integrated-card"><b><%=reason%></b><strong><%=count%></strong></div><%})%></div><table><tr><th>ID</th><th>구분</th><th>대상</th><th>사유</th><th>내용</th><th>상태</th><th>처리메모</th><th>처리일</th><th>처리</th></tr><% flags.forEach(x=>{ const target=x.vendor_name||x.review_title||x.target_id; %><tr class="report-row" data-id="<%=x.id%>" data-status="<%=x.status==='done'?'done':'new'%>" data-type="<%=x.type%>" data-reason="<%=String(x.reason||'')%>" data-search="<%=String((target||'')+' '+(x.reason||'')+' '+(x.content||'')).toLowerCase()%>"><td><%=x.id%></td><td><%=x.type==='vendor'?'업체':'후기'%></td><td><%=target%></td><td><%=x.reason%></td><td class="memo"><%=x.content||'-'%></td><td><span class="<%=x.status==='done'?'done':'pending'%>"><%=x.status==='done'?'처리완료':'미처리'%></span></td><td class="memo"><%=x.admin_memo||'-'%></td><td><%=x.processed_at?fmtDateTime(x.processed_at):'-'%></td><td><% if(x.status==='done'){%><span class="done">완료</span><%}else{%><form method="post" action="/admin/reports/<%=x.id%>/done" class="report-done-form"><input name="admin_memo" placeholder="처리 메모"><button class="banner-btn">처리완료</button></form><%}%></td></tr><%})%></table></section><section id="vendorRequests" class="panel admin-panel"><h2>업체 수정요청</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 요청</b><strong><%=(vendorRequests||[]).length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='new').length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='approved').length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='rejected').length%></strong></div></div><table><tr><th>ID</th><th>회원</th><th>현재업체</th><th>요청내용</th><th>상태</th><th>처리</th></tr><% (vendorRequests||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.username%><br><small><%=x.nickname||''%></small></td><td><%=x.current_vendor_name||x.vendor_id%></td><td class="memo"><b><%=x.name%></b><br><%=x.region%>/<%=x.category%><br><%=x.phone||'-'%><br><%=x.business_hours||'-'%><br><%=x.description||'-'%></td><td><span class="<%=x.status==='approved'?'done':x.status==='rejected'?'rejected':'pending'%>"><%=x.status==='approved'?'승인':x.status==='rejected'?'반려':'대기'%></span><br><small><%=_cleanCenterMemo(x)%></small></td><td><% if(x.status==='new'){%><form method="post" action="/admin/vendor-requests/<%=x.id%>/approve" class="report-done-form"><input name="admin_memo" placeholder="처리 메모"><button class="approve-btn">승인</button></form><form method="post" action="/admin/vendor-requests/<%=x.id%>/reject" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="반려 사유"><button class="reject-btn">반려</button></form><%}else{%>처리완료<%}%></td></tr><%})%></table></section><section id="bannerRequests" class="panel admin-panel"><h2>배너신청관리</h2>
+<div class="user-admin-filter"><input id="userSearch" placeholder="아이디/닉네임 검색"><select id="userRoleFilter"><option value="all">전체 권한</option><option value="user">일반회원</option><option value="vendor">업체회원</option><option value="admin">관리자</option></select><select id="userStatusFilter"><option value="all">전체 상태</option><option value="active">정상</option><option value="blocked">차단</option></select><select id="userSortFilter"><option value="default">기본순</option><option value="latest">최신가입순</option><option value="admin">관리자 우선</option><option value="blocked">차단회원 우선</option></select><button type="button" id="userFilterReset">초기화</button></div><table><tr><th>ID</th><th>아이디</th><th>계정구분</th><th>닉네임</th><th>권한</th><th>상태</th><th>새 비밀번호</th><th>관리</th></tr><% users.forEach(u=>{%><tr class="user-row" data-id="<%=u.id%>" data-text="<%=String((u.username||'')+' '+(u.nickname||'')).toLowerCase()%>" data-role="<%=u.role==='admin'?'admin':u.is_vendor?'vendor':'user'%>" data-status="<%=u.status%>"><td><%=u.id%></td><td><%=u.username%></td><td><% if(u.role==='admin'){%><span class="role-badge role-admin">관리자</span><%}else if(u.is_vendor||u.vendor_id){%><span class="role-badge role-vendor">업체회원</span><%}else{%><span class="role-badge role-user">일반회원</span><%}%></td><td><input form="userForm<%=u.id%>" name="nickname" value="<%=u.nickname%>"></td><td><select form="userForm<%=u.id%>" name="role"><option <%=u.role==='user'?'selected':''%>>user</option><option <%=u.role==='admin'?'selected':''%>>admin</option></select></td><td><select form="userForm<%=u.id%>" name="status"><option <%=u.status==='active'?'selected':''%>>active</option><option <%=u.status==='blocked'?'selected':''%>>blocked</option></select></td><td><form id="userForm<%=u.id%>" method="post" action="/admin/user" class="row-actions"><input type="hidden" name="id" value="<%=u.id%>"><input name="password" placeholder="새 비번"><button>저장</button></form></td></tr><%})%></table><div class="settings-box" style="margin-top:18px"><h3>회원 → 업체회원 연결</h3><form method="post" action="/admin/link-user-vendor" class="settings-form"><div class="admin-account-grid"><select name="user_id" required><option value="">회원 선택</option><% users.forEach(u=>{%><option value="<%=u.id%>"><%=u.username%> / <%=u.nickname%> <%=u.is_vendor?'(업체회원)':''%></option><%})%></select><select name="vendor_id" required><option value="">업체 선택</option><% vendors.forEach(v=>{%><option value="<%=v.id%>"><%=v.name%> / <%=v.region%> <%=v.linked_username?'(연결됨: '+v.linked_username+')':'(미연결)'%></option><%})%></select><button>업체회원으로 연결</button></div></form><p class="settings-help">관리자가 먼저 업체를 선등록한 뒤, 나중에 회원가입한 아이디와 연결할 수 있습니다. 연결 후 해당 회원은 업체관리에서 광고신청/업체정보 관리를 진행합니다. 이미 다른 아이디와 연결된 업체는 중복 연결되지 않습니다.</p></div></section><section id="notices" class="panel admin-panel"><h2>공지 관리</h2><form method="post" action="/admin/notice" class="gridform"><input name="title" placeholder="제목" required><textarea name="content" placeholder="내용" required></textarea><label><input type="checkbox" name="is_pinned">상단 고정</label><button>공지 등록</button></form><div class="notice-admin-filter"><input id="noticeSearch" placeholder="공지 제목 검색"><select id="noticePinnedFilter"><option value="all">전체 공지</option><option value="pinned">상단고정</option><option value="normal">일반공지</option></select><select id="noticeSortFilter"><option value="default">기본순</option><option value="latest">최신등록순</option><option value="pinned">상단고정 우선</option><option value="normal">일반공지 우선</option></select><button type="button" id="noticeFilterReset">초기화</button></div><table><tr><th>ID</th><th>제목</th><th>고정상태</th><th>삭제</th></tr><% notices.forEach(n=>{%><tr class="notice-row" data-id="<%=n.id%>" data-title="<%=String(n.title||'').toLowerCase()%>" data-pinned="<%=n.is_pinned?'pinned':'normal'%>"><td><%=n.id%></td><td><%=n.title%></td><td><span class="<%=n.is_pinned?'status-pin':'status-off'%>"><%=n.is_pinned?'● 상단고정':'● 일반공지'%></span></td><td><form method="post" action="/admin/delete/notices/<%=n.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></td></tr><%})%></table></section><section id="reviews" class="panel admin-panel"><h2>후기 관리</h2><div class="review-admin-filter"><input id="reviewSearch" placeholder="업체명/후기제목 검색"><select id="reviewRatingFilter"><option value="all">전체 평점</option><option value="5">5점</option><option value="4">4점</option><option value="low">3점 이하</option></select><select id="reviewSortFilter"><option value="default">기본순</option><option value="latest">최신작성순</option><option value="high">평점 높은순</option><option value="low">평점 낮은순</option></select><button type="button" id="reviewFilterReset">초기화</button></div><table><tr><th>ID</th><th>업체</th><th>제목</th><th>평점</th><th>삭제</th></tr><% reviews.forEach(r=>{%><tr class="review-row" data-id="<%=r.id%>" data-text="<%=String((r.vendor_name||'')+' '+(r.title||'')).toLowerCase()%>" data-rating="<%=r.rating%>"><td><%=r.id%></td><td><%=r.vendor_name%></td><td><%=r.title%></td><td>★ <%=r.rating%></td><td><form method="post" action="/admin/delete/reviews/<%=r.id%>"><button onclick="return confirm('삭제할까요?')">삭제</button></form></td></tr><%})%></table></section><section id="inquiries" class="panel admin-panel"><h2>광고문의 / 입점신청</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 신청</b><strong><%=inquiries.length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=inquiries.filter(x=>x.status!=="approved"&&x.status!=="rejected").length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=inquiries.filter(x=>x.status==="approved").length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=inquiries.filter(x=>x.status==="rejected").length%></strong></div></div><div class="admin-sub-filter inquiry-filterbar"><button type="button" class="on" data-filter="all">전체 <%=inquiries.length%></button><button type="button" data-filter="new">대기 <%=inquiries.filter(x=>x.status!=="approved"&&x.status!=="rejected").length%></button><button type="button" data-filter="approved">승인 <%=inquiries.filter(x=>x.status==="approved").length%></button><button type="button" data-filter="rejected">반려 <%=inquiries.filter(x=>x.status==="rejected").length%></button><button type="button" data-filter="apply">입점신청 <%=inquiries.filter(x=>x.type==="apply").length%></button><button type="button" data-filter="ad">광고문의 <%=inquiries.filter(x=>x.type!=="apply").length%></button></div><div class="admin-searchbar"><input id="inquirySearch" placeholder="업체명 / 담당자 / 연락처 / 지역 / 업종 검색"><select id="inquirySort"><option value="latest">신청일 최신순</option><option value="oldest">신청일 오래된순</option><option value="status">처리상태순</option><option value="type">구분순</option></select><button type="button" id="inquirySearchReset">초기화</button></div><table><tr><th>ID</th><th>구분</th><th>신청회원</th><th>업체명</th><th>담당자</th><th>연락처</th><th>지역/업종</th><th>내용</th><th>이미지</th><th>처리</th></tr><% inquiries.forEach(x=>{%><tr class="inquiry-row" data-id="<%=x.id%>" data-status="<%=x.status==='approved'?'approved':x.status==='rejected'?'rejected':'new'%>" data-type="<%=x.type==='apply'?'apply':'ad'%>" data-search="<%=String((x.company_name||'')+' '+(x.name||'')+' '+(x.phone||'')+' '+(x.kakao||'')+' '+(x.email||'')+' '+(x.region||'')+' '+(x.category||'')).toLowerCase()%>"><td><%=x.id%></td><td><%=x.type==='apply'?'입점신청':'광고문의'%></td><td><%=x.applicant_username?x.applicant_username:'비회원/미연결'%><br><small><%=x.applicant_nickname||''%></small></td><td><%=x.company_name%></td><td><%=x.name||'-'%></td><td><%=x.phone%><br><%=x.kakao||''%><br><%=x.email||''%></td><td><%=x.region||'-'%>/<%=x.category||'-'%></td><td class="memo"><%=x.content%></td><td class="image-links"><% const _inqHasPreview=(x.display_main_image_data||x.main_image_data||x.banner_image_data); const _inqPreviewUrl=_inqHasPreview?(`/admin/inquiry-image/${x.id}/main`):''; %><% if(_inqPreviewUrl){%><button type="button" class="image-preview-btn inquiry-image-preview" data-src="<%=_inqPreviewUrl%>" data-title="<%=x.company_name||'대표 이미지'%>">대표보기</button><%}else{%><span class="image-none">-</span><%}%></td><td><% if(x.status==='approved'){%><span class="done">업체 등록완료</span><%}else if(x.status==='rejected'){%><span class="rejected">반려</span><%}else{%><% if(x.type==='apply'){%><form method="post" action="/admin/inquiries/<%=x.id%>/approve"><button class="approve-btn" onclick="return confirm('이 신청내용으로 업체를 등록할까요?')">업체등록</button></form><%}%><form method="post" action="/admin/inquiries/<%=x.id%>/reject"><button class="reject-btn" onclick="return confirm('이 신청을 반려할까요?')">반려</button></form><%}%></td></tr><%})%></table></section><section id="reports" class="panel admin-panel"><% const reasonStats=Object.entries((flags||[]).reduce((m,x)=>{const k=x.reason||'기타';m[k]=(m[k]||0)+1;return m;},{})).sort((a,b)=>b[1]-a[1]); %><h2>업체 / 후기 신고내역</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 신고</b><strong><%=flags.length%></strong></div><div class="integrated-card"><b>미처리</b><strong><%=flags.filter(x=>x.status!=='done').length%></strong></div><div class="integrated-card"><b>처리완료</b><strong><%=flags.filter(x=>x.status==='done').length%></strong></div><div class="integrated-card"><b>주요 사유</b><strong><%=reasonStats[0]?reasonStats[0][0]:'-'%></strong></div></div><div class="admin-sub-filter report-filterbar"><button type="button" class="on" data-filter="all">전체 <%=flags.length%></button><button type="button" data-filter="new">미처리 <%=flags.filter(x=>x.status!=='done').length%></button><button type="button" data-filter="done">처리완료 <%=flags.filter(x=>x.status==='done').length%></button><button type="button" data-filter="vendor">업체신고 <%=flags.filter(x=>x.type==='vendor').length%></button><button type="button" data-filter="review">후기신고 <%=flags.filter(x=>x.type==='review').length%></button></div><div class="admin-searchbar"><input id="reportSearch" placeholder="대상명 / 사유 / 신고내용 검색"><select id="reportSort"><option value="latest">신고일 최신순</option><option value="oldest">신고일 오래된순</option><option value="status">미처리 우선</option><option value="reason">신고사유순</option></select><button type="button" id="reportSearchReset">초기화</button></div><div class="integrated-tools"><% reasonStats.slice(0,8).forEach(([reason,count])=>{%><div class="integrated-card"><b><%=reason%></b><strong><%=count%></strong></div><%})%></div><table><tr><th>ID</th><th>구분</th><th>대상</th><th>사유</th><th>내용</th><th>상태</th><th>처리메모</th><th>처리일</th><th>처리</th></tr><% flags.forEach(x=>{ const target=x.vendor_name||x.review_title||x.target_id; %><tr class="report-row" data-id="<%=x.id%>" data-status="<%=x.status==='done'?'done':'new'%>" data-type="<%=x.type%>" data-reason="<%=String(x.reason||'')%>" data-search="<%=String((target||'')+' '+(x.reason||'')+' '+(x.content||'')).toLowerCase()%>"><td><%=x.id%></td><td><%=x.type==='vendor'?'업체':'후기'%></td><td><%=target%></td><td><%=x.reason%></td><td class="memo"><%=x.content||'-'%></td><td><span class="<%=x.status==='done'?'done':'pending'%>"><%=x.status==='done'?'처리완료':'미처리'%></span></td><td class="memo"><%=x.admin_memo||'-'%></td><td><%=x.processed_at?fmtDateTime(x.processed_at):'-'%></td><td><% if(x.status==='done'){%><span class="done">완료</span><%}else{%><form method="post" action="/admin/reports/<%=x.id%>/done" class="report-done-form"><input name="admin_memo" placeholder="처리 메모"><button class="banner-btn">처리완료</button></form><%}%></td></tr><%})%></table></section><section id="vendorRequests" class="panel admin-panel"><h2>업체 수정요청</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 요청</b><strong><%=(vendorRequests||[]).length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='new').length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='approved').length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='rejected').length%></strong></div></div><table><tr><th>ID</th><th>회원</th><th>현재업체</th><th>요청내용</th><th>상태</th><th>처리</th></tr><% (vendorRequests||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.username%><br><small><%=x.nickname||''%></small></td><td><%=x.current_vendor_name||x.vendor_id%></td><td class="memo"><b><%=x.name%></b><br><%=x.region%>/<%=x.category%><br><%=x.phone||'-'%><br><%=x.business_hours||'-'%><br><%=x.description||'-'%></td><td><span class="<%=x.status==='approved'?'done':x.status==='rejected'?'rejected':'pending'%>"><%=x.status==='approved'?'승인':x.status==='rejected'?'반려':'대기'%></span><br><small><%=_cleanCenterMemo(x)%></small></td><td><% if(x.status==='new'){%><form method="post" action="/admin/vendor-requests/<%=x.id%>/approve" class="report-done-form"><input name="admin_memo" placeholder="처리 메모"><button class="approve-btn">승인</button></form><form method="post" action="/admin/vendor-requests/<%=x.id%>/reject" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="반려 사유"><button class="reject-btn">반려</button></form><%}else{%>처리완료<%}%></td></tr><%})%></table></section><section id="bannerRequests" class="panel admin-panel"><h2>배너신청관리</h2>
 <%
   const _bannerReqSafe=(typeof bannerRequests!=='undefined'&&Array.isArray(bannerRequests))?bannerRequests:[];
   const _bannerNew=_bannerReqSafe.filter(x=>x.status==='new').length;
@@ -1712,19 +1716,18 @@ document.addEventListener('DOMContentLoaded',function(){
     return '대기';
   }
   function imageButtons(x){
-    var html='';
-    if(x.main_image_data)html+='<a class="mini-btn" target="_blank" href="/admin/inquiry-image/'+esc(x.id)+'/main">대표보기</a> ';
-    if(x.banner_image_data)html+='<a class="mini-btn" target="_blank" href="/admin/inquiry-image/'+esc(x.id)+'/banner">배너보기</a>';
-    return html||'-';
+    var has=x.display_main_image_data||x.main_image_data||x.banner_image_data;
+    if(!has)return '<span class="image-none">-</span>';
+    return '<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiry-image/'+esc(x.id)+'/main" data-title="'+esc(x.company_name||'대표 이미지')+'">대표보기</button>';
   }
   function actions(x){
-    if(x.status!=='new')return '<b>'+esc(statusText(x))+'</b>';
+    if(x.status==='approved')return '<span class="done">업체 등록완료</span>';
+    if(x.status==='rejected')return '<span class="rejected">반려</span>';
     var html='';
     if(x.type==='apply'){
-      html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button>업체 등록완료</button></form>';
-      if(x.banner_image_data)html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button>배너 등록완료</button></form>';
+      html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn">업체등록</button></form>';
     }
-    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button>반려</button></form>';
+    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn">반려</button></form>';
     return html;
   }
   function rowHtml(x){
@@ -2210,184 +2213,7 @@ document.addEventListener('DOMContentLoaded',function(){
   },true);
 })();
 </script><script>
-(function(){
-  if(window.__adminLiveStage31)return;
-  window.__adminLiveStage31=true;
-
-  var lastAlertTotal=null;
-  var soundOn=localStorage.getItem('adminLiveSound')!=='0';
-  var soundUnlocked=false;
-  function unlockNotifySound(){soundUnlocked=true;try{var C=window.AudioContext||window.webkitAudioContext;if(C){var c=new C(); if(c.state==='suspended')c.resume(); setTimeout(function(){try{c.close();}catch(e){}},60);}}catch(e){}}
-  document.addEventListener('pointerdown',unlockNotifySound,{once:true});
-
-      function safe(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-
-  function ensureLiveUI(){
-    var bar=document.querySelector('.admin-livebar');
-    if(!bar){
-      bar=document.createElement('div');
-      bar.className='admin-livebar';
-      bar.innerHTML='<button type="button" class="admin-live-btn" id="adminLiveToggle">알림 <span class="badge zero" id="adminLiveBadge">0</span></button><button type="button" class="admin-live-btn" id="adminLiveSound">'+(soundOn?'알림음 ON':'알림음 OFF')+'</button>';
-      document.body.appendChild(bar);
-    }
-    var panel=document.querySelector('.admin-live-panel');
-    if(!panel){
-      panel=document.createElement('div');
-      panel.className='admin-live-panel';
-      panel.innerHTML='<div class="admin-live-head"><b>실시간 알림센터</b><button type="button" class="admin-live-btn" id="adminLiveClose">닫기</button></div><div class="admin-live-body" id="adminLiveBody"><div class="admin-live-muted">불러오는 중입니다.</div></div>';
-      document.body.appendChild(panel);
-    }
-  }
-
-  function beep(){
-    if(!soundOn)return;
-    try{
-      var C=window.AudioContext||window.webkitAudioContext;
-      if(!C)return;
-      var ctx=new C();
-      if(ctx.state==='suspended')ctx.resume();
-      var osc=ctx.createOscillator();
-      var gain=ctx.createGain();
-      osc.type='sine';
-      osc.frequency.value=880;
-      gain.gain.setValueAtTime(0.0001,ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.07,ctx.currentTime+0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      setTimeout(function(){try{osc.stop();ctx.close();}catch(e){}},220);
-    }catch(e){}
-  }
-  window.__adminNotifyBeep=beep;
-
-
-  function updateText(selector,value){
-    var el=document.querySelector(selector);
-    if(el)el.textContent=value;
-  }
-
-  function updateDashboardCounts(c){
-    if(!c)return;
-    updateText('[data-live="todayViews"]',num(c.todayViews));
-    updateText('[data-live="todayUsers"]',num(c.todayUsers));
-    updateText('[data-live="todayInquiries"]',num(c.todayInquiries));
-    updateText('[data-live="todayRevenue"]',money(c.todayRevenue));
-    updateText('[data-live="monthRevenue"]',money(c.monthRevenue));
-    updateText('[data-live="pendingInquiries"]',num(c.pendingInquiries));
-    updateText('[data-live="pendingReports"]',num(c.pendingReports));
-    updateText('[data-live="waitingPayments"]',num(c.waitingPayments));
-    updateText('[data-live="expiring7"]',num(c.expiring7));
-    updateText('[data-live="totalUsers"]',num(c.totalUsers));
-    updateText('[data-live="totalVendors"]',num(c.totalVendors));
-  }
-
-  function renderPanel(data){
-    var body=document.getElementById('adminLiveBody');
-    if(!body)return;
-    var c=data.counts||{};
-    var recent=data.recent||{};
-    var tasks=[
-      ['입점신청 대기',c.pendingInquiries,'inquiries'],
-      ['업체 수정요청',c.pendingVendorRequests,'vendorRequests'],
-      ['광고/배너 신청',Number(c.pendingAdRequests||0)+Number(c.pendingBannerRequests||0),'adCenter'],
-      ['입금확인 대기',c.waitingPayments,'adCenter'],
-      ['신고 대기',c.pendingReports,'reports'],
-      ['7일 내 만료',c.expiring7,'vendors']
-    ];
-    var html='<div class="admin-live-muted">마지막 확인: '+new Date().toLocaleTimeString()+'</div>';
-    tasks.forEach(function(t){
-      var cls=Number(t[1]||0)>=5?'bad':Number(t[1]||0)>0?'warn':'';
-      html+='<a class="admin-live-task '+cls+'" href="#'+t[2]+'" data-panel="'+t[2]+'"><span>'+safe(t[0])+'</span><strong>'+num(t[1])+'</strong></a>';
-    });
-    html+='<div class="admin-live-recent"><h4>최근 신청</h4>';
-    (recent.inquiries||[]).slice(0,4).forEach(function(x){
-      html+='<div class="admin-live-item"><b>'+safe(x.type==='apply'?'입점신청':'문의')+'</b> '+safe(x.company_name||x.name||'-')+'<small>'+safe(x.applicant_username||'')+'</small></div>';
-    });
-    if(!(recent.inquiries||[]).length)html+='<div class="admin-live-muted">최근 신청 없음</div>';
-    html+='</div><div class="admin-live-recent"><h4>최근 결제</h4>';
-    (recent.payments||[]).slice(0,4).forEach(function(x){
-      html+='<div class="admin-live-item"><b>'+safe(x.vendor_name||x.username||'-')+'</b><small>'+money(x.krw_price)+' · '+safe(x.product_type||'-')+'</small></div>';
-    });
-    if(!(recent.payments||[]).length)html+='<div class="admin-live-muted">최근 결제 없음</div>';
-    html+='</div>';
-    body.innerHTML=html;
-  }
-
-  function decorateDashboardForLive(){
-    var map=[
-      ['오늘 방문','todayViews'],['오늘 가입','todayUsers'],['오늘 입점신청','todayInquiries'],['오늘 매출','todayRevenue'],
-      ['이번달 매출','monthRevenue'],['입점 승인대기','pendingInquiries'],['신고 대기','pendingReports'],['입금확인 대기','waitingPayments'],
-      ['7일 내 만료','expiring7'],['전체 회원','totalUsers']
-    ];
-    document.querySelectorAll('.dash-card').forEach(function(card){
-      var text=card.innerText||'';
-      map.forEach(function(m){
-        if(text.indexOf(m[0])!==-1){
-          var strong=card.querySelector('strong');
-          if(strong&&!strong.dataset.live)strong.dataset.live=m[1];
-        }
-      });
-    });
-    document.querySelectorAll('.dash-card').forEach(function(card){
-      var b=card.querySelector('b');
-      var st=card.querySelector('strong');
-      if(b&&st&&b.textContent.indexOf('전체 업체/후기')!==-1&&!st.dataset.live)st.dataset.live='totalVendors';
-    });
-  }
-
-  async function loadLive(){
-    ensureLiveUI();
-    try{
-      var res=await fetch('/admin/api/live-summary',{headers:{'Accept':'application/json'},credentials:'same-origin'});
-      var data=await res.json();
-      if(!data.ok)throw new Error(data.error||'live failed');
-      var badge=document.getElementById('adminLiveBadge');
-      var total=Number(data.alertTotal||0);
-      if(badge){
-        badge.textContent=total;
-        badge.classList.toggle('zero',total===0);
-      }
-      updateDashboardCounts(data.counts);
-      renderPanel(data);
-
-      if(lastAlertTotal!==null&&total>lastAlertTotal){
-        toast('새 관리자 알림이 있습니다.','ok','처리 대기 '+total+'건');
-        var liveBtn=document.getElementById('adminLiveToggle');
-        if(liveBtn){liveBtn.classList.add('pulse');setTimeout(function(){liveBtn.classList.remove('pulse');},1600);}
-        beep();
-      }
-      lastAlertTotal=total;
-    }catch(e){
-      var body=document.getElementById('adminLiveBody');
-      if(body)body.innerHTML='<div class="admin-live-muted">실시간 정보를 불러오지 못했습니다.</div>';
-    }
-  }
-
-  document.addEventListener('click',function(e){
-    if(e.target&&e.target.id==='adminLiveToggle'){
-      ensureLiveUI();
-      document.querySelector('.admin-live-panel').classList.toggle('open');
-      loadLive();
-    }
-    if(e.target&&e.target.id==='adminLiveClose'){
-      document.querySelector('.admin-live-panel').classList.remove('open');
-    }
-    if(e.target&&e.target.id==='adminLiveSound'){
-      soundOn=!soundOn;
-      localStorage.setItem('adminLiveSound',soundOn?'1':'0');
-      e.target.textContent=soundOn?'알림음 ON':'알림음 OFF';
-    }
-  });
-
-  document.addEventListener('DOMContentLoaded',function(){
-    ensureLiveUI();
-    setTimeout(decorateDashboardForLive,300);
-    setTimeout(loadLive,700);
-    setInterval(loadLive,5000);
-  });
-  window.addEventListener('hashchange',function(){setTimeout(decorateDashboardForLive,300);});
-})();
+(function(){window.__adminLiveStage31=true;/* V64: legacy bottom livebar disabled. The single notification center is #adminNotificationCenter. */})();
 </script><script>
 (function(){
   if(window.__adminStage32)return;
@@ -3040,14 +2866,20 @@ document.addEventListener('DOMContentLoaded',function(){
   var count=document.getElementById('adminNotifyCount');
   var list=document.getElementById('adminNotifyList');
   var readAll=document.getElementById('adminNotifyReadAll');
+  var soundBtn=document.getElementById('adminNotifySound');
   var lastUnread=null;
   var firstLoad=true;
-  var soundOn=localStorage.getItem('adminLiveSound')!=='0';
+  var soundOn=localStorage.getItem('adminNotifySoundV64')!=='0';
+  var audioUnlocked=false;
+  function updateSoundBtn(){if(!soundBtn)return;soundBtn.textContent=soundOn?'알림음 ON':'알림음 OFF';soundBtn.classList.toggle('on',soundOn);soundBtn.classList.toggle('off',!soundOn);}
+  function unlockAudio(){audioUnlocked=true;try{var C=window.AudioContext||window.webkitAudioContext;if(C){var c=new C();if(c.state==='suspended')c.resume();setTimeout(function(){try{c.close();}catch(e){}},80);}}catch(e){}}
+  document.addEventListener('pointerdown',unlockAudio,{once:true});
   function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function fmt(v){try{return new Date(v).toLocaleString('ko-KR',{hour12:false});}catch(e){return '';}}
   function ring(){
     if(!soundOn)return;
-    if(typeof window.__adminNotifyBeep==='function'){window.__adminNotifyBeep();return;}
+    // 브라우저 정책상 관리자 페이지에서 한 번 클릭/터치 후부터 소리가 납니다.
+    if(!audioUnlocked)return;
     try{
       var C=window.AudioContext||window.webkitAudioContext;if(!C)return;
       var ctx=new C();if(ctx.state==='suspended')ctx.resume();
@@ -3058,8 +2890,6 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function flash(){
     if(btn){btn.classList.add('pulse');setTimeout(function(){btn.classList.remove('pulse');},1600);}
-    var live=document.getElementById('adminLiveToggle');
-    if(live){live.classList.add('pulse');setTimeout(function(){live.classList.remove('pulse');},1600);}
   }
   async function load(silent){
     try{
@@ -3069,8 +2899,6 @@ document.addEventListener('DOMContentLoaded',function(){
       var unread=Number(j.unread||0);
       count.textContent=unread;
       btn.classList.toggle('has-unread',unread>0);
-      var liveBadge=document.getElementById('adminLiveBadge');
-      if(liveBadge){liveBadge.textContent=unread;liveBadge.classList.toggle('zero',unread===0);}
       var items=j.items||[];
       if(!items.length){list.innerHTML='<div class="admin-notify-empty">새 알림이 없습니다.</div>';}
       else{
@@ -3098,6 +2926,8 @@ document.addEventListener('DOMContentLoaded',function(){
     fetch('/api/notifications/'+a.dataset.id+'/read',{method:'POST',credentials:'same-origin'}).catch(function(){});
   });
   if(readAll)readAll.addEventListener('click',async function(e){e.preventDefault();await fetch('/api/notifications/read-all',{method:'POST',credentials:'same-origin'}).catch(function(){});load(true);});
+  if(soundBtn)soundBtn.addEventListener('click',function(e){e.preventDefault();soundOn=!soundOn;localStorage.setItem('adminNotifySoundV64',soundOn?'1':'0');updateSoundBtn();unlockAudio();});
+  updateSoundBtn();
   load(true);
   setInterval(function(){load(false);},5000);
 })();
