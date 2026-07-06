@@ -1,0 +1,153 @@
+/* MOBILE BRANDING V55
+   Prevent oversized site logos from taking over mobile pages.
+   Loaded after /public/css/style.css so it overrides runtime branding values. */
+
+@media (max-width: 900px){
+  html,body{overflow-x:hidden!important;}
+
+  .top,
+  body>header{
+    height:60px!important;
+    min-height:60px!important;
+    max-height:60px!important;
+    padding:0 12px!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:8px!important;
+    flex-wrap:nowrap!important;
+    overflow:hidden!important;
+  }
+
+  .top .brand,
+  body>header>b{
+    flex:0 0 auto!important;
+    max-width:72px!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:ellipsis!important;
+    font-size:13px!important;
+    line-height:1!important;
+    position:relative!important;
+    z-index:3!important;
+  }
+
+  .top nav,
+  body>header>nav,
+  body>header>span{
+    flex:0 0 auto!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:8px!important;
+    max-width:92px!important;
+    overflow:hidden!important;
+    font-size:13px!important;
+    line-height:1!important;
+    position:relative!important;
+    z-index:3!important;
+  }
+
+  .top nav a,
+  body>header>nav a,
+  body>header>span a{
+    white-space:nowrap!important;
+    font-size:13px!important;
+  }
+
+  .top .site-brand-center,
+  body>header .site-brand-center,
+  body>header:not(.top)>.site-brand-center{
+    position:absolute!important;
+    left:50%!important;
+    top:50%!important;
+    transform:translate(-50%,-50%)!important;
+    width:auto!important;
+    max-width:calc(100vw - 190px)!important;
+    height:52px!important;
+    min-height:0!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:7px!important;
+    overflow:hidden!important;
+    z-index:2!important;
+  }
+
+  .top .site-brand-center img,
+  body>header .site-brand-center img,
+  body>header:not(.top)>.site-brand-center img{
+    display:block!important;
+    width:auto!important;
+    height:auto!important;
+    max-height:48px!important;
+    max-width:150px!important;
+    object-fit:contain!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    filter:drop-shadow(0 4px 12px rgba(0,0,0,.55))!important;
+    flex:0 1 auto!important;
+  }
+
+  .top .site-brand-center span,
+  body>header .site-brand-center span,
+  body>header:not(.top)>.site-brand-center span{
+    display:block!important;
+    max-width:120px!important;
+    font-size:20px!important;
+    line-height:1.05!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    color:#fff!important;
+    background:none!important;
+    -webkit-background-clip:initial!important;
+    background-clip:initial!important;
+    text-shadow:0 3px 12px rgba(0,0,0,.75)!important;
+  }
+
+  .first-block{margin-top:18px!important;}
+  .main-hero{padding-top:0!important;}
+}
+
+@media (max-width: 520px){
+  .top .brand,
+  body>header>b{max-width:58px!important;font-size:12px!important;}
+
+  .top nav,
+  body>header>nav,
+  body>header>span{max-width:78px!important;gap:6px!important;font-size:12px!important;}
+
+  .top nav a,
+  body>header>nav a,
+  body>header>span a{font-size:12px!important;}
+
+  .top .site-brand-center,
+  body>header .site-brand-center,
+  body>header:not(.top)>.site-brand-center{
+    max-width:calc(100vw - 160px)!important;
+    height:50px!important;
+  }
+
+  .top .site-brand-center img,
+  body>header .site-brand-center img,
+  body>header:not(.top)>.site-brand-center img{
+    max-height:46px!important;
+    max-width:132px!important;
+  }
+
+  .top .site-brand-center span,
+  body>header .site-brand-center span,
+  body>header:not(.top)>.site-brand-center span{
+    max-width:96px!important;
+    font-size:18px!important;
+  }
+}
