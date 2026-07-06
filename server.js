@@ -46,10 +46,14 @@ async function ensureSchema(){
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS usdt_amount numeric");
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS payment_status text DEFAULT 'unpaid'");
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS payment_expires_at timestamp");
+    await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS paid_usdt_amount numeric");
+    await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS payment_txid text");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS krw_price int");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS usdt_amount numeric");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS payment_status text DEFAULT 'unpaid'");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS payment_expires_at timestamp");
+    await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS paid_usdt_amount numeric");
+    await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS payment_txid text");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS product_type text DEFAULT 'recommended'");
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_address','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_network','TRC20') ON CONFLICT (key) DO NOTHING");
@@ -81,6 +85,8 @@ async function ensureSchema(){
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_error','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('payment_expire_hours','24') ON CONFLICT (key) DO NOTHING");
     await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
+    await q("ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS paid_usdt_amount numeric");
+    await q("ALTER TABLE payment_logs ADD COLUMN IF NOT EXISTS payment_txid text");
     await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
     await q("ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int");
     await q("CREATE INDEX IF NOT EXISTS idx_vendors_status_expire ON vendors(status,expire_at)");
@@ -299,6 +305,18 @@ function calcUsdt(krw,rate){
   const r=Number(rate||1400);
   if(!k||!r)return '0.00';
   return (k/r).toFixed(2);
+}
+function buildPaymentConfirmMeta(body={},row={}){
+  const planned=Number(row.usdt_amount||0);
+  const entered=String(body.paid_usdt_amount||'').replace(/,/g,'').trim();
+  const parsed=entered?Number(entered):planned;
+  const paidUsdt=Number.isFinite(parsed)&&parsed>0?parsed:planned;
+  const txid=String(body.payment_txid||body.txid||'').trim().slice(0,200);
+  const adminMemo=(String(body.admin_memo||'').trim()||'입금확인 완료').slice(0,500);
+  const memoParts=[adminMemo];
+  if(paidUsdt) memoParts.push('실제입금: '+paidUsdt+' USDT');
+  if(txid) memoParts.push('TXID: '+txid);
+  return {paidUsdt,txid,adminMemo,memo:memoParts.filter(Boolean).join('\n').slice(0,1000)};
 }
 
 function paymentExpireHours(raw={}){
@@ -1013,9 +1031,10 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
     await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,x.vendor_id]);
   }
   await q("UPDATE vendors SET ad_type='recommended',membership_type=$1,is_recommended=true,is_premium=true,banner_active=true,banner_until=$2,status=$3 WHERE id=$4",['recommended',until,'active',x.vendor_id]);
-  await q('UPDATE vendor_banner_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
-  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||'프리미엄배너 입금확인']);
-  await logAdmin(req,'배너 입금확인/추천승격','banner_request',x.id,`만기일 ${until}`);
+  const payMeta=buildPaymentConfirmMeta(req.body,x);
+  await q('UPDATE vendor_banner_requests SET payment_status=$1,status=$2,admin_memo=$3,paid_usdt_amount=$4,payment_txid=$5,processed_at=now() WHERE id=$6',['paid','approved',payMeta.memo,payMeta.paidUsdt||null,payMeta.txid||null,x.id]);
+  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,paid_usdt_amount,payment_txid,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,payMeta.paidUsdt||null,payMeta.txid||null,'paid',payMeta.memo||'프리미엄배너 입금확인']);
+  await logAdmin(req,'배너 입금확인/추천승격','banner_request',x.id,`만기일 ${until}${payMeta.txid?' / TXID '+payMeta.txid:''}`);
   res.redirect('/admin#bannerRequests');
 });
 app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
@@ -1044,12 +1063,13 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
     await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=expire_at, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
   }
 
-  await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,processed_at=now() WHERE id=$4',['paid','approved',(req.body.admin_memo||'입금확인 완료').slice(0,500),x.id]);
+  const payMeta=buildPaymentConfirmMeta(req.body,x);
+  await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,paid_usdt_amount=$4,payment_txid=$5,processed_at=now() WHERE id=$6',['paid','approved',payMeta.memo,payMeta.paidUsdt||null,payMeta.txid||null,x.id]);
 
   const paymentProduct=productType==='renewal_banner'?'banner':(productType==='renewal_general'?'general':'recommended');
-  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,'paid',req.body.admin_memo||x.plan||'변경/연장 입금확인']);
+  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,paid_usdt_amount,payment_txid,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,payMeta.paidUsdt||null,payMeta.txid||null,'paid',payMeta.memo||x.plan||'변경/연장 입금확인']);
 
-  await logAdmin(req,'변경/연장 입금확인','ad_request',x.id,`${x.plan||productType} 적용`);
+  await logAdmin(req,'변경/연장 입금확인','ad_request',x.id,`${x.plan||productType} 적용${payMeta.txid?' / TXID '+payMeta.txid:''}`);
   res.redirect('/admin#adRequests');
 });
 app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#bannerRequests',async()=>{const r=await q("UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 배너 신청을 찾을 수 없거나 이미 처리되었습니다.'); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||'');}));
