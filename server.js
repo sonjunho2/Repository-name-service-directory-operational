@@ -533,6 +533,7 @@ app.post('/admin/settings/usdt-rate-refresh',admin,async(req,res)=>{
 });
 
 app.get('/api/notifications',login,async(req,res)=>{
+  res.setHeader('Cache-Control','no-store');
   try{
     const target=notificationTargetSql(req);
     const rows=await q(`SELECT * FROM notifications WHERE ${target.where} ORDER BY id DESC LIMIT 30`,target.params);
@@ -672,6 +673,7 @@ app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELEC
 
 
 app.get('/admin/api/live-summary',admin,async(req,res)=>{
+  res.setHeader('Cache-Control','no-store');
   await expirePendingPayments();
   const safeScalar=async(sql)=>{try{return Number((await q(sql)).rows[0]?.v||0);}catch(e){console.error('live scalar failed',e.message);return 0;}};
   const safeRows=async(sql)=>{try{return (await q(sql)).rows;}catch(e){console.error('live rows failed',e.message);return [];}};
