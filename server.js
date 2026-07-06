@@ -45,9 +45,11 @@ async function ensureSchema(){
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS krw_price int");
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS usdt_amount numeric");
     await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS payment_status text DEFAULT 'unpaid'");
+    await q("ALTER TABLE vendor_banner_requests ADD COLUMN IF NOT EXISTS payment_expires_at timestamp");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS krw_price int");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS usdt_amount numeric");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS payment_status text DEFAULT 'unpaid'");
+    await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS payment_expires_at timestamp");
     await q("ALTER TABLE vendor_ad_requests ADD COLUMN IF NOT EXISTS product_type text DEFAULT 'recommended'");
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_address','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_network','TRC20') ON CONFLICT (key) DO NOTHING");
@@ -77,6 +79,7 @@ async function ensureSchema(){
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_last_source','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_updated_at','') ON CONFLICT (key) DO NOTHING");
     await q("INSERT INTO app_settings(key,value) VALUES('usdt_rate_error','') ON CONFLICT (key) DO NOTHING");
+    await q("INSERT INTO app_settings(key,value) VALUES('payment_expire_hours','24') ON CONFLICT (key) DO NOTHING");
     await q(`CREATE TABLE IF NOT EXISTS payment_logs(id SERIAL PRIMARY KEY,user_id int,vendor_id int,product_type text,request_type text,request_id int,krw_price int,usdt_amount numeric,status text DEFAULT 'paid',memo text,paid_at timestamp DEFAULT now(),created_at timestamp DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS vendor_view_logs(id SERIAL PRIMARY KEY,vendor_id int,user_id int,created_at timestamp DEFAULT now())`);
     await q("ALTER TABLE banners ADD COLUMN IF NOT EXISTS vendor_id int");
@@ -87,6 +90,8 @@ async function ensureSchema(){
     await q("CREATE INDEX IF NOT EXISTS idx_view_logs_vendor_created ON vendor_view_logs(vendor_id,created_at)");
     await q("CREATE INDEX IF NOT EXISTS idx_ad_requests_status_payment ON vendor_ad_requests(status,payment_status)");
     await q("CREATE INDEX IF NOT EXISTS idx_banner_requests_status_payment ON vendor_banner_requests(status,payment_status)");
+    await q("CREATE INDEX IF NOT EXISTS idx_ad_requests_payment_expire ON vendor_ad_requests(payment_status,payment_expires_at)");
+    await q("CREATE INDEX IF NOT EXISTS idx_banner_requests_payment_expire ON vendor_banner_requests(payment_status,payment_expires_at)");
     await q("CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at DESC)");
     await q("CREATE INDEX IF NOT EXISTS idx_users_role_status ON users(role,status)");
     await q("CREATE INDEX IF NOT EXISTS idx_vendors_created ON vendors(created_at DESC)");
@@ -112,11 +117,12 @@ app.get('/public/css/style.css',async(req,res,next)=>{
     const cssPath=path.join(__dirname,'public','css','style.css');
     let css=await fs.promises.readFile(cssPath,'utf8');
 
-    const r=await q("SELECT key,value FROM app_settings WHERE key IN ('brand_logo_height','brand_name_size')");
+    const r=await q("SELECT key,value FROM app_settings WHERE key IN ('brand_logo_height','brand_name_size','payment_expire_hours')");
     const raw=Object.fromEntries((r.rows||[]).map(x=>[x.key,x.value||'']));
     const clamp=(v,min,max,d)=>{const n=parseInt(v,10);return Number.isFinite(n)?Math.max(min,Math.min(max,n)):d;};
     const logoHeight=clamp(raw.brand_logo_height,24,120,56);
     const nameSize=clamp(raw.brand_name_size,14,72,32);
+    const paymentExpireHours=clamp(raw.payment_expire_hours,1,168,24);
 
     css += `
 /* SITE BRANDING V53 - runtime values from admin settings */
@@ -125,6 +131,7 @@ app.get('/public/css/style.css',async(req,res,next)=>{
 .top .site-brand-center img,header .site-brand-center img{height:var(--brand-logo-height)!important;width:auto!important;max-width:min(42vw,420px)!important;object-fit:contain!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;filter:drop-shadow(0 5px 15px rgba(0,0,0,.55))!important}
 .top .site-brand-center span,header .site-brand-center span{display:block!important;max-width:min(44vw,520px)!important;font-size:var(--brand-name-size)!important;line-height:1.05!important;font-weight:1000!important;letter-spacing:-.055em!important;color:#fff!important;background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;text-shadow:0 4px 18px rgba(0,0,0,.75)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 @media(max-width:900px){:root{--brand-logo-height:${Math.max(24,Math.round(logoHeight*0.75))}px;--brand-name-size:${Math.max(16,Math.round(nameSize*0.75))}px}.top .site-brand-center,header .site-brand-center{max-width:100%!important}.top .site-brand-center img,header .site-brand-center img{max-width:220px!important}.top .site-brand-center span,header .site-brand-center span{max-width:100%!important}}
+.paybox{position:relative!important}.paybox:after{content:'입금 안내: 신청 후 ${paymentExpireHours}시간 안에 정확한 USDT 금액을 입금해 주세요. 네트워크가 다르면 입금 확인이 지연되거나 누락될 수 있습니다.';display:block;margin-top:12px;padding:10px 12px;border:1px dashed #ffdc4d;border-radius:12px;background:rgba(255,220,77,.08);color:#ffef9a;font-size:13px;font-weight:800;line-height:1.45}
 `;
 
     res.setHeader('Content-Type','text/css; charset=utf-8');
@@ -294,6 +301,20 @@ function calcUsdt(krw,rate){
   return (k/r).toFixed(2);
 }
 
+function paymentExpireHours(raw={}){
+  const n=parseInt(raw.payment_expire_hours||24,10);
+  return Number.isFinite(n)?Math.max(1,Math.min(168,n)):24;
+}
+function paymentExpireAt(raw={}){
+  return new Date(Date.now()+paymentExpireHours(raw)*60*60*1000).toISOString();
+}
+async function expirePendingPayments(){
+  try{
+    await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(NULLIF(admin_memo,''),'결제기한 만료'),processed_at=now() WHERE status='new' AND payment_status='unpaid' AND payment_expires_at IS NOT NULL AND payment_expires_at<now()");
+    await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(NULLIF(admin_memo,''),'결제기한 만료'),processed_at=now() WHERE status='new' AND payment_status='unpaid' AND payment_expires_at IS NOT NULL AND payment_expires_at<now()");
+  }catch(e){console.error('expire pending payments failed',e.message);}
+}
+
 const USDT_RATE_CACHE={value:null,source:'',updatedAt:0,error:''};
 const USDT_RATE_CACHE_MS=1000*60*10;
 function safeNumber(v){
@@ -441,9 +462,10 @@ function normalizeBrandSettings(raw){
   const link=(raw.site_link_url||'/').trim().slice(0,200)||'/';
   const logoHeight=clamp(raw.brand_logo_height,24,120,56);
   const nameSize=clamp(raw.brand_name_size,14,72,32);
+    const paymentExpireHours=clamp(raw.payment_expire_hours,1,168,24);
   return {name,showLogo,showName,logo:raw.site_logo_data||'',favicon:raw.site_favicon_data||'',link,logoHeight,nameSize};
 }
-async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); const rate=await resolveUsdtKrwRate(raw,false); raw.usdt_krw_manual_rate=raw.usdt_krw_rate||'1400'; raw.usdt_rate_auto=raw.usdt_rate_auto||'on'; raw.usdt_rate_source=raw.usdt_rate_source||'auto'; raw.usdt_rate_margin_percent=raw.usdt_rate_margin_percent||'0'; raw.usdt_rate_effective_value=String(rate.value); raw.usdt_rate_effective_source=rate.source; raw.usdt_rate_effective_auto=rate.auto?'on':'off'; raw.usdt_rate_effective_updated_at=rate.updatedAt||raw.usdt_rate_updated_at||''; raw.usdt_rate_effective_error=rate.error||raw.usdt_rate_error||''; raw.usdt_krw_rate=String(rate.value); return {raw,categories:split(raw.categories),regions:split(raw.regions),brand:normalizeBrandSettings(raw)};}
+async function getSettings(){const r=await q('SELECT key,value FROM app_settings'); const raw=Object.fromEntries(r.rows.map(x=>[x.key,x.value||''])); const split=v=>(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); const rate=await resolveUsdtKrwRate(raw,false); raw.usdt_krw_manual_rate=raw.usdt_krw_rate||'1400'; raw.usdt_rate_auto=raw.usdt_rate_auto||'on'; raw.usdt_rate_source=raw.usdt_rate_source||'auto'; raw.usdt_rate_margin_percent=raw.usdt_rate_margin_percent||'0'; raw.usdt_rate_effective_value=String(rate.value); raw.usdt_rate_effective_source=rate.source; raw.usdt_rate_effective_auto=rate.auto?'on':'off'; raw.usdt_rate_effective_updated_at=rate.updatedAt||raw.usdt_rate_updated_at||''; raw.usdt_rate_effective_error=rate.error||raw.usdt_rate_error||''; raw.usdt_krw_rate=String(rate.value); raw.payment_expire_hours=String(paymentExpireHours(raw)); return {raw,categories:split(raw.categories),regions:split(raw.regions),brand:normalizeBrandSettings(raw)};}
 app.post('/admin/settings/usdt-rate-refresh',admin,async(req,res)=>{
   try{
     const r=await q('SELECT key,value FROM app_settings');
@@ -570,6 +592,7 @@ app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELEC
 
 
 app.get('/admin/api/live-summary',admin,async(req,res)=>{
+  await expirePendingPayments();
   const safeScalar=async(sql)=>{try{return Number((await q(sql)).rows[0]?.v||0);}catch(e){console.error('live scalar failed',e.message);return 0;}};
   const safeRows=async(sql)=>{try{return (await q(sql)).rows;}catch(e){console.error('live rows failed',e.message);return [];}};
   const counts={
@@ -647,7 +670,7 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
   res.redirect('/admin#inquiries');
 });
 app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return res.redirect('/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); res.redirect('/admin#inquiries');});
-app.get('/admin',admin,async(req,res)=>{await expireAds();
+app.get('/admin',admin,async(req,res)=>{await expireAds(); await expirePendingPayments();
   const dashStats={};
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
 const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC LIMIT 300'),q(`SELECT v.*,
@@ -763,6 +786,7 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
   try{
     await ensureSchema();
     await expireAds();
+    await expirePendingPayments();
     await refreshSessionUser(req);
 
     if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
@@ -878,9 +902,11 @@ app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
 
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
+  const payExpiresAt=paymentExpireAt(settings.raw);
+  const payExpireMemo='입금기한: '+formatKstDateTime(payExpiresAt);
 
   const inserted=await q(
-    'INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
+    'INSERT INTO vendor_banner_requests(user_id,vendor_id,title,subtitle,link_url,image_data,krw_price,usdt_amount,payment_status,status,admin_memo,payment_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id',
     [
       req.session.user.id,
       req.session.user.vendor_id,
@@ -891,7 +917,9 @@ app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
       price,
       usdt,
       'unpaid',
-      'new'
+      'new',
+      payExpireMemo,
+      payExpiresAt
     ]
   );
 
@@ -914,6 +942,8 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   const price=calcProductPrice(settings,vendor,productType,period,immediateApply);
   const rate=Number(settings.raw.usdt_krw_rate||1400);
   const usdt=calcUsdt(price,rate);
+  const payExpiresAt=paymentExpireAt(settings.raw);
+  const payExpireMemo='입금기한: '+formatKstDateTime(payExpiresAt);
 
   const productLabel=productType==='renewal_banner'
     ? '프리미엄배너 신청/연장'
@@ -927,8 +957,8 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   ].filter(Boolean).join('\n');
 
   const inserted=await q(
-    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,status,payment_status,product_type,krw_price,usdt_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
-    [req.session.user.id,req.session.user.vendor_id,productLabel,period,content,'new','unpaid',productType,price,usdt]
+    'INSERT INTO vendor_ad_requests(user_id,vendor_id,plan,period,content,status,payment_status,product_type,krw_price,usdt_amount,admin_memo,payment_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id',
+    [req.session.user.id,req.session.user.vendor_id,productLabel,period,content,'new','unpaid',productType,price,usdt,payExpireMemo,payExpiresAt]
   );
 
   const panel=productType==='renewal_banner'?'banner':'plan';
@@ -937,7 +967,8 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
 
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
-  await q("UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid'",['waiting',req.params.id,req.session.user.id]);
+  await expirePendingPayments();
+  await q("UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now())",['waiting',req.params.id,req.session.user.id]);
   res.redirect('/vendor-dashboard');
 });
 
@@ -948,7 +979,8 @@ app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>sendFail(req
 
 app.post('/vendor-dashboard/banner-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor)return res.redirect('/login');
-  await q("UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid'",['waiting',req.params.id,req.session.user.id]);
+  await expirePendingPayments();
+  await q("UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now())",['waiting',req.params.id,req.session.user.id]);
   res.redirect('/vendor-dashboard?panel=banner');
 });
 
@@ -964,6 +996,7 @@ app.post('/vendor-dashboard/ad-request/:id/cancel',login,async(req,res)=>{
 });
 
 app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
+  await expirePendingPayments();
   const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
   if(!x)return res.redirect('/admin#bannerRequests');
@@ -986,6 +1019,7 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   res.redirect('/admin#bannerRequests');
 });
 app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
+  await expirePendingPayments();
   const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
   if(!x)return res.redirect('/admin#adRequests');
@@ -1197,7 +1231,7 @@ app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCou
   const current=await getSettings();
   const hasRateFields=Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_source')||Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_margin_percent')||Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_auto');
   const rateSource=['auto','upbit','bithumb'].includes(req.body.usdt_rate_source)?req.body.usdt_rate_source:(current.raw.usdt_rate_source||'auto');
-  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,current.raw.usdt_krw_rate||1400),usdt_rate_auto:hasRateFields?(req.body.usdt_rate_auto?'on':'off'):(current.raw.usdt_rate_auto||'on'),usdt_rate_source:rateSource,usdt_rate_margin_percent:hasRateFields?decimal(req.body.usdt_rate_margin_percent,current.raw.usdt_rate_margin_percent||0,-10,10):(current.raw.usdt_rate_margin_percent||'0'),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/',brand_logo_height:size(req.body.brand_logo_height,current.raw.brand_logo_height||56,24,120),brand_name_size:size(req.body.brand_name_size,current.raw.brand_name_size||32,14,72)};
+  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,current.raw.usdt_krw_rate||1400),usdt_rate_auto:hasRateFields?(req.body.usdt_rate_auto?'on':'off'):(current.raw.usdt_rate_auto||'on'),usdt_rate_source:rateSource,usdt_rate_margin_percent:hasRateFields?decimal(req.body.usdt_rate_margin_percent,current.raw.usdt_rate_margin_percent||0,-10,10):(current.raw.usdt_rate_margin_percent||'0'),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),payment_expire_hours:days(req.body.payment_expire_hours,current.raw.payment_expire_hours||24),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/',brand_logo_height:size(req.body.brand_logo_height,current.raw.brand_logo_height||56,24,120),brand_name_size:size(req.body.brand_name_size,current.raw.brand_name_size||32,14,72)};
   const logoFile=req.files?.site_logo?.[0];
   const faviconFile=req.files?.site_favicon?.[0];
   if(req.body.remove_site_logo){
