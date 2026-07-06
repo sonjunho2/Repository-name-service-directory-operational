@@ -302,10 +302,65 @@
 .admin-live-btn.pulse,.admin-notify-btn.pulse{animation:notifyPulse .7s ease-in-out 2}
 @keyframes notifyPulse{0%,100%{box-shadow:none;transform:translateY(0)}50%{box-shadow:0 0 0 4px rgba(255,63,180,.25),0 0 24px rgba(16,217,255,.35);transform:translateY(-1px)}}
 
-</style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; function _extractPaidUsdtValue(x){return x?.paid_usdt_amount||((String(x?.admin_memo||x?.memo||'').match(/실제입금:\s*([0-9.]+)/)||[])[1]||'');} function _centerPaidUsdt(x){return _extractPaidUsdtValue(x);} function _cleanCenterMemo(x){return String(x?.admin_memo||'').replace(/\s*실제입금:\s*[0-9.]+\s*USDT\s*/g,'').trim();} %><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
+
+
+/* V66 관리자 복구 패치: 알림센터를 헤더에서 완전히 분리하고 기존 하단 라이브바 비활성화 */
+.admin-livebar,.admin-live-panel{display:none!important;visibility:hidden!important;pointer-events:none!important}
+.top #adminNotificationCenter{display:none!important}
+body>#adminNotificationCenter.admin-notify{
+  position:fixed!important;
+  right:24px!important;
+  bottom:24px!important;
+  left:auto!important;
+  top:auto!important;
+  margin:0!important;
+  padding:0!important;
+  transform:none!important;
+  z-index:2147483600!important;
+  display:flex!important;
+  align-items:flex-end!important;
+  justify-content:flex-end!important;
+  pointer-events:auto!important;
+}
+body>#adminNotificationCenter .admin-notify-btn{
+  position:relative!important;
+  height:46px!important;
+  min-width:96px!important;
+  padding:0 16px!important;
+  border-radius:999px!important;
+  background:#101525!important;
+  border:1px solid #39466c!important;
+  color:#fff!important;
+  box-shadow:0 16px 44px rgba(0,0,0,.52)!important;
+  z-index:2147483602!important;
+}
+body>#adminNotificationCenter .admin-notify-btn.has-unread{
+  border-color:#10d9ff!important;
+  box-shadow:0 0 0 3px rgba(16,217,255,.18),0 16px 44px rgba(0,0,0,.55)!important;
+}
+body>#adminNotificationCenter .admin-notify-panel{
+  position:absolute!important;
+  right:0!important;
+  left:auto!important;
+  top:auto!important;
+  bottom:58px!important;
+  width:410px!important;
+  max-width:calc(100vw - 28px)!important;
+  max-height:calc(100vh - 120px)!important;
+  z-index:2147483601!important;
+  overflow:hidden!important;
+}
+body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!important;overflow:auto!important}
+@media(max-width:700px){
+  body>#adminNotificationCenter.admin-notify{right:12px!important;bottom:12px!important}
+  body>#adminNotificationCenter .admin-notify-panel{right:0!important;bottom:56px!important;width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important}
+  body>#adminNotificationCenter .admin-notify-label{display:inline!important}
+}
+
+</style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; function _extractPaidUsdtValue(x){return x?.paid_usdt_amount||((String(x?.admin_memo||x?.memo||'').match(/실제입금:\s*([0-9.]+)/)||[])[1]||'');} function _centerPaidUsdt(x){return _extractPaidUsdtValue(x);} function _cleanCenterMemo(x){return String(x?.admin_memo||'').replace(/\s*실제입금:\s*[0-9.]+\s*USDT\s*/g,'').trim();} %><script>window.__adminLiveStage31=true;</script><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
-  </a><div class="admin-notify" id="adminNotificationCenter"><button type="button" class="admin-notify-btn" id="adminNotifyBtn"><span class="admin-notify-label">알림</span><span class="admin-notify-count" id="adminNotifyCount">0</span></button><div class="admin-notify-panel"><div class="admin-notify-head"><span>실시간 알림센터</span><span><button type="button" id="adminNotifySound" class="admin-notify-sound on">알림음 ON</button><button type="button" id="adminNotifyReadAll">전체읽음</button></span></div><div class="admin-notify-list" id="adminNotifyList"><div class="admin-notify-empty">알림을 불러오는 중...</div></div></div></div><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-shell"><aside class="admin-sidebar">
+  </a><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-notify" id="adminNotificationCenter"><button type="button" class="admin-notify-btn" id="adminNotifyBtn"><span class="admin-notify-label">알림</span><span class="admin-notify-count" id="adminNotifyCount">0</span></button><div class="admin-notify-panel"><div class="admin-notify-head"><span>실시간 알림센터</span><span><button type="button" id="adminNotifySound" class="admin-notify-sound on">알림음 ON</button><button type="button" id="adminNotifyReadAll">전체읽음</button></span></div><div class="admin-notify-list" id="adminNotifyList"><div class="admin-notify-empty">알림을 불러오는 중...</div></div></div></div><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
   <a class="active" href="#dashboard" data-panel="dashboard">홈</a>
@@ -3007,4 +3062,17 @@ document.addEventListener('DOMContentLoaded',function(){
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
 })();
 </script>
+
+<script>
+(function(){
+  window.__adminLiveStage31=true;
+  function normalizeAdminNotifyV66(){
+    var root=document.getElementById('adminNotificationCenter');
+    if(root && root.parentElement!==document.body){document.body.appendChild(root);}
+    document.querySelectorAll('.admin-livebar,.admin-live-panel').forEach(function(x){x.remove();});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',normalizeAdminNotifyV66);else normalizeAdminNotifyV66();
+})();
+</script>
+
 </body></html>
