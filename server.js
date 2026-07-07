@@ -1138,7 +1138,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
       await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
     }
   }else if(productType==='renewal_banner'){
-    await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=expire_at, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+    await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
   }
 
   const payMeta=buildPaymentConfirmMeta(req.body,x);
