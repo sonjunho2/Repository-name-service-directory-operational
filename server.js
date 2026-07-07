@@ -1092,64 +1092,106 @@ app.post('/vendor-dashboard/ad-request/:id/cancel',login,async(req,res)=>{
 
 app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   await expirePendingPayments();
-  const r=await q('SELECT * FROM vendor_banner_requests WHERE id=$1',[req.params.id]);
-  const x=r.rows[0];
-  if(!x)return res.redirect('/admin#bannerRequests');
-  if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#bannerRequests');
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const claimed=await client.query(
+      "UPDATE vendor_banner_requests SET payment_status=$1,status=$2,processed_at=now() WHERE id=$3 AND status='new' AND payment_status='waiting' RETURNING *",
+      ['paid','approved',req.params.id]
+    );
+    const x=claimed.rows[0];
+    if(!x){
+      await client.query('ROLLBACK');
+      return sendOk(req,res,'/admin#bannerRequests');
+    }
 
-  const v=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
-  const vendor=v.rows[0];
-  const until=vendor?.expire_at||new Date().toISOString().slice(0,10);
+    const payMeta=buildPaymentConfirmMeta(req.body,x);
+    await client.query(
+      'UPDATE vendor_banner_requests SET admin_memo=$1,paid_usdt_amount=$2,payment_txid=$3 WHERE id=$4',
+      [payMeta.memo,payMeta.paidUsdt||null,payMeta.txid||null,x.id]
+    );
 
-  const existingBanner=await q('SELECT id FROM banners WHERE vendor_id=$1 ORDER BY id DESC LIMIT 1',[x.vendor_id]);
-  if(existingBanner.rows[0]){
-    await q('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6,image_data=$7 WHERE id=$8',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,existingBanner.rows[0].id]);
-  }else{
-    await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,x.vendor_id]);
+    const v=await client.query('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
+    const vendor=v.rows[0];
+    const until=vendor?.expire_at||new Date().toISOString().slice(0,10);
+
+    const existingBanner=await client.query('SELECT id FROM banners WHERE vendor_id=$1 ORDER BY id DESC LIMIT 1',[x.vendor_id]);
+    if(existingBanner.rows[0]){
+      await client.query('UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6,image_data=$7 WHERE id=$8',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,existingBanner.rows[0].id]);
+    }else{
+      await client.query('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[x.title,x.subtitle,x.link_url||'#','premium',0,true,x.image_data,x.vendor_id]);
+    }
+    await client.query("UPDATE vendors SET ad_type='recommended',membership_type=$1,is_recommended=true,is_premium=true,banner_active=true,banner_until=$2,status=$3 WHERE id=$4",['recommended',until,'active',x.vendor_id]);
+    await client.query('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,paid_usdt_amount,payment_txid,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,payMeta.paidUsdt||null,payMeta.txid||null,'paid',payMeta.memo||'프리미엄배너 입금확인']);
+    await client.query('INSERT INTO admin_logs(admin_id,admin_username,action,target_type,target_id,memo) VALUES($1,$2,$3,$4,$5,$6)',[req.session.user?.id||null,req.session.user?.username||'','배너 입금확인/추천승격','banner_request',String(x.id||''),`만기일 ${until}${payMeta.txid?' / TXID '+payMeta.txid:''}`]);
+    if(x.user_id){
+      await client.query('INSERT INTO notifications(user_id,role_target,type,title,message,link_url) VALUES($1,$2,$3,$4,$5,$6)',[x.user_id,'user','payment_confirmed','프리미엄배너 결제완료','프리미엄배너 입금확인이 완료되어 배너가 적용되었습니다.','/vendor-dashboard?panel=payments']);
+    }
+    await client.query('COMMIT');
+    return sendOk(req,res,'/admin#bannerRequests');
+  }catch(e){
+    try{await client.query('ROLLBACK');}catch(_){}
+    console.error('banner payment confirm failed',e.message);
+    return res.status(500).send('입금확인 처리 중 오류가 발생했습니다.');
+  }finally{
+    client.release();
   }
-  await q("UPDATE vendors SET ad_type='recommended',membership_type=$1,is_recommended=true,is_premium=true,banner_active=true,banner_until=$2,status=$3 WHERE id=$4",['recommended',until,'active',x.vendor_id]);
-  const payMeta=buildPaymentConfirmMeta(req.body,x);
-  await q('UPDATE vendor_banner_requests SET payment_status=$1,status=$2,admin_memo=$3,paid_usdt_amount=$4,payment_txid=$5,processed_at=now() WHERE id=$6',['paid','approved',payMeta.memo,payMeta.paidUsdt||null,payMeta.txid||null,x.id]);
-  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,paid_usdt_amount,payment_txid,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,payMeta.paidUsdt||null,payMeta.txid||null,'paid',payMeta.memo||'프리미엄배너 입금확인']);
-  await logAdmin(req,'배너 입금확인/추천승격','banner_request',x.id,`만기일 ${until}${payMeta.txid?' / TXID '+payMeta.txid:''}`);
-  await userNotify(x.user_id,'payment_confirmed','프리미엄배너 결제완료','프리미엄배너 입금확인이 완료되어 배너가 적용되었습니다.','/vendor-dashboard?panel=payments');
-  return sendOk(req,res,'/admin#bannerRequests');
 });
 app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   await expirePendingPayments();
-  const r=await q('SELECT * FROM vendor_ad_requests WHERE id=$1',[req.params.id]);
-  const x=r.rows[0];
-  if(!x)return res.redirect('/admin#adRequests');
-  if(x.status!=='new'||x.payment_status!=='waiting')return res.redirect('/admin#adRequests');
-
-  const vendorRes=await q('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
-  const vendor=vendorRes.rows[0]||{};
-  const days=parseInt(x.period||30,10)||30;
-  const productType=x.product_type||'renewal_general';
-  const wantsImmediate=(x.content||'').includes('[바로 적용 요청]');
-  const oldExpire=vendor.expire_at||null;
-
-  if(productType==='renewal_general'){
-    await q(`UPDATE vendors SET ad_type='general',membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
-  }else if(productType==='renewal_recommended'){
-    if((vendor.membership_type||'general')==='general' && !wantsImmediate && oldExpire){
-      await q(`UPDATE vendors SET status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type='recommended', scheduled_banner_active=false, scheduled_change_at=$3, scheduled_change_note=$4 WHERE id=$2`,[days,x.vendor_id,oldExpire,'일반 기간 종료 후 추천업체로 변경']);
-    }else{
-      await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const claimed=await client.query(
+      "UPDATE vendor_ad_requests SET payment_status=$1,status=$2,processed_at=now() WHERE id=$3 AND status='new' AND payment_status='waiting' RETURNING *",
+      ['paid','approved',req.params.id]
+    );
+    const x=claimed.rows[0];
+    if(!x){
+      await client.query('ROLLBACK');
+      return sendOk(req,res,'/admin#adRequests');
     }
-  }else if(productType==='renewal_banner'){
-    await q(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+
+    const payMeta=buildPaymentConfirmMeta(req.body,x);
+    await client.query(
+      'UPDATE vendor_ad_requests SET admin_memo=$1,paid_usdt_amount=$2,payment_txid=$3 WHERE id=$4',
+      [payMeta.memo,payMeta.paidUsdt||null,payMeta.txid||null,x.id]
+    );
+
+    const vendorRes=await client.query('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
+    const vendor=vendorRes.rows[0]||{};
+    const days=parseInt(x.period||30,10)||30;
+    const productType=x.product_type||'renewal_general';
+    const wantsImmediate=(x.content||'').includes('[바로 적용 요청]');
+    const oldExpire=vendor.expire_at||null;
+
+    if(productType==='renewal_general'){
+      await client.query(`UPDATE vendors SET ad_type='general',membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+    }else if(productType==='renewal_recommended'){
+      if((vendor.membership_type||'general')==='general' && !wantsImmediate && oldExpire){
+        await client.query(`UPDATE vendors SET status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type='recommended', scheduled_banner_active=false, scheduled_change_at=$3, scheduled_change_note=$4 WHERE id=$2`,[days,x.vendor_id,oldExpire,'일반 기간 종료 후 추천업체로 변경']);
+      }else{
+        await client.query(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+      }
+    }else if(productType==='renewal_banner'){
+      await client.query(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+    }
+
+    const paymentProduct=productType==='renewal_banner'?'banner':(productType==='renewal_general'?'general':'recommended');
+    await client.query('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,paid_usdt_amount,payment_txid,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,payMeta.paidUsdt||null,payMeta.txid||null,'paid',payMeta.memo||x.plan||'변경/연장 입금확인']);
+    await client.query('INSERT INTO admin_logs(admin_id,admin_username,action,target_type,target_id,memo) VALUES($1,$2,$3,$4,$5,$6)',[req.session.user?.id||null,req.session.user?.username||'','변경/연장 입금확인','ad_request',String(x.id||''),`${x.plan||productType} 적용${payMeta.txid?' / TXID '+payMeta.txid:''}`]);
+    if(x.user_id){
+      await client.query('INSERT INTO notifications(user_id,role_target,type,title,message,link_url) VALUES($1,$2,$3,$4,$5,$6)',[x.user_id,'user','payment_confirmed','광고 결제완료',`${x.plan||'광고 신청'} 입금확인이 완료되어 광고가 적용되었습니다.`,'/vendor-dashboard?panel=payments']);
+    }
+    await client.query('COMMIT');
+    return sendOk(req,res,'/admin#adRequests');
+  }catch(e){
+    try{await client.query('ROLLBACK');}catch(_){}
+    console.error('ad payment confirm failed',e.message);
+    return res.status(500).send('입금확인 처리 중 오류가 발생했습니다.');
+  }finally{
+    client.release();
   }
-
-  const payMeta=buildPaymentConfirmMeta(req.body,x);
-  await q('UPDATE vendor_ad_requests SET payment_status=$1,status=$2,admin_memo=$3,paid_usdt_amount=$4,payment_txid=$5,processed_at=now() WHERE id=$6',['paid','approved',payMeta.memo,payMeta.paidUsdt||null,payMeta.txid||null,x.id]);
-
-  const paymentProduct=productType==='renewal_banner'?'banner':(productType==='renewal_general'?'general':'recommended');
-  await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,paid_usdt_amount,payment_txid,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[x.user_id,x.vendor_id,paymentProduct,'ad_request',x.id,x.krw_price||0,x.usdt_amount||0,payMeta.paidUsdt||null,payMeta.txid||null,'paid',payMeta.memo||x.plan||'변경/연장 입금확인']);
-
-  await logAdmin(req,'변경/연장 입금확인','ad_request',x.id,`${x.plan||productType} 적용${payMeta.txid?' / TXID '+payMeta.txid:''}`);
-  await userNotify(x.user_id,'payment_confirmed','광고 결제완료',`${x.plan||'광고 신청'} 입금확인이 완료되어 광고가 적용되었습니다.`,'/vendor-dashboard?panel=payments');
-  return sendOk(req,res,'/admin#adRequests');
 });
 app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#bannerRequests',async()=>{const r=await q("UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id,user_id",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 배너 신청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'request_rejected','프리미엄배너 신청 반려',(req.body.admin_memo||'프리미엄배너 신청이 반려되었습니다.').slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||'');}));
 
