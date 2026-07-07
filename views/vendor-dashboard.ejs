@@ -102,7 +102,7 @@ header a:hover{color:#10d9ff}
 
 </style>
 </head>
-<body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; function _isPayExpired(x){return x?.payment_status==='cancelled'&&String(x?.admin_memo||'').includes('만료');} function _vendorPayLabel(x){const s=x?.payment_status;return _isPayExpired(x)?'기한만료':s==='waiting'?'입금확인중':s==='paid'?'입금완료':s==='rejected'?'반려':s==='cancelled'?'취소':'입금대기';} function _vendorPayHtml(x){return x?.payment_status==='waiting'?'<span class="status-waiting">입금확인중...</span':_vendorPayLabel(x);} function _vendorRequestStatusHtml(x){return x?.status==='approved'?'승인':x?.status==='rejected'?'반려':x?.status==='cancelled'?(_isPayExpired(x)?'기한만료':'취소'):_vendorPayHtml(x);} %>
+<body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; function _isPayExpired(x){return x?.payment_status==='cancelled'&&String(x?.admin_memo||'').includes('만료');} function _vendorPayLabel(x){const s=x?.payment_status;return _isPayExpired(x)?'기한만료':s==='waiting'?'입금확인중':s==='paid'?'입금완료':s==='rejected'?'반려':s==='cancelled'?'취소':'입금대기';} function _vendorPayHtml(x){return x?.payment_status==='waiting'?'<span class="status-waiting">입금확인중...</span>':_vendorPayLabel(x);} function _vendorRequestStatusHtml(x){return x?.status==='approved'?'승인':x?.status==='rejected'?'반려':x?.status==='cancelled'?(_isPayExpired(x)?'기한만료':'취소'):_vendorPayHtml(x);} %>
 <header><b>업체관리</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
@@ -321,6 +321,7 @@ header a:hover{color:#10d9ff}
             <% const bPrice = vendor.ad_type==='recommended' ? Number(settings.raw.recommended_to_banner_price_krw||settings.raw.banner_price_krw||0) : Number(settings.raw.general_to_banner_price_krw||0); %>
             <p><%=bPrice.toLocaleString()%>원 / <%=usdt(bPrice)%> USDT</p>
           </div>
+          <% const _bannerToday=new Date(); _bannerToday.setHours(0,0,0,0); const _bannerExpire=vendor.expire_at?new Date(vendor.expire_at):null; if(_bannerExpire)_bannerExpire.setHours(0,0,0,0); const _canStandaloneBanner=!!(_bannerExpire&&!Number.isNaN(_bannerExpire.getTime())&&_bannerExpire>=_bannerToday); %>
           <% if(vendor.banner_active){ %>
             <form method="post" action="/vendor-dashboard/ad-request" class="form">
               <input type="hidden" name="product_type" value="renewal_banner">
@@ -353,9 +354,13 @@ header a:hover{color:#10d9ff}
               연결 링크: 등록된 카카오 링크 자동 사용<br>
               배너 이미지: 대표 이미지/GIF 자동 사용
             </div>
-            <form method="post" action="/vendor-dashboard/banner-request" class="form">
-              <button <%=vendor.image_data?'':'disabled'%>>현재 업체정보로 배너 신청</button>
-            </form>
+            <% if(_canStandaloneBanner){ %>
+              <form method="post" action="/vendor-dashboard/banner-request" class="form">
+                <button <%=vendor.image_data?'':'disabled'%>>현재 업체정보로 배너 신청</button>
+              </form>
+            <% } else { %>
+              <div class="file-guide">광고기간이 있는 업체만 프리미엄배너를 신청할 수 있습니다. 먼저 광고 신청 또는 연장을 진행해주세요.</div>
+            <% } %>
           <% } %>
         </div>
       </section>

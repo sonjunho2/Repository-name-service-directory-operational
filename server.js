@@ -984,6 +984,10 @@ app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
   const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
   const vendor=v.rows[0]||{};
   if(!vendor.image_data)return res.redirect('/vendor-dashboard?panel=banner');
+  const today=new Date(); today.setHours(0,0,0,0);
+  const expire=vendor.expire_at?new Date(vendor.expire_at):null;
+  if(expire)expire.setHours(0,0,0,0);
+  if(!expire||Number.isNaN(expire.getTime())||expire<today)return res.redirect('/vendor-dashboard?panel=banner');
   const pending=await q("SELECT id FROM vendor_banner_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' LIMIT 1",[req.session.user.id,req.session.user.vendor_id]);
   if(pending.rows[0])return res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+pending.rows[0].id);
 
@@ -1105,15 +1109,22 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
       return sendOk(req,res,'/admin#bannerRequests');
     }
 
+    const v=await client.query('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
+    const vendor=v.rows[0];
+    const today=new Date(); today.setHours(0,0,0,0);
+    const expire=vendor?.expire_at?new Date(vendor.expire_at):null;
+    if(expire)expire.setHours(0,0,0,0);
+    if(!expire||Number.isNaN(expire.getTime())||expire<today){
+      await client.query('ROLLBACK');
+      return sendFail(req,res,400,'광고기간이 있는 업체만 프리미엄배너를 승인할 수 있습니다.','/admin#bannerRequests');
+    }
+    const until=vendor.expire_at;
+
     const payMeta=buildPaymentConfirmMeta(req.body,x);
     await client.query(
       'UPDATE vendor_banner_requests SET admin_memo=$1,paid_usdt_amount=$2,payment_txid=$3 WHERE id=$4',
       [payMeta.memo,payMeta.paidUsdt||null,payMeta.txid||null,x.id]
     );
-
-    const v=await client.query('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
-    const vendor=v.rows[0];
-    const until=vendor?.expire_at||new Date().toISOString().slice(0,10);
 
     const existingBanner=await client.query('SELECT id FROM banners WHERE vendor_id=$1 ORDER BY id DESC LIMIT 1',[x.vendor_id]);
     if(existingBanner.rows[0]){
