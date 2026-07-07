@@ -657,7 +657,10 @@ async function runAdminAction(req,res,redirectTo,fn){
 }
 app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,`SELECT v.*,
   (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
-  (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname
+  (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
+  (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
+  (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
+  (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count
   FROM vendors v ORDER BY v.id DESC`,'SELECT COUNT(*) FROM vendors'));
 app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
   try{
