@@ -529,7 +529,7 @@ app.post('/admin/settings/usdt-rate-refresh',admin,async(req,res)=>{
     console.error('usdt rate refresh failed',e);
     if(wantsJson(req))return res.status(500).json({ok:false,error:e.message||'환율 갱신 실패'});
   }
-  res.redirect('/admin#settings');
+  return sendOk(req,res,'/admin#settings');
 });
 
 app.get('/api/notifications',login,async(req,res)=>{
@@ -622,11 +622,16 @@ function adminPageParams(req){
   return {page,limit,offset};
 }
 async function adminPagedJson(req,res,sql,countSql,params=[]){
-  const {page,limit,offset}=adminPageParams(req);
-  const rows=await q(sql+` LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
-  const cnt=await q(countSql,params);
-  const total=Number(cnt.rows[0]?.count||0);
-  res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows});
+  try{
+    const {page,limit,offset}=adminPageParams(req);
+    const rows=await q(sql+` LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const cnt=await q(countSql,params);
+    const total=Number(cnt.rows[0]?.count||0);
+    res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows});
+  }catch(e){
+    console.error('admin paged api failed',e);
+    res.status(500).json({ok:false,error:e.message||'admin_api_failed'});
+  }
 }
 function wantsJson(req){
   const accept=String(req.get('accept')||'');
@@ -666,7 +671,7 @@ app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
     res.status(500).json({ok:false,error:e.message||'vendor_detail_failed'});
   }
 });
-app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT id,username,nickname,role,status,COALESCE(is_vendor,false) is_vendor,vendor_id,created_at FROM users ORDER BY id DESC','SELECT COUNT(*) FROM users'));
+app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT u.id,u.username,u.nickname,u.role,u.status,COALESCE(u.is_vendor,false) is_vendor,u.vendor_id,u.created_at FROM users u ORDER BY u.id DESC','SELECT COUNT(*) FROM users u'));
 app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname,COALESCE(i.main_image_data,iv.image_data,i.banner_image_data) display_main_image_data FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
 app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`,'SELECT COUNT(*) FROM flags'));
@@ -749,13 +754,13 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
 
   await q('UPDATE inquiries SET status=$1,vendor_id=$3 WHERE id=$2',['approved',x.id,vendorId||null]);
   await logAdmin(req,'입점신청 승인/업체회원전환','inquiry',x.id,`업체ID ${vendorId} 생성, 광고상태 없음`);
-  res.redirect('/admin#inquiries');
+  return sendOk(req,res,'/admin#inquiries');
 });
-app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return res.redirect('/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); res.redirect('/admin#inquiries');});
+app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return sendFail(req,res,400,'banner_not_available','/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); return sendOk(req,res,'/admin#inquiries');});
 app.get('/admin',admin,async(req,res)=>{await expireAds(); await expirePendingPayments();
   const dashStats={};
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
-const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT id,username,nickname,role,status,is_vendor,vendor_id,created_at FROM users ORDER BY id DESC LIMIT 300'),q(`SELECT v.*,
+const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT u.id,u.username,u.nickname,u.role,u.status,u.is_vendor,u.vendor_id,u.created_at FROM users u ORDER BY u.id DESC LIMIT 300'),q(`SELECT v.*,
   (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
   (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname
   FROM vendors v ORDER BY v.id DESC LIMIT 500`),q('SELECT b.*, v.name vendor_name FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id ORDER BY b.sort_order,b.id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname,COALESCE(i.main_image_data,iv.image_data,i.banner_image_data) display_main_image_data FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]); 
@@ -1105,7 +1110,7 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
   await q('INSERT INTO payment_logs(user_id,vendor_id,product_type,request_type,request_id,krw_price,usdt_amount,paid_usdt_amount,payment_txid,status,memo) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[x.user_id,x.vendor_id,'banner','banner_request',x.id,x.krw_price||0,x.usdt_amount||0,payMeta.paidUsdt||null,payMeta.txid||null,'paid',payMeta.memo||'프리미엄배너 입금확인']);
   await logAdmin(req,'배너 입금확인/추천승격','banner_request',x.id,`만기일 ${until}${payMeta.txid?' / TXID '+payMeta.txid:''}`);
   await userNotify(x.user_id,'payment_confirmed','프리미엄배너 결제완료','프리미엄배너 입금확인이 완료되어 배너가 적용되었습니다.','/vendor-dashboard?panel=payments');
-  res.redirect('/admin#bannerRequests');
+  return sendOk(req,res,'/admin#bannerRequests');
 });
 app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
   await expirePendingPayments();
@@ -1141,7 +1146,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
 
   await logAdmin(req,'변경/연장 입금확인','ad_request',x.id,`${x.plan||productType} 적용${payMeta.txid?' / TXID '+payMeta.txid:''}`);
   await userNotify(x.user_id,'payment_confirmed','광고 결제완료',`${x.plan||'광고 신청'} 입금확인이 완료되어 광고가 적용되었습니다.`,'/vendor-dashboard?panel=payments');
-  res.redirect('/admin#adRequests');
+  return sendOk(req,res,'/admin#adRequests');
 });
 app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#bannerRequests',async()=>{const r=await q("UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id,user_id",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 배너 신청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'request_rejected','프리미엄배너 신청 반려',(req.body.admin_memo||'프리미엄배너 신청이 반려되었습니다.').slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||'');}));
 
@@ -1165,7 +1170,7 @@ app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
   await q('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]);
   await userNotify(x.user_id,'vendor_update_approved','업체정보 수정 승인','업체정보 수정요청이 승인되었습니다.','/vendor-dashboard?panel=history');
   await logAdmin(req,'업체수정요청 승인','vendor_update_request',x.id,req.body.admin_memo||'');
-  res.redirect('/admin#vendorRequests');
+  return sendOk(req,res,'/admin#vendorRequests');
 });
 app.post('/admin/vendor-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#vendorRequests',async()=>{const r=await q("UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3 AND status='new' RETURNING id,user_id",['rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 업체 수정요청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'vendor_update_rejected','업체정보 수정 반려',(req.body.admin_memo||'업체정보 수정요청이 반려되었습니다.').slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'업체수정요청 반려','vendor_update_request',req.params.id,req.body.admin_memo||'');}));
 
@@ -1246,13 +1251,13 @@ app.post('/admin/link-user-vendor',admin,async(req,res)=>{
 app.post('/admin/banner-requests/:id/cancel',admin,async(req,res)=>{
   await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
   await logAdmin(req,'배너신청 취소','banner_request',req.params.id,req.body.admin_memo||'관리자 취소');
-  res.redirect('/admin#bannerRequests');
+  return sendOk(req,res,'/admin#bannerRequests');
 });
 
 app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
   await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
   await logAdmin(req,'상품/광고신청 취소','ad_request',req.params.id,req.body.admin_memo||'관리자 취소');
-  res.redirect('/admin#adRequests');
+  return sendOk(req,res,'/admin#adRequests');
 });
 
 app.get('/admin/backup.json',admin,async(req,res)=>{
@@ -1346,9 +1351,9 @@ app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCou
     await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",[key,String(value)]);
   }
   await logAdmin(req,'환경설정 저장','settings','options','업종/지역/결제/브랜딩 설정 수정');
-  res.redirect('/admin#settings');
+  return sendOk(req,res,'/admin#settings');
 });
-app.post('/admin/settings/admin-account',admin,async(req,res)=>{const username=(req.body.username||'').trim(); const nickname=(req.body.nickname||'관리자').trim().slice(0,50); const password=(req.body.password||'').trim(); if(!/^[a-zA-Z0-9_]{4,30}$/.test(username))return res.redirect('/admin#settings'); if(password&&password.length<8)return res.redirect('/admin#settings'); if(password){const h=await bcrypt.hash(password,10); await q('UPDATE users SET username=$1,nickname=$2,password_hash=$3 WHERE id=$4 AND role=$5',[username,nickname||'관리자',h,req.session.user.id,'admin']);}else{await q('UPDATE users SET username=$1,nickname=$2 WHERE id=$3 AND role=$4',[username,nickname||'관리자',req.session.user.id,'admin']);} req.session.user.username=username; req.session.user.nickname=nickname||'관리자'; await logAdmin(req,'관리자 계정 수정','settings','admin-account',username); res.redirect('/admin#settings');});
+app.post('/admin/settings/admin-account',admin,async(req,res)=>{const username=(req.body.username||'').trim(); const nickname=(req.body.nickname||'관리자').trim().slice(0,50); const password=(req.body.password||'').trim(); if(!/^[a-zA-Z0-9_]{4,30}$/.test(username))return sendFail(req,res,400,'invalid_username','/admin#settings'); if(password&&password.length<8)return sendFail(req,res,400,'password_too_short','/admin#settings'); if(password){const h=await bcrypt.hash(password,10); await q('UPDATE users SET username=$1,nickname=$2,password_hash=$3 WHERE id=$4 AND role=$5',[username,nickname||'관리자',h,req.session.user.id,'admin']);}else{await q('UPDATE users SET username=$1,nickname=$2 WHERE id=$3 AND role=$4',[username,nickname||'관리자',req.session.user.id,'admin']);} req.session.user.username=username; req.session.user.nickname=nickname||'관리자'; await logAdmin(req,'관리자 계정 수정','settings','admin-account',username); return sendOk(req,res,'/admin#settings');});
 app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   const wantsJson=!!req.get('x-requested-with') || (req.get('accept')||'').includes('application/json');
   try{
@@ -1414,9 +1419,9 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
     res.redirect('/admin#vendors');
   }
 });
-app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=img(req.file); if(req.body.id){let p=[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,req.body.id]; await q(`UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6 ${im?', image_data=$8':''} WHERE id=$7`, im?[...p,im]:p)} else await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,im]); await logAdmin(req,req.body.id?'배너 수정':'배너 등록','banner',req.body.id||'new',req.body.title||''); res.redirect('/admin#banners');});
+app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=img(req.file); if(req.body.id){let p=[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,req.body.id]; await q(`UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6 ${im?', image_data=$8':''} WHERE id=$7`, im?[...p,im]:p)} else await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,im]); await logAdmin(req,req.body.id?'배너 수정':'배너 등록','banner',req.body.id||'new',req.body.title||''); return sendOk(req,res,'/admin#banners');});
 app.post('/admin/user',admin,async(req,res)=>{const userId=parseInt(req.body.id||0,10); if(!userId)return res.redirect('/admin#users'); const role=['admin','user'].includes(req.body.role)?req.body.role:'user'; const status=['active','blocked'].includes(req.body.status)?req.body.status:'active'; const nickname=(req.body.nickname||'회원').trim().slice(0,50); const password=req.body.password||''; if(password&&password.length<6)return res.redirect('/admin#users'); const h=password?await bcrypt.hash(password,10):null; if(h) await q('UPDATE users SET nickname=$1,role=$2,status=$3,password_hash=$4 WHERE id=$5',[nickname,role,status,h,userId]); else await q('UPDATE users SET nickname=$1,role=$2,status=$3 WHERE id=$4',[nickname,role,status,userId]); await logAdmin(req,'회원 수정','user',userId,nickname); if(req.get('x-requested-with'))return res.json({ok:true}); res.redirect('/admin#users');});
-app.post('/admin/notice',admin,async(req,res)=>{await q('INSERT INTO notices(title,content,is_pinned) VALUES($1,$2,$3)',[req.body.title,req.body.content,!!req.body.is_pinned]); await logAdmin(req,'공지 등록','notice','new',req.body.title||''); res.redirect('/admin#notices');});
+app.post('/admin/notice',admin,async(req,res)=>{await q('INSERT INTO notices(title,content,is_pinned) VALUES($1,$2,$3)',[req.body.title,req.body.content,!!req.body.is_pinned]); await logAdmin(req,'공지 등록','notice','new',req.body.title||''); return sendOk(req,res,'/admin#notices');});
 app.post('/admin/delete/:table/:id',admin,async(req,res)=>runAdminAction(req,res,req.params.table==='vendors'?'/admin#vendors':'/admin#'+req.params.table,async()=>{const allowed={vendors:'vendors',banners:'banners',users:'users',reviews:'reviews',notices:'notices',events:'events',inquiries:'inquiries'}; const table=allowed[req.params.table]; const id=parseInt(req.params.id||0,10); if(!table||!id)throw new Error('삭제 대상이 올바르지 않습니다.'); if(table==='users'){const u=await q('SELECT role FROM users WHERE id=$1',[id]); if(u.rows[0]?.role==='admin')throw new Error('관리자 계정은 삭제할 수 없습니다.');} if(table==='vendors'){const r=await q('UPDATE vendors SET status=$1 WHERE id=$2 RETURNING id',['inactive',id]); if(!r.rows[0])throw new Error('업체를 찾을 수 없습니다.'); await logAdmin(req,'업체 비활성화','vendors',id,'관리자 삭제 대신 비활성화'); return;} const r=await q(`DELETE FROM ${table} WHERE id=$1 RETURNING id`,[id]); if(!r.rows[0])throw new Error('삭제 대상을 찾을 수 없습니다.'); await logAdmin(req,'삭제',req.params.table,id,'관리자 삭제');}));
 
 function siteBaseUrl(req){
