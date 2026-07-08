@@ -765,9 +765,9 @@ app.get('/admin/api/live-summary',admin,async(req,res)=>{
     logs:await safeRows(`SELECT id,action,target_type,target_id,memo,created_at FROM admin_logs ORDER BY id DESC LIMIT 5`)
   };
   const charts={
-    dailyViews:await safeRows("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM vendor_view_logs WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d"),
-    dailyUsers:await safeRows("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.cnt,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date day,COUNT(*) cnt FROM users WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d"),
-    dailyRevenue:await safeRows("SELECT to_char(d::date,'MM-DD') label, COALESCE(x.sum,0)::int value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT paid_at::date day,SUM(krw_price) sum FROM payment_logs WHERE paid_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY paid_at::date) x ON x.day=d::date ORDER BY d"),
+    dailyViews:await safeRows("SELECT to_char(d::date,'MM-DD') AS label, COALESCE(x.cnt,0)::int AS value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date AS \"day\",COUNT(*) AS cnt FROM vendor_view_logs WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d"),
+    dailyUsers:await safeRows("SELECT to_char(d::date,'MM-DD') AS label, COALESCE(x.cnt,0)::int AS value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT created_at::date AS \"day\",COUNT(*) AS cnt FROM users WHERE created_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY created_at::date) x ON x.day=d::date ORDER BY d"),
+    dailyRevenue:await safeRows("SELECT to_char(d::date,'MM-DD') AS label, COALESCE(x.sum,0)::int AS value FROM generate_series(CURRENT_DATE-INTERVAL '6 days',CURRENT_DATE,INTERVAL '1 day') d LEFT JOIN (SELECT paid_at::date AS \"day\",SUM(krw_price) AS sum FROM payment_logs WHERE paid_at>=CURRENT_DATE-INTERVAL '6 days' GROUP BY paid_at::date) x ON x.day=d::date ORDER BY d"),
     productSales:await safeRows("SELECT COALESCE(product_type,'기타') label,COUNT(*)::int value FROM payment_logs GROUP BY product_type ORDER BY value DESC LIMIT 6"),
     regionVendors:await safeRows("SELECT COALESCE(region,'미지정') label,COUNT(*)::int value FROM vendors GROUP BY region ORDER BY value DESC LIMIT 6")
   };
@@ -808,21 +808,10 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
 });
 app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return sendFail(req,res,400,'banner_not_available','/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); return sendOk(req,res,'/admin#inquiries');});
 app.get('/admin',admin,async(req,res)=>{
-  const started=Date.now();
-  console.log('[admin-trace] start',Date.now());
-  const trace=(label,extra='')=>console.log('[admin-trace]',Date.now()-started+'ms',label,extra);
-  const timed=async(label,fn)=>{
-    trace(label+' start');
-    const result=await fn();
-    const rows=result&&result.rows?result.rows.length:'';
-    trace(label+' done',rows);
-    return result;
-  };
   try{
-await timed('expireAds',()=>expireAds()); await timed('expirePendingPayments',()=>expirePendingPayments());
+await expireAds(); await expirePendingPayments();
   const dashStats={};
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
-trace('main Promise.all start');
 const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT u.id,u.username,u.nickname,u.role,u.status,u.is_vendor,u.vendor_id,u.created_at FROM users u ORDER BY u.id DESC LIMIT 300'),q(`SELECT v.id,v.name,v.category,v.region,v.phone,v.kakao_url,v.business_hours,v.description,v.tags,v.status,v.ad_type,v.expire_at,v.banner_active,v.banner_until,v.views,v.created_at,v.is_premium,v.is_recommended,v.membership_type,v.sns_url,v.line_url,v.telegram_url,v.holiday_info,v.ad_until,v.scheduled_membership_type,v.scheduled_banner_active,v.scheduled_change_at,v.scheduled_change_note,
   CASE WHEN v.image_data IS NOT NULL AND v.image_data<>'' THEN true ELSE false END has_image_data,
   (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
@@ -841,11 +830,10 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.id,r.user_id,r.vendor_id,r.title,r.subtitle,r.link_url,r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
   CASE WHEN r.image_data IS NOT NULL AND r.image_data<>'' THEN true ELSE false END has_image_data,
   u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
-trace('main Promise.all done',[users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs].map(x=>x?.rows?.length??'settings').join(','));
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];
-  const favoriteStats=await timed('favoriteStats',()=>q('SELECT vendor_id,COUNT(*)::int cnt FROM favorites GROUP BY vendor_id'));
+  const favoriteStats=await q('SELECT vendor_id,COUNT(*)::int cnt FROM favorites GROUP BY vendor_id');
   const favMap=Object.fromEntries(favoriteStats.rows.map(x=>[x.vendor_id,Number(x.cnt||0)]));
   const reviewMap={};
   reviewRows.forEach(r=>{
@@ -873,7 +861,6 @@ trace('main Promise.all done',[users,vendors,banners,reviews,events,notices,inqu
     const score=Number(v.views||0)+(fav*20)+(rv.count*10)+(avg*5)+(v.is_premium?30:0)+(v.is_recommended?15:0);
     return {...v,review_count_calc:rv.count,avg_rating_calc:avg,favorite_count_calc:fav,report_count_calc:Number(flagMap[v.id]||0),popularity_score:score};
   });
-  trace('reviewMap/enrichedVendors 계산 done',enrichedVendors.length);
   const expiryStats={
     expired:vendorRows.filter(v=>v.expire_at&&new Date(v.expire_at)<new Date(new Date().toISOString().slice(0,10))).length,
     expiring7:vendorRows.filter(v=>{
@@ -896,7 +883,7 @@ trace('main Promise.all done',[users,vendors,banners,reviews,events,notices,inqu
   };
   const paidRows=paymentLogs.rows||[];
   const paymentStatusStats={waiting:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='waiting').length,unpaid:[...bannerRequests.rows,...adRequests.rows].filter(x=>!x.payment_status||x.payment_status==='unpaid').length,paid:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='paid').length,rejected:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='rejected').length,cancelled:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='cancelled').length};
-  const revenueAgg=(await timed('revenueAgg',()=>q(`SELECT
+  const revenueAgg=(await q(`SELECT
     COALESCE(SUM(krw_price),0) AS total,
     COALESCE(SUM(krw_price) FILTER (WHERE paid_at>=CURRENT_DATE),0) AS today,
     COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)),0) AS "month",
@@ -906,7 +893,7 @@ trace('main Promise.all done',[users,vendors,banners,reviews,events,notices,inqu
     COUNT(*) FILTER (WHERE product_type='recommended')::int AS recommended,
     COUNT(*) FILTER (WHERE product_type='banner')::int AS banner,
     COALESCE(SUM(usdt_amount),0) AS "usdtTotal"
-    FROM payment_logs`))).rows[0]||{};
+    FROM payment_logs`)).rows[0]||{};
   const revenueStats={
     today:Number(revenueAgg.today||0),
     month:Number(revenueAgg.month||0),
@@ -920,38 +907,35 @@ trace('main Promise.all done',[users,vendors,banners,reviews,events,notices,inqu
     recent:paidRows.slice(0,10),
     statuses:paymentStatusStats
   };
-  trace('adminSummary start');
-  const scalar=async(label,sql)=>Number((await timed('adminSummary '+label,()=>q(sql))).rows[0]?.v||0);
+  const scalar=async(sql)=>Number((await q(sql)).rows[0]?.v||0);
   const adminSummary={
-    totalUsers:await scalar('totalUsers',"SELECT COUNT(*) v FROM users"),
-    totalVendors:await scalar('totalVendors',"SELECT COUNT(*) v FROM vendors"),
-    activeVendors:await scalar('activeVendors',"SELECT COUNT(*) v FROM vendors WHERE status='active'"),
-    totalReviews:await scalar('totalReviews',"SELECT COUNT(*) v FROM reviews"),
-    todayViews:await scalar('todayViews',"SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=CURRENT_DATE"),
-    weekViews:await scalar('weekViews',"SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=date_trunc('week',CURRENT_DATE)"),
-    monthViews:await scalar('monthViews',"SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=date_trunc('month',CURRENT_DATE)"),
-    todayUsers:await scalar('todayUsers',"SELECT COUNT(*) v FROM users WHERE created_at>=CURRENT_DATE"),
-    weekUsers:await scalar('weekUsers',"SELECT COUNT(*) v FROM users WHERE created_at>=date_trunc('week',CURRENT_DATE)"),
-    todayInquiries:await scalar('todayInquiries',"SELECT COUNT(*) v FROM inquiries WHERE created_at>=CURRENT_DATE"),
-    pendingInquiries:await scalar('pendingInquiries',"SELECT COUNT(*) v FROM inquiries WHERE status='new'"),
-    pendingVendorRequests:await scalar('pendingVendorRequests',"SELECT COUNT(*) v FROM vendor_update_requests WHERE status='new'"),
-    pendingAdRequests:await scalar('pendingAdRequests',"SELECT COUNT(*) v FROM vendor_ad_requests WHERE status='new'"),
-    pendingBannerRequests:await scalar('pendingBannerRequests',"SELECT COUNT(*) v FROM vendor_banner_requests WHERE status='new'"),
-    waitingPayments:await scalar('waitingPayments',"SELECT COUNT(*) v FROM (SELECT payment_status FROM vendor_ad_requests UNION ALL SELECT payment_status FROM vendor_banner_requests) x WHERE payment_status='waiting'"),
-    pendingReports:await scalar('pendingReports',"SELECT COUNT(*) v FROM flags WHERE status='new'"),
-    activeAds:await scalar('activeAds',"SELECT COUNT(*) v FROM vendors WHERE status='active' AND ad_type<>'none'"),
-    activeBanners:await scalar('activeBanners',"SELECT COUNT(*) v FROM vendors WHERE status='active' AND banner_active=true"),
-    expiring7:await scalar('expiring7',"SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '7 days'"),
-    todayRevenue:await scalar('todayRevenue',"SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE paid_at>=CURRENT_DATE"),
-    monthRevenue:await scalar('monthRevenue',"SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)"),
-    yearRevenue:await scalar('yearRevenue',"SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)"),
-    totalRevenue:await scalar('totalRevenue',"SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs")
+    totalUsers:await scalar("SELECT COUNT(*) v FROM users"),
+    totalVendors:await scalar("SELECT COUNT(*) v FROM vendors"),
+    activeVendors:await scalar("SELECT COUNT(*) v FROM vendors WHERE status='active'"),
+    totalReviews:await scalar("SELECT COUNT(*) v FROM reviews"),
+    todayViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=CURRENT_DATE"),
+    weekViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=date_trunc('week',CURRENT_DATE)"),
+    monthViews:await scalar("SELECT COUNT(*) v FROM vendor_view_logs WHERE created_at>=date_trunc('month',CURRENT_DATE)"),
+    todayUsers:await scalar("SELECT COUNT(*) v FROM users WHERE created_at>=CURRENT_DATE"),
+    weekUsers:await scalar("SELECT COUNT(*) v FROM users WHERE created_at>=date_trunc('week',CURRENT_DATE)"),
+    todayInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE created_at>=CURRENT_DATE"),
+    pendingInquiries:await scalar("SELECT COUNT(*) v FROM inquiries WHERE status='new'"),
+    pendingVendorRequests:await scalar("SELECT COUNT(*) v FROM vendor_update_requests WHERE status='new'"),
+    pendingAdRequests:await scalar("SELECT COUNT(*) v FROM vendor_ad_requests WHERE status='new'"),
+    pendingBannerRequests:await scalar("SELECT COUNT(*) v FROM vendor_banner_requests WHERE status='new'"),
+    waitingPayments:await scalar("SELECT COUNT(*) v FROM (SELECT payment_status FROM vendor_ad_requests UNION ALL SELECT payment_status FROM vendor_banner_requests) x WHERE payment_status='waiting'"),
+    pendingReports:await scalar("SELECT COUNT(*) v FROM flags WHERE status='new'"),
+    activeAds:await scalar("SELECT COUNT(*) v FROM vendors WHERE status='active' AND ad_type<>'none'"),
+    activeBanners:await scalar("SELECT COUNT(*) v FROM vendors WHERE status='active' AND banner_active=true"),
+    expiring7:await scalar("SELECT COUNT(*) v FROM vendors WHERE expire_at IS NOT NULL AND expire_at>=CURRENT_DATE AND expire_at<=CURRENT_DATE+INTERVAL '7 days'"),
+    todayRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE paid_at>=CURRENT_DATE"),
+    monthRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)"),
+    yearRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)"),
+    totalRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs")
   };
-  trace('render start');
   res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
-  trace('render done');
   }catch(e){
-    console.error('[admin-trace] failed',e);
+    console.error('admin load failed',e);
     if(!res.headersSent)res.status(500).send('admin load failed: '+String(e.message||e));
   }
 });
