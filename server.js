@@ -897,15 +897,15 @@ trace('main Promise.all done',[users,vendors,banners,reviews,events,notices,inqu
   const paidRows=paymentLogs.rows||[];
   const paymentStatusStats={waiting:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='waiting').length,unpaid:[...bannerRequests.rows,...adRequests.rows].filter(x=>!x.payment_status||x.payment_status==='unpaid').length,paid:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='paid').length,rejected:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='rejected').length,cancelled:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='cancelled').length};
   const revenueAgg=(await timed('revenueAgg',()=>q(`SELECT
-    COALESCE(SUM(krw_price),0) total,
-    COALESCE(SUM(krw_price) FILTER (WHERE paid_at>=CURRENT_DATE),0) today,
-    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)),0) month,
-    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)),0) year,
-    COUNT(*)::int count,
-    COUNT(*) FILTER (WHERE product_type='general')::int general,
-    COUNT(*) FILTER (WHERE product_type='recommended')::int recommended,
-    COUNT(*) FILTER (WHERE product_type='banner')::int banner,
-    COALESCE(SUM(usdt_amount),0) "usdtTotal"
+    COALESCE(SUM(krw_price),0) AS total,
+    COALESCE(SUM(krw_price) FILTER (WHERE paid_at>=CURRENT_DATE),0) AS today,
+    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)),0) AS "month",
+    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)),0) AS "year",
+    COUNT(*)::int AS count,
+    COUNT(*) FILTER (WHERE product_type='general')::int AS general,
+    COUNT(*) FILTER (WHERE product_type='recommended')::int AS recommended,
+    COUNT(*) FILTER (WHERE product_type='banner')::int AS banner,
+    COALESCE(SUM(usdt_amount),0) AS "usdtTotal"
     FROM payment_logs`))).rows[0]||{};
   const revenueStats={
     today:Number(revenueAgg.today||0),
