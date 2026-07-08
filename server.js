@@ -260,7 +260,17 @@ app.use((req,res,next)=>{
   res.locals.fmtDateTime=formatKstDateTime;
   next();
 });
-function admin(req,res,next){ if(req.session.user?.role==='admin') return next(); res.redirect('/admin/login'); }
+async function admin(req,res,next){
+  try{
+    const user=await refreshSessionUser(req);
+    if(user&&user.role==='admin')return next();
+    delete req.session.user;
+    return req.session.save(()=>res.redirect('/admin/login'));
+  }catch(e){
+    console.error('admin auth failed',e);
+    return res.status(500).send('admin auth failed');
+  }
+}
 
 async function logAdmin(req,action,targetType,targetId,memo=''){
   try{
@@ -295,7 +305,19 @@ function notificationTargetSql(req){
   return {where:"role_target='user' AND user_id=$1",params:[req.session.user?.id||0]};
 }
 
-function login(req,res,next){ if(req.session.user) return next(); res.redirect('/login'); }
+async function login(req,res,next){
+  try{
+    const user=await refreshSessionUser(req);
+    if(user)return next();
+    delete req.session.user;
+    const wantsJson=String(req.get('accept')||'').includes('application/json')||req.path.startsWith('/api/');
+    if(wantsJson)return res.status(401).json({ok:false,error:'login_required'});
+    return req.session.save(()=>res.redirect('/login'));
+  }catch(e){
+    console.error('login auth failed',e);
+    return res.status(500).send('login auth failed');
+  }
+}
 
 async function refreshSessionUser(req){
   if(!req.session.user?.id)return null;
@@ -609,9 +631,8 @@ async function favoriteIdsForUser(userId){
 }
 app.post('/favorite/:id',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){const v=await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[id]); if(v.rows[0])await q('INSERT INTO favorites(user_id,vendor_id) VALUES($1,$2) ON CONFLICT(user_id,vendor_id) DO NOTHING',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
 app.post('/favorite/:id/delete',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){const v=await q('SELECT id FROM vendors WHERE id=$1',[id]); if(v.rows[0])await q('DELETE FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
-app.get('/api/favorites',async(req,res)=>{if(!req.session.user)return res.status(401).json({ok:false,error:'login_required'}); res.json({ok:true,ids:await favoriteIdsForUser(req.session.user.id)});});
-app.post('/api/favorite/:id/toggle',async(req,res)=>{
-  if(!req.session.user)return res.status(401).json({ok:false,error:'login_required'});
+app.get('/api/favorites',login,async(req,res)=>{res.json({ok:true,ids:await favoriteIdsForUser(req.session.user.id)});});
+app.post('/api/favorite/:id/toggle',login,async(req,res)=>{
   const id=parseInt(req.params.id||0,10);
   if(!id)return res.status(400).json({ok:false,error:'bad_vendor_id'});
   const v=await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[id]);
@@ -648,14 +669,14 @@ async function vendorData(req,id,options={}){
   return {vendor:v.rows[0],reviews:reviews.rows};
 }
 app.get('/api/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.params.id,{publicOnly:true}); if(!data.vendor)return res.status(404).json({error:'not found'}); res.json(data);});
-app.post('/api/review',async(req,res)=>{if(!req.session.user)return res.status(401).json({error:'login_required'}); const vendorId=parseInt(req.body.vendor_id||0,10); const title=(req.body.title||'').trim().slice(0,100); const content=(req.body.content||'').trim().slice(0,1000); if(!vendorId||!title||content.length<5)return res.status(400).json({error:'bad_review'}); const vendor=await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[vendorId]); if(!vendor.rows[0])return res.status(404).json({error:'vendor_not_found'}); const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]); if(dup.rows[0])return res.status(429).json({error:'review_duplicate'}); const ratingRaw=parseInt(req.body.rating,10); const rating=Math.max(1,Math.min(5,Number.isFinite(ratingRaw)?ratingRaw:5)); await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[vendorId,req.session.user.id,title,content,rating]); res.json({ok:true});});
+app.post('/api/review',login,async(req,res)=>{const vendorId=parseInt(req.body.vendor_id||0,10); const title=(req.body.title||'').trim().slice(0,100); const content=(req.body.content||'').trim().slice(0,1000); if(!vendorId||!title||content.length<5)return res.status(400).json({error:'bad_review'}); const vendor=await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[vendorId]); if(!vendor.rows[0])return res.status(404).json({error:'vendor_not_found'}); const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]); if(dup.rows[0])return res.status(429).json({error:'review_duplicate'}); const ratingRaw=parseInt(req.body.rating,10); const rating=Math.max(1,Math.min(5,Number.isFinite(ratingRaw)?ratingRaw:5)); await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[vendorId,req.session.user.id,title,content,rating]); res.json({ok:true});});
 app.post('/api/flag',async(req,res)=>{const type=(req.body.type||'').trim(); const target=parseInt(req.body.target_id||0,10); const reason=(req.body.reason||'기타').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,1000); if(!['vendor','review'].includes(type)||!target||!reason.trim()||content.length>1000)return res.status(400).json({error:'bad_request'}); const exists=type==='vendor'?await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[target]):await q(`SELECT r.id FROM reviews r JOIN vendors v ON v.id=r.vendor_id WHERE r.id=$1 AND r.status='visible' AND ${PUBLIC_VENDOR_SQL}`,[target]); if(!exists.rows[0])return res.status(404).json({error:'target_not_found'}); await q('INSERT INTO flags(type,target_id,reason,content) VALUES($1,$2,$3,$4)',[type,target,reason,content]); res.json({ok:true});});
 app.get('/vendor/:id',async(req,res)=>{const data=await vendorData(req,req.params.id,{publicOnly:true}); if(!data.vendor)return res.status(404).send('Not found'); res.render('vendor',{...data,settings:await getSettings()});});
 app.get('/login',(req,res)=>res.render('login',{mode:'login',error:null})); app.post('/login',async(req,res)=>{const username=(req.body.username||'').trim(); if(loginBlocked(req,username,'user'))return res.status(429).render('login',{mode:'login',error:'로그인 시도가 많습니다. 15분 후 다시 시도해주세요.'}); const u=await q('SELECT * FROM users WHERE username=$1',[username]); if(!u.rows[0]||u.rows[0].status!=='active'||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)){loginFail(req,username,'user'); return res.render('login',{mode:'login',error:'아이디 또는 비밀번호가 올바르지 않습니다.'});} loginSuccess(req,username,'user'); req.session.regenerate(err=>{if(err)return res.render('login',{mode:'login',error:'로그인 처리 중 오류가 발생했습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:u.rows[0].role,is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect(u.rows[0].role==='admin'?'/admin':u.rows[0].is_vendor?'/vendor-dashboard':'/');});});
 app.get('/join',(req,res)=>res.render('login',{mode:'join',error:null})); app.post('/join',async(req,res)=>{try{const username=(req.body.username||'').trim(); const password=req.body.password||''; const nickname=(req.body.nickname||username).trim().slice(0,50); if(!/^[a-zA-Z0-9_]{4,30}$/.test(username))return res.render('login',{mode:'join',error:'아이디는 영문/숫자/밑줄 4~30자로 입력해주세요.'}); if(password.length<6)return res.render('login',{mode:'join',error:'비밀번호는 6자 이상 입력해주세요.'}); const h=await bcrypt.hash(password,10); await q('INSERT INTO users(username,password_hash,nickname) VALUES($1,$2,$3)',[username,h,nickname||username]); res.redirect('/login')}catch(e){res.render('login',{mode:'join',error:'이미 사용 중인 아이디입니다.'})}});
 app.get('/logout',(req,res)=>req.session.destroy(()=>res.redirect('/')));
 app.post('/review',login,async(req,res)=>{const vendorId=parseInt(req.body.vendor_id||0,10); const title=(req.body.title||'').trim().slice(0,100); const content=(req.body.content||'').trim().slice(0,1000); if(!vendorId||!title||content.length<5)return res.redirect('/vendor/'+(vendorId||'')); const vendor=await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[vendorId]); if(!vendor.rows[0])return res.redirect('/'); const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]); const ratingRaw=parseInt(req.body.rating,10); const rating=Math.max(1,Math.min(5,Number.isFinite(ratingRaw)?ratingRaw:5)); if(!dup.rows[0])await q('INSERT INTO reviews(vendor_id,user_id,title,content,rating) VALUES($1,$2,$3,$4,$5)',[vendorId,req.session.user.id,title,content,rating]); res.redirect('/vendor/'+vendorId);});
-app.get('/admin/login',(req,res)=>res.render('admin-login',{error:null})); app.post('/admin/login',async(req,res)=>{const username=(req.body.username||'').trim(); if(loginBlocked(req,username,'admin'))return res.status(429).render('admin-login',{error:'로그인 시도가 많습니다. 15분 후 다시 시도해주세요.'}); const u=await q('SELECT * FROM users WHERE username=$1 AND role=$2',[username,'admin']); if(!u.rows[0]||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)){loginFail(req,username,'admin'); return res.render('admin-login',{error:'관리자 로그인 실패'});} loginSuccess(req,username,'admin'); req.session.regenerate(err=>{if(err)return res.render('admin-login',{error:'로그인 처리 중 오류가 발생했습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:'admin',is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect('/admin');});});
+app.get('/admin/login',(req,res)=>res.render('admin-login',{error:null})); app.post('/admin/login',async(req,res)=>{const username=(req.body.username||'').trim(); if(loginBlocked(req,username,'admin'))return res.status(429).render('admin-login',{error:'로그인 시도가 많습니다. 15분 후 다시 시도해주세요.'}); const u=await q('SELECT * FROM users WHERE username=$1 AND role=$2 AND status=$3',[username,'admin','active']); if(!u.rows[0]||!await bcrypt.compare(req.body.password||'',u.rows[0].password_hash)){loginFail(req,username,'admin'); return res.render('admin-login',{error:'관리자 로그인 실패'});} loginSuccess(req,username,'admin'); req.session.regenerate(err=>{if(err)return res.render('admin-login',{error:'로그인 처리 중 오류가 발생했습니다.'}); req.session.user={id:u.rows[0].id,username:u.rows[0].username,nickname:u.rows[0].nickname,role:'admin',is_vendor:u.rows[0].is_vendor,vendor_id:u.rows[0].vendor_id}; res.redirect('/admin');});});
 
 
 function adminPageParams(req){
@@ -955,9 +976,9 @@ app.get('/mypage',login,async(req,res)=>{
   res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,inquiries:inquiries.rows,settings:await getSettings()});
 });
 
-app.get('/vendor-apply',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor&&req.session.user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const pending=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[req.session.user.id]); res.render('vendor-apply',{settings,error:null,done:!!pending.rows[0]});});
+app.get('/vendor-apply',login,async(req,res)=>{const user=await refreshSessionUser(req); if(!user){delete req.session.user; return req.session.save(()=>res.redirect('/login'));} if(user.is_vendor&&user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const pending=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[user.id]); res.render('vendor-apply',{settings,error:null,done:!!pending.rows[0]});});
 
-app.post('/vendor-apply',login,upload.single('image'),async(req,res)=>{try{await refreshSessionUser(req); if(req.session.user.is_vendor&&req.session.user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const company=(req.body.company_name||'').trim().slice(0,100); const phone=(req.body.phone||'').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,2000); if(!company||!phone||content.length<5)return res.render('vendor-apply',{settings,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',done:false}); const exists=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[req.session.user.id]); if(exists.rows[0])return res.render('vendor-apply',{settings,error:null,done:true}); const im=img(req.file); await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',['apply',company,req.session.user.nickname,phone,(req.body.kakao_url||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'기타').trim().slice(0,50),(req.body.region||'기타').trim().slice(0,50),content,im,'new',req.session.user.id]); res.render('vendor-apply',{settings,error:null,done:true});}catch(e){res.render('vendor-apply',{settings:await getSettings(),error:e.message||'신청 실패',done:false});}});
+app.post('/vendor-apply',login,upload.single('image'),async(req,res)=>{try{const user=await refreshSessionUser(req); if(!user){delete req.session.user; return req.session.save(()=>res.redirect('/login'));} if(user.is_vendor&&user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const company=(req.body.company_name||'').trim().slice(0,100); const phone=(req.body.phone||'').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,2000); if(!company||!phone||content.length<5)return res.render('vendor-apply',{settings,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',done:false}); const exists=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[user.id]); if(exists.rows[0])return res.render('vendor-apply',{settings,error:null,done:true}); const im=img(req.file); await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,status,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',['apply',company,user.nickname,phone,(req.body.kakao_url||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'기타').trim().slice(0,50),(req.body.region||'기타').trim().slice(0,50),content,im,'new',user.id]); res.render('vendor-apply',{settings,error:null,done:true});}catch(e){res.render('vendor-apply',{settings:await getSettings(),error:e.message||'신청 실패',done:false});}});
 
 app.get('/vendor-dashboard',login,async(req,res)=>{
   try{
@@ -1055,8 +1076,15 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
 });
 
 app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(req,res)=>{
-  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
-  const pending=await q("SELECT id FROM vendor_update_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' LIMIT 1",[req.session.user.id,req.session.user.vendor_id]);
+  const user=await refreshSessionUser(req);
+  if(!user){
+    delete req.session.user;
+    return req.session.save(()=>res.redirect('/login'));
+  }
+  if(!user.is_vendor||!user.vendor_id)return res.redirect('/vendor-apply');
+  const vendorCheck=await q('SELECT id FROM vendors WHERE id=$1',[user.vendor_id]);
+  if(!vendorCheck.rows[0])return res.redirect('/vendor-apply');
+  const pending=await q("SELECT id FROM vendor_update_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' LIMIT 1",[user.id,user.vendor_id]);
   if(pending.rows[0])return res.redirect('/vendor-dashboard');
   const name=(req.body.name||'').trim().slice(0,100);
   if(!name)return res.redirect('/vendor-dashboard');
@@ -1064,7 +1092,7 @@ app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(r
   if(req.file&&!im)return res.redirect('/vendor-dashboard?error=image#edit');
   await q(
     'INSERT INTO vendor_update_requests(user_id,vendor_id,name,category,region,phone,kakao_url,business_hours,tags,description,image_data,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
-    [req.session.user.id,req.session.user.vendor_id,name,(req.body.category||'기타').trim().slice(0,50),(req.body.region||'기타').trim().slice(0,50),(req.body.phone||'').trim().slice(0,50),(req.body.kakao_url||'').trim().slice(0,200),(req.body.business_hours||'').trim().slice(0,200),(req.body.tags||'').trim().slice(0,300),(req.body.description||'').trim().slice(0,3000),im,(req.body.sns_url||'').trim().slice(0,200),(req.body.line_url||'').trim().slice(0,200),(req.body.telegram_url||'').trim().slice(0,200),(req.body.holiday_info||'').trim().slice(0,500)]
+    [user.id,user.vendor_id,name,(req.body.category||'기타').trim().slice(0,50),(req.body.region||'기타').trim().slice(0,50),(req.body.phone||'').trim().slice(0,50),(req.body.kakao_url||'').trim().slice(0,200),(req.body.business_hours||'').trim().slice(0,200),(req.body.tags||'').trim().slice(0,300),(req.body.description||'').trim().slice(0,3000),im,(req.body.sns_url||'').trim().slice(0,200),(req.body.line_url||'').trim().slice(0,200),(req.body.telegram_url||'').trim().slice(0,200),(req.body.holiday_info||'').trim().slice(0,500)]
   );
   await adminNotify('vendor_update_request','업체정보 수정요청',`${name} 업체정보 수정요청이 접수되었습니다.`,'/admin#vendorRequests');
   res.redirect('/vendor-dashboard');
