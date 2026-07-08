@@ -356,8 +356,10 @@ function paymentExpireAt(raw={}){
 }
 async function expirePendingPayments(){
   try{
-    const ads=await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(NULLIF(admin_memo,''),'결제기한 만료'),processed_at=now() WHERE status='new' AND payment_status='unpaid' AND payment_expires_at IS NOT NULL AND payment_expires_at<now() RETURNING id,user_id,plan,krw_price,usdt_amount");
-    const banners=await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(NULLIF(admin_memo,''),'결제기한 만료'),processed_at=now() WHERE status='new' AND payment_status='unpaid' AND payment_expires_at IS NOT NULL AND payment_expires_at<now() RETURNING id,user_id,title,krw_price,usdt_amount");
+    const expiredMemo='결제기한 만료';
+    const expiredMemoSql="admin_memo=CASE WHEN COALESCE(admin_memo,'')='' THEN $1 WHEN admin_memo LIKE '%만료%' THEN admin_memo ELSE admin_memo || ' / ' || $1 END";
+    const ads=await q(`UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',${expiredMemoSql},processed_at=now() WHERE status='new' AND payment_status='unpaid' AND payment_expires_at IS NOT NULL AND payment_expires_at<now() RETURNING id,user_id,plan,krw_price,usdt_amount`,[expiredMemo]);
+    const banners=await q(`UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',${expiredMemoSql},processed_at=now() WHERE status='new' AND payment_status='unpaid' AND payment_expires_at IS NOT NULL AND payment_expires_at<now() RETURNING id,user_id,title,krw_price,usdt_amount`,[expiredMemo]);
     for(const x of ads.rows||[]){
       await userNotify(x.user_id,'payment_expired','결제요청 만료',`${x.plan||'광고 신청'} 결제기한이 만료되어 자동 취소되었습니다.`,'/vendor-dashboard?panel=history');
     }
@@ -1097,6 +1099,7 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   const settings=await getSettings();
   const v=await q('SELECT * FROM vendors WHERE id=$1',[req.session.user.vendor_id]);
   const vendor=v.rows[0]||{};
+  if(!vendor.id)return res.redirect('/vendor-dashboard?panel=plan');
 
   const productType=['renewal_general','renewal_recommended','renewal_banner'].includes(req.body.product_type)?req.body.product_type:'renewal_general';
   if(productType==='renewal_banner'){
@@ -1250,17 +1253,22 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
     const productType=x.product_type||'renewal_general';
     const wantsImmediate=(x.content||'').includes('[바로 적용 요청]');
     const oldExpire=vendor.expire_at||null;
+    let vendorUpdate=null;
 
     if(productType==='renewal_general'){
-      await client.query(`UPDATE vendors SET ad_type='general',membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+      vendorUpdate=await client.query(`UPDATE vendors SET ad_type='general',membership_type='general',is_recommended=false,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2 RETURNING id`,[days,x.vendor_id]);
     }else if(productType==='renewal_recommended'){
       if((vendor.membership_type||'general')==='general' && !wantsImmediate && oldExpire){
-        await client.query(`UPDATE vendors SET status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type='recommended', scheduled_banner_active=false, scheduled_change_at=$3, scheduled_change_note=$4 WHERE id=$2`,[days,x.vendor_id,oldExpire,'일반 기간 종료 후 추천업체로 변경']);
+        vendorUpdate=await client.query(`UPDATE vendors SET status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type='recommended', scheduled_banner_active=false, scheduled_change_at=$3, scheduled_change_note=$4 WHERE id=$2 RETURNING id`,[days,x.vendor_id,oldExpire,'일반 기간 종료 후 추천업체로 변경']);
       }else{
-        await client.query(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+        vendorUpdate=await client.query(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=false,banner_active=false,banner_until=NULL,status='active', ${addDaysSqlFromExpire()}, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2 RETURNING id`,[days,x.vendor_id]);
       }
     }else if(productType==='renewal_banner'){
-      await client.query(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2`,[days,x.vendor_id]);
+      vendorUpdate=await client.query(`UPDATE vendors SET ad_type='recommended',membership_type='recommended',is_recommended=true,is_premium=true,banner_active=true,status='active', ${addDaysSqlFromExpire()}, banner_until=CASE WHEN expire_at IS NOT NULL AND expire_at>CURRENT_DATE THEN (expire_at + ($1 || ' days')::interval)::date ELSE (CURRENT_DATE + ($1 || ' days')::interval)::date END, scheduled_membership_type=NULL, scheduled_banner_active=NULL, scheduled_change_at=NULL, scheduled_change_note=NULL WHERE id=$2 RETURNING id`,[days,x.vendor_id]);
+    }
+    if(!vendorUpdate?.rows?.[0]){
+      await client.query('ROLLBACK');
+      return sendFail(req,res,404,'vendor_not_found','/admin#adRequests');
     }
 
     const paymentProduct=productType==='renewal_banner'?'banner':(productType==='renewal_general'?'general':'recommended');
