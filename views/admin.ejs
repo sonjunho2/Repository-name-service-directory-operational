@@ -1480,7 +1480,7 @@ document.addEventListener('DOMContentLoaded',function(){
       '<td>'+esc(v.business_hours||'-')+'</td>'+
       '<td>업체상태: '+esc(statusLabel(v))+'<br>광고상품: '+esc(adLabel(v))+'<br><div class="expire-ko">광고만기: <b>'+esc(fmtDate(v.expire_at))+'</b></div><br><div class="expire-ko">배너상태: <b>'+(v.banner_active?'사용중':'사용안함')+'</b>'+(v.banner_until?' / 배너만기: <b>'+esc(fmtDate(v.banner_until))+'</b>':'')+'</div></td>'+
       '<td>'+statusBadge(v)+'</td>'+
-      '<td><div class="row-actions"><button type="button" class="edit-vendor-btn" data-id="'+esc(v.id)+'">수정</button><form method="post" action="/admin/delete/vendors/'+esc(v.id)+'"><button onclick="return confirm(\'삭제할까요?\')">삭제</button></form></div></td>'+
+      '<td><div class="row-actions"><button type="button" class="edit-vendor-btn" data-id="'+esc(v.id)+'">수정</button><form method="post" action="/admin/delete/vendors/'+esc(v.id)+'"><button onclick="return confirm(&quot;삭제할까요?&quot;)">삭제</button></form></div></td>'+
       '</tr>';
   }
   function ensurePager(table){
@@ -3144,7 +3144,7 @@ document.addEventListener('DOMContentLoaded',function(){
         '<td>★ '+esc(r.rating||'-')+'</td>'+
         '<td><span class="'+statusClass(r.status)+'">'+esc(statusLabel(r.status))+'</span></td>'+
         '<td>'+esc(formatDate(r.created_at))+'</td>'+
-        '<td>'+(deleted?'<span class="rejected">삭제됨</span>':'<form method="post" action="/admin/delete/reviews/'+esc(r.id)+'"><button onclick="return confirm(\\'삭제할까요?\\')">삭제</button></form>')+'</td>'+
+        '<td>'+(deleted?'<span class="rejected">삭제됨</span>':'<form method="post" action="/admin/delete/reviews/'+esc(r.id)+'"><button onclick="return confirm(&quot;삭제할까요?&quot;)">삭제</button></form>')+'</td>'+
         '</tr>'
       );
     });
