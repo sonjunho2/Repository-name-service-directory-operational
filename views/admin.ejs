@@ -2098,6 +2098,7 @@ document.addEventListener('DOMContentLoaded',function(){
       table.innerHTML='';
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(f){table.insertAdjacentHTML('beforeend',reportRow(f));});
+      applyReportFilter(); sortReports();
       if(pager)renderPager(pager,data,'건','server-report-info',loadReports);
     }catch(e){
       if(pager)pager.innerHTML='<span class="server-report-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
@@ -3081,6 +3082,72 @@ document.addEventListener('DOMContentLoaded',function(){
     document.querySelectorAll('.admin-livebar,.admin-live-panel').forEach(function(x){x.remove();});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',normalizeAdminNotifyV66);else normalizeAdminNotifyV66();
+})();
+</script>
+
+<script>
+(function(){
+  const reviews=<%- JSON.stringify(reviews).replace(/</g,'\\u003c') %>;
+  function esc(v){
+    return String(v==null?'':v).replace(/[&<>"]/g,function(ch){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];
+    });
+  }
+  function statusLabel(status){
+    if(status==='visible')return '표시중';
+    if(status==='hidden')return '숨김';
+    if(status==='deleted')return '삭제됨';
+    return status||'-';
+  }
+  function statusClass(status){
+    if(status==='deleted')return 'rejected';
+    if(status==='hidden')return 'pending';
+    return 'done';
+  }
+  function formatDate(value){
+    if(!value)return '-';
+    try{
+      return new Date(value).toLocaleString('sv-SE',{
+        timeZone:'Asia/Seoul',
+        year:'numeric',
+        month:'2-digit',
+        day:'2-digit',
+        hour:'2-digit',
+        minute:'2-digit',
+        hour12:false
+      });
+    }catch(e){
+      return '-';
+    }
+  }
+  function renderReviewAdminRows(){
+    var table=document.querySelector('#reviews table');
+    if(!table||!Array.isArray(reviews))return;
+    table.innerHTML='<tr><th>ID</th><th>업체</th><th>작성자</th><th>제목</th><th>내용</th><th>평점</th><th>상태</th><th>작성일</th><th>삭제</th></tr>';
+    reviews.forEach(function(r){
+      var content=String(r.content||'');
+      var author=r.username||r.nickname||'탈퇴회원';
+      var searchText=[r.vendor_name,r.title,content,author].filter(Boolean).join(' ').toLowerCase();
+      var deleted=r.status==='deleted';
+      table.insertAdjacentHTML('beforeend',
+        '<tr class="review-row" data-id="'+esc(r.id)+'" data-text="'+esc(searchText)+'" data-rating="'+esc(r.rating||0)+'">'+
+        '<td>'+esc(r.id)+'</td>'+
+        '<td>'+esc(r.vendor_name||'-')+'</td>'+
+        '<td>'+esc(author)+'</td>'+
+        '<td>'+esc(r.title||'-')+'</td>'+
+        '<td class="memo">'+esc(content.slice(0,120))+(content.length>120?'...':'')+'</td>'+
+        '<td>★ '+esc(r.rating||'-')+'</td>'+
+        '<td><span class="'+statusClass(r.status)+'">'+esc(statusLabel(r.status))+'</span></td>'+
+        '<td>'+esc(formatDate(r.created_at))+'</td>'+
+        '<td>'+(deleted?'<span class="rejected">삭제됨</span>':'<form method="post" action="/admin/delete/reviews/'+esc(r.id)+'"><button onclick="return confirm(\\'삭제할까요?\\')">삭제</button></form>')+'</td>'+
+        '</tr>'
+      );
+    });
+    if(typeof applyReviewFilter==='function')applyReviewFilter();
+    if(typeof sortReviewRows==='function')sortReviewRows();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderReviewAdminRows);
+  else renderReviewAdminRows();
 })();
 </script>
 
