@@ -563,8 +563,8 @@ app.post('/api/notifications/:id/read',login,async(req,res)=>{
 async function homeData(req){
   await expireAds();
   const search=(req.query.search||'').trim().slice(0,80), region=(req.query.region||'').trim().slice(0,50), category=(req.query.category||'').trim().slice(0,50), sort=(req.query.sort||'default').trim();
-  const where=["v.status=$1 AND v.ad_type <> 'none' AND v.expire_at IS NOT NULL AND v.expire_at >= CURRENT_DATE"];
-  const params=['active'];
+  const where=[PUBLIC_VENDOR_SQL];
+  const params=[];
 
   if(search){
     params.push(`%${search}%`);
@@ -588,8 +588,8 @@ async function homeData(req){
   };
   const order=orderMap[sort]||orderMap.default;
   const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 120`,params);
-  const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (v.status='active' AND v.banner_active=true)) ORDER BY b.sort_order, b.id DESC`);
-  const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' ORDER BY r.id DESC LIMIT 8`);
+  const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (${PUBLIC_VENDOR_SQL} AND v.banner_active=true AND v.banner_until IS NOT NULL AND v.banner_until>=CURRENT_DATE)) ORDER BY b.sort_order, b.id DESC`);
+  const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL} ORDER BY r.id DESC LIMIT 8`);
   const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
   const settings=await getSettings();
   return {vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,notices:notices.rows,query:req.query,settings};
