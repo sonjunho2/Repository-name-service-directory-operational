@@ -29,31 +29,83 @@ async function submitFlag(type,targetId){
     alert('신고 접수에 실패했습니다. 잠시 후 다시 시도해주세요.');
   }
 }
-function getFavs(){try{return JSON.parse(localStorage.getItem('favoriteVendors')||'[]')}catch(e){return[]}}
-function setFavs(list){localStorage.setItem('favoriteVendors',JSON.stringify(list))}
-function isFav(id){return getFavs().includes(String(id))}
+let favoriteIds=[];
+let favoriteAuthed=false;
+let favoriteOnly=false;
+let favoriteLoaded=false;
+let favoriteLoadPromise=null;
+function getFavs(){return favoriteIds}
+function setFavs(list){favoriteIds=[...new Set((list||[]).map(x=>String(x)))]}
+function isFav(id){return favoriteIds.includes(String(id))}
+async function loadFavs(){
+  try{
+    const res=await fetch('/api/favorites',{headers:{'Accept':'application/json'}});
+    if(res.status===401){favoriteAuthed=false;setFavs([]);favoriteLoaded=true;return false;}
+    if(!res.ok)throw new Error('favorite_load_failed');
+    const data=await res.json();
+    favoriteAuthed=!!data.ok;
+    setFavs(data.ids||[]);
+    favoriteLoaded=true;
+    return favoriteAuthed;
+  }catch(e){
+    favoriteAuthed=false;
+    setFavs([]);
+    favoriteLoaded=true;
+    return false;
+  }
+}
+function ensureFavsLoaded(){
+  if(favoriteLoaded)return Promise.resolve(favoriteAuthed);
+  if(!favoriteLoadPromise)favoriteLoadPromise=loadFavs();
+  return favoriteLoadPromise;
+}
 function applyFavFilter(onlyFav){
+  favoriteOnly=!!onlyFav;
   const favs=getFavs();
   document.querySelectorAll('.vendor-open.card').forEach(card=>{
     const id=String(card.dataset.vendorId||'');
-    card.style.display=onlyFav&&!favs.includes(id)?'none':'';
+    card.style.display=favoriteOnly&&favoriteAuthed&&!favs.includes(id)?'none':'';
   });
   document.querySelectorAll('.fav-filter-status').forEach(el=>{
-    el.textContent=onlyFav?`찜한 업체 ${favs.length}개를 보고 있습니다.`:'';
+    el.textContent=favoriteOnly?(favoriteAuthed?`찜한 업체 ${favs.length}개를 보고 있습니다.`:'로그인 후 찜한 업체를 볼 수 있습니다.'):'';
   });
 }
-function toggleFavFilter(){
-  const on=localStorage.getItem('showOnlyFavs')==='1';
-  localStorage.setItem('showOnlyFavs',on?'0':'1');
-  refreshFavFilterButton();
+async function toggleFavFilter(){
+  await ensureFavsLoaded();
+  if(!favoriteAuthed){
+    alert('로그인 후 찜한 업체를 볼 수 있습니다.');
+    location.href='/login';
+    return;
+  }
+  const on=favoriteOnly;
   applyFavFilter(!on);
+  refreshFavFilterButton();
 }
 function refreshFavFilterButton(){
-  const on=localStorage.getItem('showOnlyFavs')==='1';
   const btn=document.getElementById('favFilterBtn');
-  if(btn) btn.textContent=on?'전체보기':'찜한업체';
+  if(btn) btn.textContent=favoriteOnly?'전체보기':'찜한업체';
 }
-function toggleFav(id){let list=getFavs();id=String(id);if(list.includes(id)){list=list.filter(x=>x!==id)}else{list.push(id)}setFavs(list);refreshFavFilterButton();applyFavFilter(localStorage.getItem('showOnlyFavs')==='1');openVendor(id)}
+async function toggleFav(id){
+  await ensureFavsLoaded();
+  if(!favoriteAuthed){
+    alert('로그인 후 찜할 수 있습니다.');
+    location.href='/login';
+    return;
+  }
+  try{
+    const res=await fetch('/api/favorite/'+encodeURIComponent(id)+'/toggle',{method:'POST',headers:{'Accept':'application/json'}});
+    if(res.status===401){favoriteAuthed=false;alert('로그인 후 찜할 수 있습니다.');location.href='/login';return;}
+    if(!res.ok)throw new Error('favorite_toggle_failed');
+    const data=await res.json();
+    setFavs(data.ids||[]);
+    favoriteLoaded=true;
+    refreshFavFilterButton();
+    applyFavFilter(favoriteOnly);
+    openVendor(id);
+  }catch(e){
+    alert('찜 처리에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }
+}
 function openModal(){
   if(!modal) return;
   modal.classList.add('show');
@@ -78,6 +130,7 @@ async function openVendor(id){
     const badge=v.is_premium?'PREMIUM':v.is_recommended?'RECOMMEND':'NORMAL';
     const ratingText=v.review_count>0?`⭐ ${esc(v.avg_rating)} · 후기 ${esc(v.review_count)}개`:'⭐ 평점 없음';
     const kakaoBtn=v.kakao_url?`<a href="${esc(v.kakao_url)}" target="_blank" rel="noopener" class="modal-kakao-btn">카카오톡 문의</a>`:'';
+    await ensureFavsLoaded();
     const favOn=isFav(v.id);
     const favBtn=`<button type="button" onclick="toggleFav(${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid ${favOn?'#ffdc4d':'#39466c'};background:${favOn?'#ffdc4d':'#080d18'};color:${favOn?'#111':'#dfe9ff'};font-weight:900;cursor:pointer;">${favOn?'♥ 찜완료':'♡ 찜하기'}</button>`;
     const flagBtn=`<button type="button" onclick="submitFlag('vendor',${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#c8d0e8;font-weight:900;cursor:pointer;">업체 신고</button>`;
@@ -169,7 +222,7 @@ if(contentArea){
   contentArea.prepend(bar);
   document.getElementById('favFilterBtn').addEventListener('click',toggleFavFilter);
   refreshFavFilterButton();
-  applyFavFilter(localStorage.getItem('showOnlyFavs')==='1');
+  ensureFavsLoaded().then(()=>{refreshFavFilterButton();applyFavFilter(favoriteOnly);});
 }
 
 document.addEventListener('click',(e)=>{

@@ -600,10 +600,30 @@ app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광�
 app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
 app.post('/inquiry',upload.fields([{name:'main_image',maxCount:1},{name:'banner_image',maxCount:1}]),async(req,res)=>{try{const type=['apply','ad'].includes(req.body.type)?req.body.type:'ad'; const company=(req.body.company_name||'').trim().slice(0,100); const phone=(req.body.phone||'').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,2000); if(!company||!phone||content.length<5)return res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:false,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',settings:await getSettings()}); const f=req.files||{}; await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,banner_image_data,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[type,company,(req.body.name||'').trim().slice(0,50),phone,(req.body.kakao||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'').trim().slice(0,50),(req.body.region||'').trim().slice(0,50),content,img(f.main_image?.[0]),img(f.banner_image?.[0]),req.session.user?.id||null]); res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:true,error:null,settings:await getSettings()});}catch(e){res.render('inquiry',{type:req.body.type||'ad',title:req.body.type==='apply'?'입점신청':'광고문의',done:false,error:e.message||'신청 저장 실패',settings:await getSettings()});}});
 
-app.post('/favorite/:id',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){const v=await q('SELECT id FROM vendors WHERE id=$1 AND status=$2',[id,'active']); if(v.rows[0])await q('INSERT INTO favorites(user_id,vendor_id) VALUES($1,$2) ON CONFLICT(user_id,vendor_id) DO NOTHING',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
-app.post('/favorite/:id/delete',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){await q('DELETE FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
-
 const PUBLIC_VENDOR_SQL="v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at IS NOT NULL AND v.expire_at>=CURRENT_DATE";
+async function favoriteIdsForUser(userId){
+  const r=await q(`SELECT f.vendor_id FROM favorites f JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 AND ${PUBLIC_VENDOR_SQL} ORDER BY f.id DESC`,[userId]);
+  return r.rows.map(x=>Number(x.vendor_id));
+}
+app.post('/favorite/:id',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){const v=await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[id]); if(v.rows[0])await q('INSERT INTO favorites(user_id,vendor_id) VALUES($1,$2) ON CONFLICT(user_id,vendor_id) DO NOTHING',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
+app.post('/favorite/:id/delete',login,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(id){const v=await q('SELECT id FROM vendors WHERE id=$1',[id]); if(v.rows[0])await q('DELETE FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);} res.redirect(req.get('referer')||'/');});
+app.get('/api/favorites',async(req,res)=>{if(!req.session.user)return res.status(401).json({ok:false,error:'login_required'}); res.json({ok:true,ids:await favoriteIdsForUser(req.session.user.id)});});
+app.post('/api/favorite/:id/toggle',async(req,res)=>{
+  if(!req.session.user)return res.status(401).json({ok:false,error:'login_required'});
+  const id=parseInt(req.params.id||0,10);
+  if(!id)return res.status(400).json({ok:false,error:'bad_vendor_id'});
+  const v=await q(`SELECT id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[id]);
+  if(!v.rows[0])return res.status(404).json({ok:false,error:'vendor_not_found'});
+  const existing=await q('SELECT id FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);
+  let favorited=false;
+  if(existing.rows[0]){
+    await q('DELETE FROM favorites WHERE user_id=$1 AND vendor_id=$2',[req.session.user.id,id]);
+  }else{
+    await q('INSERT INTO favorites(user_id,vendor_id) VALUES($1,$2) ON CONFLICT(user_id,vendor_id) DO NOTHING',[req.session.user.id,id]);
+    favorited=true;
+  }
+  res.json({ok:true,favorited,ids:await favoriteIdsForUser(req.session.user.id)});
+});
 async function vendorData(req,id,options={}){
   const vendorId=parseInt(id||0,10);
   if(!vendorId)return {vendor:null,reviews:[]};
@@ -887,7 +907,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
 
-app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=plan'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,settings:await getSettings()});});
+app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=plan'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q(`SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 AND ${PUBLIC_VENDOR_SQL} ORDER BY f.id DESC`,[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,settings:await getSettings()});});
 
 app.get('/vendor-apply',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor&&req.session.user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const pending=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[req.session.user.id]); res.render('vendor-apply',{settings,error:null,done:!!pending.rows[0]});});
 
