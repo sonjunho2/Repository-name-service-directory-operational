@@ -866,7 +866,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
 
-app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=upgrade'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,settings:await getSettings()});});
+app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=plan'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q('SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f LEFT JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 ORDER BY f.id DESC',[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,settings:await getSettings()});});
 
 app.get('/vendor-apply',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor&&req.session.user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const pending=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[req.session.user.id]); res.render('vendor-apply',{settings,error:null,done:!!pending.rows[0]});});
 
@@ -910,9 +910,9 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
       try{const r=await q(sql,params); return r.rows[0]||fallback;}catch(e){console.error('vendor-dashboard safeOne error',e.message); return fallback;}
     };
 
-    const requests=await safeRows('SELECT * FROM vendor_update_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.id]);
-    const bannerRequests=await safeRows('SELECT * FROM vendor_banner_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.id]);
-    const adRequests=await safeRows('SELECT * FROM vendor_ad_requests WHERE user_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.id]);
+    const requests=await safeRows('SELECT * FROM vendor_update_requests WHERE user_id=$1 AND vendor_id=$2 ORDER BY id DESC LIMIT 100',[req.session.user.id,req.session.user.vendor_id]);
+    const bannerRequests=await safeRows('SELECT * FROM vendor_banner_requests WHERE user_id=$1 AND vendor_id=$2 ORDER BY id DESC LIMIT 100',[req.session.user.id,req.session.user.vendor_id]);
+    const adRequests=await safeRows('SELECT * FROM vendor_ad_requests WHERE user_id=$1 AND vendor_id=$2 ORDER BY id DESC LIMIT 100',[req.session.user.id,req.session.user.vendor_id]);
     const paymentLogs=await safeRows('SELECT * FROM payment_logs WHERE vendor_id=$1 ORDER BY id DESC LIMIT 100',[req.session.user.vendor_id]);
 
     const stats=await safeOne(`SELECT
@@ -947,10 +947,10 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
     let pendingPayment=null;
     if(req.query.pay&&req.query.id){
       if(req.query.pay==='ad'){
-        const pr=await safeRows('SELECT * FROM vendor_ad_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
+        const pr=await safeRows('SELECT * FROM vendor_ad_requests WHERE id=$1 AND user_id=$2 AND vendor_id=$3',[req.query.id,req.session.user.id,req.session.user.vendor_id]);
         if(pr[0])pendingPayment={kind:'ad',row:pr[0]};
       }else if(req.query.pay==='banner'){
-        const pr=await safeRows('SELECT * FROM vendor_banner_requests WHERE id=$1 AND user_id=$2',[req.query.id,req.session.user.id]);
+        const pr=await safeRows('SELECT * FROM vendor_banner_requests WHERE id=$1 AND user_id=$2 AND vendor_id=$3',[req.query.id,req.session.user.id,req.session.user.vendor_id]);
         if(pr[0])pendingPayment={kind:'banner',row:pr[0]};
       }
     }
@@ -1030,6 +1030,12 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   const vendor=v.rows[0]||{};
 
   const productType=['renewal_general','renewal_recommended','renewal_banner'].includes(req.body.product_type)?req.body.product_type:'renewal_general';
+  if(productType==='renewal_banner'){
+    const today=new Date(); today.setHours(0,0,0,0);
+    const bannerUntil=vendor.banner_until?new Date(vendor.banner_until):null;
+    if(bannerUntil)bannerUntil.setHours(0,0,0,0);
+    if(!vendor.banner_active||!bannerUntil||Number.isNaN(bannerUntil.getTime())||bannerUntil<today)return res.redirect('/vendor-dashboard?panel=banner');
+  }
   const pending=await q("SELECT id,product_type FROM vendor_ad_requests WHERE user_id=$1 AND vendor_id=$2 AND status='new' AND product_type=$3 LIMIT 1",[req.session.user.id,req.session.user.vendor_id,productType]);
   if(pending.rows[0])return res.redirect('/vendor-dashboard?panel='+(productType==='renewal_banner'?'banner':'plan')+'&pay=ad&id='+pending.rows[0].id);
   const period=['30','60','90'].includes(String(req.body.period))?String(req.body.period):'30';
@@ -1063,9 +1069,9 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
 });
 
 app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
-  if(!req.session.user.is_vendor)return res.redirect('/login');
+  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/login');
   await expirePendingPayments();
-  const r=await q("UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now()) RETURNING id,plan,krw_price,usdt_amount",['waiting',req.params.id,req.session.user.id]);
+  const r=await q("UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND vendor_id=$4 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now()) RETURNING id,plan,krw_price,usdt_amount",['waiting',req.params.id,req.session.user.id,req.session.user.vendor_id]);
   if(r.rows[0])await adminNotify('payment_waiting','입금완료 알림',`${req.session.user.nickname||req.session.user.username||'업체'}님이 ${r.rows[0].plan||'광고 신청'} 입금완료를 눌렀습니다.`,'/admin#adRequests');
   res.redirect('/vendor-dashboard');
 });
@@ -1076,21 +1082,21 @@ app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>sendFail(req
 
 
 app.post('/vendor-dashboard/banner-request/:id/paid',login,async(req,res)=>{
-  if(!req.session.user.is_vendor)return res.redirect('/login');
+  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/login');
   await expirePendingPayments();
-  const r=await q("UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now()) RETURNING id,title,krw_price,usdt_amount",['waiting',req.params.id,req.session.user.id]);
+  const r=await q("UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND vendor_id=$4 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now()) RETURNING id,title,krw_price,usdt_amount",['waiting',req.params.id,req.session.user.id,req.session.user.vendor_id]);
   if(r.rows[0])await adminNotify('payment_waiting','입금완료 알림',`${req.session.user.nickname||req.session.user.username||'업체'}님이 프리미엄배너 입금완료를 눌렀습니다.`,'/admin#bannerRequests');
   res.redirect('/vendor-dashboard?panel=banner');
 });
 
 app.post('/vendor-dashboard/banner-request/:id/cancel',login,async(req,res)=>{
-  if(!req.session.user.is_vendor)return res.redirect('/login');
-  await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(admin_memo,'업체가 취소'),processed_at=now() WHERE id=$1 AND user_id=$2 AND status='new'",[req.params.id,req.session.user.id]);
+  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/login');
+  await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(admin_memo,'업체가 취소'),processed_at=now() WHERE id=$1 AND user_id=$2 AND vendor_id=$3 AND status='new' AND payment_status='unpaid'",[req.params.id,req.session.user.id,req.session.user.vendor_id]);
   res.redirect('/vendor-dashboard');
 });
 app.post('/vendor-dashboard/ad-request/:id/cancel',login,async(req,res)=>{
-  if(!req.session.user.is_vendor)return res.redirect('/login');
-  await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(admin_memo,'업체가 취소'),processed_at=now() WHERE id=$1 AND user_id=$2 AND status='new'",[req.params.id,req.session.user.id]);
+  if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/login');
+  await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=COALESCE(admin_memo,'업체가 취소'),processed_at=now() WHERE id=$1 AND user_id=$2 AND vendor_id=$3 AND status='new' AND payment_status='unpaid'",[req.params.id,req.session.user.id,req.session.user.vendor_id]);
   res.redirect('/vendor-dashboard');
 });
 
