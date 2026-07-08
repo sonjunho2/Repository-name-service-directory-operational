@@ -696,13 +696,16 @@ async function runAdminAction(req,res,redirectTo,fn){
     return sendFail(req,res,500,e.message||'관리자 작업 처리 중 오류가 발생했습니다.',redirectTo);
   }
 }
-app.get('/admin/api/vendors',admin,async(req,res)=>adminPagedJson(req,res,`SELECT v.*,
-  (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
-  (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
-  (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
-  (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
-  (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count
-  FROM vendors v ORDER BY v.id DESC`,'SELECT COUNT(*) FROM vendors'));
+app.get('/admin/api/vendors',admin,async(req,res)=>{
+  await expireAds();
+  return adminPagedJson(req,res,`SELECT v.*,
+    (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
+    (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
+    (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
+    (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
+    (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count
+    FROM vendors v ORDER BY v.id DESC`,'SELECT COUNT(*) FROM vendors');
+});
 app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
   try{
     const id=parseInt(req.params.id||'0',10);
@@ -806,8 +809,11 @@ app.get('/admin',admin,async(req,res)=>{await expireAds(); await expirePendingPa
   const norm=x=>(x||'미지정').toString().trim()||'미지정';
 const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorRequests,bannerRequests,adRequests,adminLogs,paymentLogs,settings]=await Promise.all([q('SELECT u.id,u.username,u.nickname,u.role,u.status,u.is_vendor,u.vendor_id,u.created_at FROM users u ORDER BY u.id DESC LIMIT 300'),q(`SELECT v.*,
   (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
-  (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname
-  FROM vendors v ORDER BY v.id DESC LIMIT 500`),q('SELECT b.*, v.name vendor_name FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id ORDER BY b.sort_order,b.id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name,u.username,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname,COALESCE(i.main_image_data,iv.image_data,i.banner_image_data) display_main_image_data FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
+  (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
+  (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
+  (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
+  (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count
+  FROM vendors v ORDER BY v.id DESC LIMIT 500`),q('SELECT b.*, v.name vendor_name, v.status vendor_status, v.ad_type vendor_ad_type, v.expire_at vendor_expire_at, v.banner_active vendor_banner_active, v.banner_until vendor_banner_until FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id ORDER BY b.sort_order,b.id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name,u.username,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname,COALESCE(i.main_image_data,iv.image_data,i.banner_image_data) display_main_image_data FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];
@@ -1490,7 +1496,16 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
     const membership=adType==='recommended'?'recommended':'general';
     const isRecommended=adType==='recommended';
     const isPremium=bannerActive;
-    const expireAt=(req.body.expire_at||'').trim()||null;
+    let expireAt=(req.body.expire_at||'').trim()||null;
+    if(adType==='none')expireAt=null;
+    if(adType!=='none'&&!expireAt){
+      if(wantsJson)return res.status(400).json({ok:false,error:'광고상품 사용 시 광고 만료일을 입력해주세요.'});
+      return res.redirect('/admin#vendors');
+    }
+    if(bannerActive&&!expireAt){
+      if(wantsJson)return res.status(400).json({ok:false,error:'배너 사용 시 광고 만료일을 입력해주세요.'});
+      return res.redirect('/admin#vendors');
+    }
     const bannerUntil=bannerActive?expireAt:null;
     const snsUrl=(req.body.sns_url||'').trim().slice(0,200);
     const lineUrl=(req.body.line_url||'').trim().slice(0,200);
