@@ -62,7 +62,7 @@ function ensureFavsLoaded(){
 function applyFavFilter(onlyFav){
   favoriteOnly=!!onlyFav;
   const favs=getFavs();
-  document.querySelectorAll('.vendor-open.card').forEach(card=>{
+  document.querySelectorAll('.vendor-open.card, .mini-row.vendor-open').forEach(card=>{
     const id=String(card.dataset.vendorId||'');
     card.style.display=favoriteOnly&&favoriteAuthed&&!favs.includes(id)?'none':'';
   });
@@ -130,6 +130,14 @@ async function openVendor(id){
     const badge=v.is_premium?'PREMIUM':v.is_recommended?'RECOMMEND':'NORMAL';
     const ratingText=v.review_count>0?`⭐ ${esc(v.avg_rating)} · 후기 ${esc(v.review_count)}개`:'⭐ 평점 없음';
     const kakaoBtn=v.kakao_url?`<a href="${esc(v.kakao_url)}" target="_blank" rel="noopener" class="modal-kakao-btn">카카오톡 문의</a>`:'';
+    const tagItems=(Array.isArray(v.tags)?v.tags:String(v.tags||'').split(/[,\s#]+/))
+      .map(t=>String(t||'').trim())
+      .filter(Boolean)
+      .filter((t,idx,arr)=>arr.indexOf(t)===idx)
+      .slice(0,12);
+    const tagHtml=tagItems.length
+      ? `<div class="modal-vendor-tags" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">${tagItems.map(t=>`<span style="display:inline-flex;align-items:center;min-height:28px;padding:5px 10px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#c8d0e8;font-size:13px;font-weight:800;">#${esc(t)}</span>`).join('')}</div>`
+      : '';
     await ensureFavsLoaded();
     const favOn=isFav(v.id);
     const favBtn=`<button type="button" onclick="toggleFav(${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid ${favOn?'#ffdc4d':'#39466c'};background:${favOn?'#ffdc4d':'#080d18'};color:${favOn?'#111':'#dfe9ff'};font-weight:900;cursor:pointer;">${favOn?'♥ 찜완료':'♡ 찜하기'}</button>`;
@@ -151,6 +159,7 @@ async function openVendor(id){
         <section class="modal-intro-box">
           <h3>업체소개</h3>
           <p class="vendor-desc">${esc(v.description||'등록된 업체소개가 없습니다.')}</p>
+          ${tagHtml}
         </section>
       </div>
       <div class="modal-contact-grid">
