@@ -813,7 +813,10 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
   (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
   (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count
-  FROM vendors v ORDER BY v.id DESC LIMIT 500`),q('SELECT b.*, v.name vendor_name, v.status vendor_status, v.ad_type vendor_ad_type, v.expire_at vendor_expire_at, v.banner_active vendor_banner_active, v.banner_until vendor_banner_until FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id ORDER BY b.sort_order,b.id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name,u.username,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname,COALESCE(i.main_image_data,iv.image_data,i.banner_image_data) display_main_image_data FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name current_vendor_name FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
+  FROM vendors v ORDER BY v.id DESC LIMIT 500`),q('SELECT b.*, v.name vendor_name, v.status vendor_status, v.ad_type vendor_ad_type, v.expire_at vendor_expire_at, v.banner_active vendor_banner_active, v.banner_until vendor_banner_until FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id ORDER BY b.sort_order,b.id DESC LIMIT 200'),q('SELECT r.*,v.name vendor_name,u.username,u.nickname FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id ORDER BY r.id DESC LIMIT 500'),q('SELECT * FROM events ORDER BY id DESC LIMIT 200'),q('SELECT * FROM notices ORDER BY id DESC LIMIT 200'),q(`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname,COALESCE(i.main_image_data,iv.image_data,i.banner_image_data) display_main_image_data FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true ORDER BY i.id DESC LIMIT 500`),q(`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,
+  v.name current_vendor_name, v.category current_category, v.region current_region, v.phone current_phone,
+  v.kakao_url current_kakao_url, v.business_hours current_business_hours, v.tags current_tags, v.description current_description
+  FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];
@@ -937,7 +940,11 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
     await ensureSchema();
     await expireAds();
     await expirePendingPayments();
-    await refreshSessionUser(req);
+    const refreshedUser=await refreshSessionUser(req);
+    if(!refreshedUser){
+      req.session.user=null;
+      return req.session.save(()=>res.redirect('/login'));
+    }
 
     if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/vendor-apply');
 
@@ -1015,7 +1022,8 @@ app.get('/vendor-dashboard',login,async(req,res)=>{
       }
     }
 
-    res.render('vendor-dashboard',{vendor,requests,bannerRequests,adRequests,paymentLogs,viewStats,expiryNotice,pricingPreview,pendingPayment,stats,settings,error:null,done:false});
+    const dashboardError=req.query.error==='image'?'이미지 파일을 확인해주세요. JPG, PNG, GIF, WEBP 형식의 정상 파일만 등록할 수 있습니다.':null;
+    res.render('vendor-dashboard',{vendor,requests,bannerRequests,adRequests,paymentLogs,viewStats,expiryNotice,pricingPreview,pendingPayment,stats,settings,error:dashboardError,done:false});
   }catch(e){
     console.error('vendor-dashboard fatal error',e);
     res.status(500).send('업체관리 페이지 오류가 발생했습니다. 서버 로그를 확인해주세요.');
@@ -1029,6 +1037,7 @@ app.post('/vendor-dashboard/update-request',login,upload.single('image'),async(r
   const name=(req.body.name||'').trim().slice(0,100);
   if(!name)return res.redirect('/vendor-dashboard');
   const im=img(req.file);
+  if(req.file&&!im)return res.redirect('/vendor-dashboard?error=image#edit');
   await q(
     'INSERT INTO vendor_update_requests(user_id,vendor_id,name,category,region,phone,kakao_url,business_hours,tags,description,image_data,sns_url,line_url,telegram_url,holiday_info) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
     [req.session.user.id,req.session.user.vendor_id,name,(req.body.category||'기타').trim().slice(0,50),(req.body.region||'기타').trim().slice(0,50),(req.body.phone||'').trim().slice(0,50),(req.body.kakao_url||'').trim().slice(0,200),(req.body.business_hours||'').trim().slice(0,200),(req.body.tags||'').trim().slice(0,300),(req.body.description||'').trim().slice(0,3000),im,(req.body.sns_url||'').trim().slice(0,200),(req.body.line_url||'').trim().slice(0,200),(req.body.telegram_url||'').trim().slice(0,200),(req.body.holiday_info||'').trim().slice(0,500)]
@@ -1277,19 +1286,36 @@ app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>sendFail(req,res
 app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#adRequests',async()=>{const r=await q("UPDATE vendor_ad_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id,user_id,plan",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 광고 신청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'request_rejected','광고 신청 반려',(req.body.admin_memo||`${r.rows[0].plan||'광고 신청'}이 반려되었습니다.`).slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'상품/광고신청 반려','ad_request',req.params.id,req.body.admin_memo||'');}));
 
 app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
-  const r=await q('SELECT * FROM vendor_update_requests WHERE id=$1',[req.params.id]);
-  const x=r.rows[0];
-  if(!x||x.status!=='new')return res.redirect('/admin#vendorRequests');
+  const client=await pool.connect();
+  let x=null;
+  try{
+    await client.query('BEGIN');
+    const r=await client.query("SELECT * FROM vendor_update_requests WHERE id=$1 AND status='new' FOR UPDATE",[req.params.id]);
+    x=r.rows[0];
+    if(!x){
+      await client.query('ROLLBACK');
+      return sendFail(req,res,404,'승인할 업체 수정요청을 찾을 수 없거나 이미 처리되었습니다.','/admin#vendorRequests');
+    }
 
-  const params=[x.name,x.category,x.region,x.phone,x.kakao_url,x.business_hours,x.tags,x.description,x.sns_url,x.line_url,x.telegram_url,x.holiday_info,x.vendor_id];
+    const params=[x.name,x.category,x.region,x.phone,x.kakao_url,x.business_hours,x.tags,x.description,x.sns_url,x.line_url,x.telegram_url,x.holiday_info,x.vendor_id];
+    const updateSql=x.image_data
+      ? 'UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,business_hours=$6,tags=$7,description=$8,sns_url=$9,line_url=$10,telegram_url=$11,holiday_info=$12,image_data=$14,image_updated_at=now() WHERE id=$13 RETURNING id'
+      : 'UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,business_hours=$6,tags=$7,description=$8,sns_url=$9,line_url=$10,telegram_url=$11,holiday_info=$12 WHERE id=$13 RETURNING id';
+    const updated=await client.query(updateSql,x.image_data?[...params,x.image_data]:params);
+    if(!updated.rows[0]){
+      await client.query('ROLLBACK');
+      return sendFail(req,res,404,'수정요청의 업체를 찾을 수 없습니다.','/admin#vendorRequests');
+    }
 
-  if(x.image_data){
-    await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,business_hours=$6,tags=$7,description=$8,sns_url=$9,line_url=$10,telegram_url=$11,holiday_info=$12,image_data=$14,image_updated_at=now() WHERE id=$13',[...params,x.image_data]);
-  }else{
-    await q('UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,business_hours=$6,tags=$7,description=$8,sns_url=$9,line_url=$10,telegram_url=$11,holiday_info=$12 WHERE id=$13',params);
+    await client.query('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]);
+    await client.query('COMMIT');
+  }catch(e){
+    try{await client.query('ROLLBACK');}catch(rollbackErr){console.error('vendor request approve rollback failed',rollbackErr.message);}
+    console.error('vendor request approve failed',e);
+    return sendFail(req,res,500,e.message||'업체 수정요청 승인 중 오류가 발생했습니다.','/admin#vendorRequests');
+  }finally{
+    client.release();
   }
-
-  await q('UPDATE vendor_update_requests SET status=$1,admin_memo=$2,processed_at=now() WHERE id=$3',['approved',(req.body.admin_memo||'').slice(0,500),x.id]);
   await userNotify(x.user_id,'vendor_update_approved','업체정보 수정 승인','업체정보 수정요청이 승인되었습니다.','/vendor-dashboard?panel=history');
   await logAdmin(req,'업체수정요청 승인','vendor_update_request',x.id,req.body.admin_memo||'');
   return sendOk(req,res,'/admin#vendorRequests');

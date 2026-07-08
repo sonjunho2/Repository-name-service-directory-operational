@@ -140,6 +140,7 @@ header a:hover{color:#10d9ff}
     </aside>
 
     <div>
+      <% if(error){ %><div class="file-guide"><b>요청 확인</b><br><%=error%></div><% } %>
       <section id="panel-home" class="panel active">
         <div class="box">
           <h1>현재 이용 상태</h1>
