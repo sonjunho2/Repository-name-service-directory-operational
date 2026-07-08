@@ -1891,6 +1891,7 @@ document.addEventListener('DOMContentLoaded',function(){
       table.innerHTML='';
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',rowHtml(x));});
+      applyInquiryFilter(); sortInquiries();
       if(pager){
         pager.innerHTML='';
         var from=data.total?((data.page-1)*data.limit+1):0;
