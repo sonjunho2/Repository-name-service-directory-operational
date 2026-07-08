@@ -27,6 +27,11 @@ table{width:100%;border-collapse:collapse;margin-top:12px;background:#070b15}th,
 </head>
 <body>
 <% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %>
+<%
+  const reviewStatusLabel=(status)=>({visible:'표시중',hidden:'숨김',deleted:'삭제됨'}[status]||status||'대기');
+  const inquiryStatusLabel=(status)=>({new:'접수',pending:'처리중',answered:'답변완료',approved:'승인',rejected:'반려',done:'완료'}[status]||status||'대기');
+  const inquiryTypeLabel=(type)=>({apply:'입점신청',ad:'광고문의'}[type]||type||'문의');
+%>
 <header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
@@ -48,8 +53,9 @@ table{width:100%;border-collapse:collapse;margin-top:12px;background:#070b15}th,
       <span><b>용량</b>최대 5MB 이하 권장</span>
     </div>
   </section>
-  <section class="box"><h3>찜한 업체</h3><table><tr><th>업체</th><th>지역/업종</th><th>관리</th></tr><% (favorites||[]).forEach(f=>{%><tr><td><a href="/vendor/<%=f.vendor_id%>"><%=f.vendor_name%></a></td><td><%=f.region%> / <%=f.category%></td><td><form method="post" action="/favorite/<%=f.vendor_id%>/delete"><button>찜삭제</button></form></td></tr><%})%></table></section>
-  <section class="box"><h3>내 후기</h3><table><tr><th>업체</th><th>제목</th><th>평점</th></tr><% reviews.forEach(r=>{%><tr><td><%=r.vendor_name%></td><td><%=r.title%></td><td>★ <%=r.rating%></td></tr><%})%></table></section>
+  <section class="box"><h3>찜한 업체</h3><% if((favorites||[]).length){ %><table><tr><th>업체</th><th>지역/업종</th><th>관리</th></tr><% favorites.forEach(f=>{%><tr><td><a href="/vendor/<%=f.vendor_id%>"><%=f.vendor_name%></a></td><td><%=f.region%> / <%=f.category%></td><td><form method="post" action="/favorite/<%=f.vendor_id%>/delete"><button>찜삭제</button></form></td></tr><%})%></table><% } else { %><p>찜한 업체가 없습니다.</p><% } %></section>
+  <section class="box"><h3>내 후기</h3><% if((reviews||[]).length){ %><table><tr><th>업체</th><th>제목</th><th>평점</th><th>상태</th></tr><% reviews.forEach(r=>{%><tr><td><%=r.vendor_name||'삭제된 업체'%></td><td style="max-width:360px;white-space:normal;word-break:break-word"><%=r.title%></td><td>★ <%=r.rating%></td><td><%=reviewStatusLabel(r.status)%></td></tr><%})%></table><% } else { %><p>작성한 후기가 없습니다.</p><% } %></section>
+  <section class="box"><h3>문의 내역</h3><% if((inquiries||[]).length){ %><table><tr><th>유형</th><th>제목</th><th>내용</th><th>상태</th><th>작성일</th></tr><% inquiries.forEach(i=>{%><tr><td><%=inquiryTypeLabel(i.type)%></td><td><%=i.company_name||'-'%></td><td style="max-width:420px;white-space:normal;word-break:break-word"><%=i.content||'-'%></td><td><%=inquiryStatusLabel(i.status)%></td><td><%=fmtDateTime(i.created_at)%></td></tr><%})%></table><% } else { %><p>문의 내역이 없습니다.</p><% } %></section>
 </main>
 </body>
 </html>

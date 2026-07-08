@@ -907,7 +907,20 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
 });
 
-app.get('/mypage',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor)return res.redirect('/vendor-dashboard?panel=plan'); const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[req.session.user.id]); const favorites=await q(`SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 AND ${PUBLIC_VENDOR_SQL} ORDER BY f.id DESC`,[req.session.user.id]); res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,settings:await getSettings()});});
+app.get('/mypage',login,async(req,res)=>{
+  const user=await refreshSessionUser(req);
+  if(!user){
+    delete req.session.user;
+    return res.redirect('/login');
+  }
+  if(user.role==='admin')return res.redirect('/admin');
+  if(user.is_vendor)return res.redirect('/vendor-dashboard?panel=plan');
+
+  const reviews=await q('SELECT r.*,v.name vendor_name FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id WHERE r.user_id=$1 ORDER BY r.id DESC',[user.id]);
+  const favorites=await q(`SELECT f.*,v.name vendor_name,v.region,v.category FROM favorites f JOIN vendors v ON v.id=f.vendor_id WHERE f.user_id=$1 AND ${PUBLIC_VENDOR_SQL} ORDER BY f.id DESC`,[user.id]);
+  const inquiries=await q('SELECT id,type,company_name,category,region,content,status,created_at FROM inquiries WHERE user_id=$1 ORDER BY id DESC',[user.id]);
+  res.render('mypage',{reviews:reviews.rows,favorites:favorites.rows,inquiries:inquiries.rows,settings:await getSettings()});
+});
 
 app.get('/vendor-apply',login,async(req,res)=>{await refreshSessionUser(req); if(req.session.user.is_vendor&&req.session.user.vendor_id)return res.redirect('/vendor-dashboard'); const settings=await getSettings(); const pending=await q("SELECT id FROM inquiries WHERE user_id=$1 AND type='apply' AND status='new' LIMIT 1",[req.session.user.id]); res.render('vendor-apply',{settings,error:null,done:!!pending.rows[0]});});
 
