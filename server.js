@@ -871,21 +871,28 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     expiry:expiryStats
   };
   const paidRows=paymentLogs.rows||[];
-  const now=new Date();
-  const monthKey=now.toISOString().slice(0,7);
-  const todayKey=now.toISOString().slice(0,10);
-  const dateKey=x=>x?new Date(x).toISOString().slice(0,10):'';
-  const monthOf=x=>x?new Date(x).toISOString().slice(0,7):'';
-  const sumKrw=arr=>arr.reduce((s,x)=>s+Number(x.krw_price||0),0);
   const paymentStatusStats={waiting:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='waiting').length,unpaid:[...bannerRequests.rows,...adRequests.rows].filter(x=>!x.payment_status||x.payment_status==='unpaid').length,paid:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='paid').length,rejected:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='rejected').length,cancelled:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='cancelled').length};
+  const revenueAgg=(await q(`SELECT
+    COALESCE(SUM(krw_price),0) total,
+    COALESCE(SUM(krw_price) FILTER (WHERE paid_at>=CURRENT_DATE),0) today,
+    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)),0) month,
+    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)),0) year,
+    COUNT(*)::int count,
+    COUNT(*) FILTER (WHERE product_type='general')::int general,
+    COUNT(*) FILTER (WHERE product_type='recommended')::int recommended,
+    COUNT(*) FILTER (WHERE product_type='banner')::int banner,
+    COALESCE(SUM(usdt_amount),0) "usdtTotal"
+    FROM payment_logs`)).rows[0]||{};
   const revenueStats={
-    today:sumKrw(paidRows.filter(x=>dateKey(x.paid_at)===todayKey)),
-    month:sumKrw(paidRows.filter(x=>monthOf(x.paid_at)===monthKey)),
-    total:sumKrw(paidRows),
-    count:paidRows.length,
-    general:paidRows.filter(x=>x.product_type==='general').length,
-    recommended:paidRows.filter(x=>x.product_type==='recommended').length,
-    banner:paidRows.filter(x=>x.product_type==='banner').length,
+    today:Number(revenueAgg.today||0),
+    month:Number(revenueAgg.month||0),
+    year:Number(revenueAgg.year||0),
+    total:Number(revenueAgg.total||0),
+    count:Number(revenueAgg.count||0),
+    general:Number(revenueAgg.general||0),
+    recommended:Number(revenueAgg.recommended||0),
+    banner:Number(revenueAgg.banner||0),
+    usdtTotal:Number(revenueAgg.usdtTotal||0),
     recent:paidRows.slice(0,10),
     statuses:paymentStatusStats
   };

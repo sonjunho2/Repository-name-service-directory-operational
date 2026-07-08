@@ -862,7 +862,7 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
   const _monthRevenue=Number(_revStats.month||0);
   const _totalRevenue=Number(_revStats.total||0);
   const _paymentCount=Number(_revStats.count||_paymentSafe.length||0);
-  const _usdtTotal=_paymentSafe.reduce((s,x)=>s+Number(x.usdt_amount||0),0);
+  const _usdtTotal=Number(_revStats.usdtTotal||0);
 %>
 <div class="revenue-summary">
   <div class="revenue-card hot"><b>오늘 매출</b><strong><%=_todayRevenue.toLocaleString()%>원</strong></div>
