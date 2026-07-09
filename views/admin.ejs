@@ -1418,6 +1418,7 @@ document.addEventListener('DOMContentLoaded',function(){
   var vendorServerPage=1;
   var vendorServerLimit=20;
   var vendorServerReady=false;
+  var vendorLoading=false;
 
   function fmtDate(v){
     if(!v)return '-';
@@ -1486,6 +1487,8 @@ document.addEventListener('DOMContentLoaded',function(){
   function ensurePager(table){
     var panel=document.getElementById('vendors');
     if(!panel||!table)return null;
+    panel.querySelectorAll('.admin-pager').forEach(function(p){p.remove();});
+    panel.querySelectorAll('.server-vendor-pager').forEach(function(p,i){if(i>0)p.remove();});
     var pager=panel.querySelector('.server-vendor-pager');
     if(!pager){
       pager=document.createElement('div');
@@ -1532,12 +1535,14 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   async function loadVendors(page){
+    if(vendorLoading)return;
     var panel=document.getElementById('vendors');
     if(!panel)return;
     var table=panel.querySelector('table');
     if(!table)return;
     var pager=ensurePager(table);
     vendorServerPage=Math.max(1,page||1);
+    vendorLoading=true;
     if(pager)pager.innerHTML='<span class="server-vendor-info">업체목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/vendors?page='+vendorServerPage+'&limit='+vendorServerLimit,{headers:{'Accept':'application/json'}});
@@ -1569,7 +1574,9 @@ document.addEventListener('DOMContentLoaded',function(){
       (data.rows||[]).forEach(function(v){ window.__adminVendorRowsById[String(v.id)] = v; });
       vendorServerReady=true;
       if(window.applyPanelPagination)try{window.applyPanelPagination(true);}catch(e){}
+      vendorLoading=false;
     }catch(e){
+      vendorLoading=false;
       if(pager)pager.innerHTML='<span class="server-vendor-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
     }
   }
@@ -1596,7 +1603,6 @@ document.addEventListener('DOMContentLoaded',function(){
   var userServerPage=1;
   var userServerLimit=20;
   var loading=false;
-  var firstAutoLoadSkipped=false;
 
   function roleText(u){
     if(u.role==='admin')return '관리자';
@@ -1648,6 +1654,8 @@ document.addEventListener('DOMContentLoaded',function(){
   function ensurePager(table){
     var panel=usersPanel();
     if(!panel||!table)return null;
+    panel.querySelectorAll('.admin-pager').forEach(function(p){p.remove();});
+    panel.querySelectorAll('.server-user-pager').forEach(function(p,i){if(i>0)p.remove();});
     var pager=panel.querySelector('.server-user-pager');
     if(!pager){
       pager=document.createElement('div');
@@ -1786,7 +1794,7 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function maybeLoad(){
     if(activePanelId()!=='users')return;
-    if(!firstAutoLoadSkipped){
+    if(false && !firstAutoLoadSkipped){
       firstAutoLoadSkipped=true;
       // 서버가 렌더링한 최초 화면을 유지해서 화면이 2번 바뀌는 현상을 막습니다.
       return;
@@ -1807,7 +1815,7 @@ document.addEventListener('DOMContentLoaded',function(){
 (function(){
   var inquiryServerPage=1;
   var inquiryServerLimit=20;
-  var firstAutoLoadSkipped=false;
+  var inquiryLoading=false;
 
   function typeLabel(x){
     return x.type==='apply'?'입점신청':'광고문의';
@@ -1852,6 +1860,8 @@ document.addEventListener('DOMContentLoaded',function(){
   function ensurePager(table){
     var panel=document.getElementById('inquiries');
     if(!panel||!table)return null;
+    panel.querySelectorAll('.admin-pager').forEach(function(p){p.remove();});
+    panel.querySelectorAll('.server-inquiry-pager').forEach(function(p,i){if(i>0)p.remove();});
     var pager=panel.querySelector('.server-inquiry-pager');
     if(!pager){
       pager=document.createElement('div');
@@ -1881,12 +1891,15 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   async function loadInquiries(page){
+    if(inquiryLoading)return;
     var panel=document.getElementById('inquiries');
     if(!panel)return;
     var table=panel.querySelector('table');
     if(!table)return;
     var pager=ensurePager(table);
     inquiryServerPage=Math.max(1,page||1);
+    inquiryLoading=true;
+    setTimeout(function(){inquiryLoading=false;},900);
     if(pager)pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/inquiries?page='+inquiryServerPage+'&limit='+inquiryServerLimit,{headers:{'Accept':'application/json'}});
@@ -1921,7 +1934,7 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function maybeLoad(){
     if(activePanelId()!=='inquiries')return;
-    if(!firstAutoLoadSkipped){
+    if(false && !firstAutoLoadSkipped){
       firstAutoLoadSkipped=true;
       // 최초 진입 시 서버 렌더링 목록을 그대로 사용합니다.
       return;
@@ -1980,9 +1993,7 @@ document.addEventListener('DOMContentLoaded',function(){
     pager.appendChild(info);
   }
 
-  var paymentPage=1, paymentLimit=20;
-  var firstPaymentAutoLoadSkipped=false;
-  var firstReportAutoLoadSkipped=false;
+  var paymentPage=1, paymentLimit=20, paymentLoading=false;
   function productLabel(p){
     if(p.product_type==='banner')return '프리미엄배너';
     if(p.product_type==='recommended')return '추천광고';
@@ -2022,17 +2033,22 @@ document.addEventListener('DOMContentLoaded',function(){
   function ensurePaymentPager(table){
     var panel=document.getElementById('revenue');
     if(!panel||!table)return null;
+    panel.querySelectorAll('.admin-pager').forEach(function(p){p.remove();});
+    panel.querySelectorAll('.server-payment-pager').forEach(function(p,i){if(i>0)p.remove();});
     var pager=panel.querySelector('.server-payment-pager');
     if(!pager){pager=document.createElement('div');pager.className='server-payment-pager';table.insertAdjacentElement('afterend',pager);}
     return pager;
   }
   async function loadPayments(page){
+    if(paymentLoading)return;
     var panel=document.getElementById('revenue');
     if(!panel)return;
     var table=panel.querySelector('table');
     if(!table)return;
     var pager=ensurePaymentPager(table);
     paymentPage=Math.max(1,page||1);
+    paymentLoading=true;
+    setTimeout(function(){paymentLoading=false;},900);
     if(pager)pager.innerHTML='<span class="server-payment-info">결제내역을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/payments?page='+paymentPage+'&limit='+paymentLimit,{headers:{'Accept':'application/json'}});
@@ -2048,7 +2064,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
 
-  var reportPage=1, reportLimit=20;
+  var reportPage=1, reportLimit=20, reportLoading=false;
   function reportStatus(f){
     if(f.status==='done')return '<span class="status-on">처리완료</span>';
     if(f.status==='rejected')return '<span class="status-off">반려</span>';
@@ -2083,17 +2099,22 @@ document.addEventListener('DOMContentLoaded',function(){
   function ensureReportPager(table){
     var panel=document.getElementById('reports');
     if(!panel||!table)return null;
+    panel.querySelectorAll('.admin-pager').forEach(function(p){p.remove();});
+    panel.querySelectorAll('.server-report-pager').forEach(function(p,i){if(i>0)p.remove();});
     var pager=panel.querySelector('.server-report-pager');
     if(!pager){pager=document.createElement('div');pager.className='server-report-pager';table.insertAdjacentElement('afterend',pager);}
     return pager;
   }
   async function loadReports(page){
+    if(reportLoading)return;
     var panel=document.getElementById('reports');
     if(!panel)return;
     var table=panel.querySelector('table');
     if(!table)return;
     var pager=ensureReportPager(table);
     reportPage=Math.max(1,page||1);
+    reportLoading=true;
+    setTimeout(function(){reportLoading=false;},900);
     if(pager)pager.innerHTML='<span class="server-report-info">신고목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/reports?page='+reportPage+'&limit='+reportLimit,{headers:{'Accept':'application/json'}});
@@ -2117,7 +2138,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function maybeLoad(){
     var id=activePanelId();
     if(id==='revenue'){
-      if(!firstPaymentAutoLoadSkipped){
+      if(false && !firstPaymentAutoLoadSkipped){
         firstPaymentAutoLoadSkipped=true;
         // 최초 결제내역 화면은 서버 렌더링 상태를 유지합니다.
         return;
@@ -2125,7 +2146,7 @@ document.addEventListener('DOMContentLoaded',function(){
       loadPayments(paymentPage||1);
     }
     if(id==='reports'){
-      if(!firstReportAutoLoadSkipped){
+      if(false && !firstReportAutoLoadSkipped){
         firstReportAutoLoadSkipped=true;
         return;
       }
