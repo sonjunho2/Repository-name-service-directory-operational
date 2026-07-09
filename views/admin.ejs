@@ -1245,6 +1245,137 @@ document.querySelectorAll('.settings-tab').forEach(btn=>{
 });
 showAdminPanel((location.hash||'#dashboard').replace('#',''));updateReportAlert();</script>
 <script>
+(function(){
+  if(window.__adminClientPagerV2)return;
+  window.__adminClientPagerV2=true;
+
+  var apiPanels={users:1,vendors:1,inquiries:1,revenue:1,reports:1};
+  var configs={
+    vendorRequests:{selector:'table tr:not(:first-child)',label:'건'},
+    adCenter:{selector:'.ad-center-row',label:'건'},
+    banners:{selector:'.banner-row',label:'건'},
+    notices:{selector:'.notice-row',label:'건'},
+    reviews:{selector:'.review-row',label:'건'},
+    adminLogs:{selector:'table tr:not(:first-child)',label:'건'}
+  };
+  var pageState={};
+  var limit=20;
+  var timer=null;
+
+  function activePanelId(){
+    var p=document.querySelector('.admin-panel.active');
+    return p&&p.id;
+  }
+  function rowsFor(panel,cfg){
+    var rows=[].slice.call(panel.querySelectorAll(cfg.selector));
+    if(panel.id==='vendorRequests')rows.forEach(function(r){r.classList.add('vendor-request-row');});
+    if(panel.id==='adminLogs')rows.forEach(function(r){r.classList.add('admin-log-row');});
+    return rows;
+  }
+  function filterVisible(rows){
+    return rows.filter(function(r){
+      return !r.classList.contains('hidden-row')&&!r.classList.contains('hide');
+    });
+  }
+  function makeBtn(label,disabled,active,onClick){
+    var b=document.createElement('button');
+    b.type='button';
+    b.textContent=label;
+    if(disabled)b.disabled=true;
+    if(active)b.classList.add('active');
+    b.addEventListener('click',onClick);
+    return b;
+  }
+  function addPageButtons(pager,page,totalPages,panelId){
+    var start=Math.max(1,page-2);
+    var end=Math.min(totalPages,start+4);
+    start=Math.max(1,end-4);
+    if(start>1){
+      pager.appendChild(makeBtn('1',false,page===1,function(){applyOne(panelId,1);}));
+      if(start>2){var d=document.createElement('span');d.className='dots';d.textContent='...';pager.appendChild(d);}
+    }
+    for(var p=start;p<=end;p++){
+      (function(n){pager.appendChild(makeBtn(String(n),false,n===page,function(){applyOne(panelId,n);}));})(p);
+    }
+    if(end<totalPages){
+      if(end<totalPages-1){var d2=document.createElement('span');d2.className='dots';d2.textContent='...';pager.appendChild(d2);}
+      pager.appendChild(makeBtn(String(totalPages),false,page===totalPages,function(){applyOne(panelId,totalPages);}));
+    }
+  }
+  function ensurePager(panel,table){
+    panel.querySelectorAll('.admin-pager').forEach(function(p,i){if(i>0)p.remove();});
+    var pager=panel.querySelector('.admin-pager');
+    if(!pager){
+      pager=document.createElement('div');
+      pager.className='admin-pager';
+      table.insertAdjacentElement('afterend',pager);
+    }
+    return pager;
+  }
+  function clearApiPagers(){
+    Object.keys(apiPanels).forEach(function(id){
+      var panel=document.getElementById(id);
+      if(panel)panel.querySelectorAll('.admin-pager').forEach(function(p){p.remove();});
+    });
+  }
+  function applyOne(panelId,page){
+    if(apiPanels[panelId])return clearApiPagers();
+    var cfg=configs[panelId];
+    var panel=document.getElementById(panelId);
+    if(!cfg||!panel)return;
+    var table=panel.querySelector('table');
+    if(!table)return;
+    var rows=rowsFor(panel,cfg);
+    var visible=filterVisible(rows);
+    var totalPages=Math.max(1,Math.ceil(visible.length/limit));
+    page=Math.max(1,Math.min(page||pageState[panelId]||1,totalPages));
+    pageState[panelId]=page;
+    rows.forEach(function(r){r.classList.remove('admin-page-hidden');});
+    visible.forEach(function(r,i){
+      r.classList.toggle('admin-page-hidden',i<(page-1)*limit||i>=page*limit);
+    });
+    var pager=ensurePager(panel,table);
+    pager.innerHTML='';
+    var from=visible.length?((page-1)*limit+1):0;
+    var to=Math.min(page*limit,visible.length);
+    var info=document.createElement('span');
+    info.className='pager-info';
+    info.textContent='총 '+visible.length+cfg.label+' · 현재 '+from+'-'+to+cfg.label+' 표시';
+    pager.appendChild(info);
+    pager.appendChild(makeBtn('처음',page<=1,false,function(){applyOne(panelId,1);}));
+    pager.appendChild(makeBtn('이전',page<=1,false,function(){applyOne(panelId,page-1);}));
+    addPageButtons(pager,page,totalPages,panelId);
+    pager.appendChild(makeBtn('다음',page>=totalPages,false,function(){applyOne(panelId,page+1);}));
+    pager.appendChild(makeBtn('마지막',page>=totalPages,false,function(){applyOne(panelId,totalPages);}));
+  }
+  function applyAll(reset){
+    clearApiPagers();
+    Object.keys(configs).forEach(function(id){
+      if(reset)pageState[id]=1;
+      applyOne(id,pageState[id]||1);
+    });
+  }
+  function schedule(reset){
+    clearTimeout(timer);
+    timer=setTimeout(function(){applyAll(reset);},80);
+  }
+
+  window.applyPanelPagination=function(reset){applyAll(!!reset);};
+  document.addEventListener('DOMContentLoaded',function(){schedule(true);setTimeout(function(){schedule(false);},600);});
+  window.addEventListener('hashchange',function(){schedule(false);});
+  document.addEventListener('click',function(e){
+    if(e.target.closest('[data-panel]'))schedule(false);
+    if(e.target.closest('[data-ad-center-filter]'))schedule(true);
+  },true);
+  document.addEventListener('input',function(e){
+    if(e.target.closest('#banners,#notices,#reviews,#adCenter,#vendorRequests,#adminLogs'))schedule(true);
+  },true);
+  document.addEventListener('change',function(e){
+    if(e.target.closest('#banners,#notices,#reviews,#adCenter,#vendorRequests,#adminLogs'))schedule(true);
+  },true);
+})();
+</script>
+<script>
 /* 공통 유틸(admin 전역 공용): esc, toast, num, money, makeButton
    각 관리자 패널(회원/업체/입점/결제·신고 등) 모듈에서 중복 정의되던 함수를 여기 하나로 통합합니다.
    아래 패널별 모듈들은 이 스크립트 다음에 로드되며, 자체 정의를 제거하고 이 전역 함수를 그대로 사용합니다. */
@@ -1506,6 +1637,13 @@ document.addEventListener('DOMContentLoaded',function(){
     b.onclick=onClick;
     return b;
   }
+  function showTableMessage(table,msg,cls){
+    var header=table.querySelector('tr');
+    var colspan=header?Math.max(1,header.children.length):1;
+    table.innerHTML='';
+    if(header)table.appendChild(header);
+    table.insertAdjacentHTML('beforeend','<tr class="'+(cls||'loading-row')+'"><td colspan="'+colspan+'">'+esc(msg)+'</td></tr>');
+  }
   function addPageNumbers(pager,page,totalPages){
     var start=Math.max(1,page-2);
     var end=Math.min(totalPages,start+4);
@@ -1543,6 +1681,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var pager=ensurePager(table);
     vendorServerPage=Math.max(1,page||1);
     vendorLoading=true;
+    showTableMessage(table,'업체목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-vendor-info">업체목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/vendors?page='+vendorServerPage+'&limit='+vendorServerLimit,{headers:{'Accept':'application/json'}});
@@ -1577,6 +1716,7 @@ document.addEventListener('DOMContentLoaded',function(){
       vendorLoading=false;
     }catch(e){
       vendorLoading=false;
+      showTableMessage(table,'업체목록을 불러오지 못했습니다.','loading-row');
       if(pager)pager.innerHTML='<span class="server-vendor-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
     }
   }
@@ -1594,6 +1734,7 @@ document.addEventListener('DOMContentLoaded',function(){
       setTimeout(maybeLoad,250);
     }
   });
+  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
@@ -1673,6 +1814,14 @@ document.addEventListener('DOMContentLoaded',function(){
     b.onclick=onClick;
     return b;
   }
+  function showTableMessage(table,msg,cls){
+    var header=table.querySelector('tr');
+    var colspan=header?Math.max(1,header.children.length):1;
+    table.innerHTML='';
+    if(header)table.appendChild(header);
+    fixHeaders(table);
+    table.insertAdjacentHTML('beforeend','<tr class="'+(cls||'loading-row')+'"><td colspan="'+colspan+'">'+esc(msg)+'</td></tr>');
+  }
   function renderPager(pager,data){
     pager.innerHTML='';
     var page=data.page||1,totalPages=data.totalPages||1,total=data.total||0,limit=data.limit||userServerLimit;
@@ -1719,6 +1868,8 @@ document.addEventListener('DOMContentLoaded',function(){
     var pager=ensurePager(table);
     userServerPage=Math.max(1,page||1);
     loading=true;
+    showTableMessage(table,'회원목록을 불러오는 중입니다.','loading-row');
+    var loadOk=false;
     if(pager)pager.innerHTML='<span class="server-user-info">회원목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/users?page='+userServerPage+'&limit='+userServerLimit,{credentials:'same-origin',headers:{'Accept':'application/json'}});
@@ -1730,9 +1881,11 @@ document.addEventListener('DOMContentLoaded',function(){
       fixHeaders(table);
       (data.rows||[]).forEach(function(u){table.insertAdjacentHTML('beforeend',userRow(u));});
       if(pager)renderPager(pager,data);
+      loadOk=true;
     }catch(e){
       if(pager)pager.innerHTML='<span class="server-user-info">회원목록을 불러오지 못했습니다: '+esc(e.message||'오류')+'</span>';
     }finally{
+      if(!loadOk)showTableMessage(table,'회원목록을 불러오지 못했습니다.','loading-row');
       loading=false;
     }
   }
@@ -1794,11 +1947,6 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function maybeLoad(){
     if(activePanelId()!=='users')return;
-    if(false && !firstAutoLoadSkipped){
-      firstAutoLoadSkipped=true;
-      // 서버가 렌더링한 최초 화면을 유지해서 화면이 2번 바뀌는 현상을 막습니다.
-      return;
-    }
     loadUsers(userServerPage||1);
   }
   document.addEventListener('click',function(e){
@@ -1810,6 +1958,7 @@ document.addEventListener('DOMContentLoaded',function(){
   },true);
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,250);});
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,250);});
+  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
@@ -1870,6 +2019,13 @@ document.addEventListener('DOMContentLoaded',function(){
     }
     return pager;
   }
+  function showTableMessage(table,msg,cls){
+    var header=table.querySelector('tr');
+    var colspan=header?Math.max(1,header.children.length):1;
+    table.innerHTML='';
+    if(header)table.appendChild(header);
+    table.insertAdjacentHTML('beforeend','<tr class="'+(cls||'loading-row')+'"><td colspan="'+colspan+'">'+esc(msg)+'</td></tr>');
+  }
   function addPageNumbers(pager,page,totalPages){
     var start=Math.max(1,page-2);
     var end=Math.min(totalPages,start+4);
@@ -1899,7 +2055,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var pager=ensurePager(table);
     inquiryServerPage=Math.max(1,page||1);
     inquiryLoading=true;
-    setTimeout(function(){inquiryLoading=false;},900);
+    showTableMessage(table,'신청목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/inquiries?page='+inquiryServerPage+'&limit='+inquiryServerLimit,{headers:{'Accept':'application/json'}});
@@ -1909,6 +2065,7 @@ document.addEventListener('DOMContentLoaded',function(){
       table.innerHTML='';
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',rowHtml(x));});
+      inquiryLoading=false;
       applyInquiryFilter(); sortInquiries();
       if(pager){
         pager.innerHTML='';
@@ -1925,7 +2082,10 @@ document.addEventListener('DOMContentLoaded',function(){
         pager.appendChild(info);
       }
     }catch(e){
-      if(pager)pager.innerHTML='<span class="server-inquiry-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
+      showTableMessage(table,'신청목록을 불러오지 못했습니다.','loading-row');
+      if(pager)pager.innerHTML='<span class="server-inquiry-info">서버 페이지 데이터를 불러오지 못했습니다.</span>';
+    }finally{
+      inquiryLoading=false;
     }
   }
   function activePanelId(){
@@ -1934,11 +2094,6 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function maybeLoad(){
     if(activePanelId()!=='inquiries')return;
-    if(false && !firstAutoLoadSkipped){
-      firstAutoLoadSkipped=true;
-      // 최초 진입 시 서버 렌더링 목록을 그대로 사용합니다.
-      return;
-    }
     loadInquiries(inquiryServerPage||1);
   }
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,220);});
@@ -1948,6 +2103,7 @@ document.addEventListener('DOMContentLoaded',function(){
       setTimeout(maybeLoad,260);
     }
   });
+  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
@@ -1991,6 +2147,14 @@ document.addEventListener('DOMContentLoaded',function(){
     info.className=infoClass;
     info.textContent='총 '+data.total+unit+' · 현재 '+from+'-'+to+unit+' 표시';
     pager.appendChild(info);
+  }
+
+  function showTableMessage(table,msg,cls){
+    var header=table.querySelector('tr');
+    var colspan=header?Math.max(1,header.children.length):1;
+    table.innerHTML='';
+    if(header)table.appendChild(header);
+    table.insertAdjacentHTML('beforeend','<tr class="'+(cls||'loading-row')+'"><td colspan="'+colspan+'">'+esc(msg)+'</td></tr>');
   }
 
   var paymentPage=1, paymentLimit=20, paymentLoading=false;
@@ -2048,7 +2212,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var pager=ensurePaymentPager(table);
     paymentPage=Math.max(1,page||1);
     paymentLoading=true;
-    setTimeout(function(){paymentLoading=false;},900);
+    showTableMessage(table,'결제내역을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-payment-info">결제내역을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/payments?page='+paymentPage+'&limit='+paymentLimit,{headers:{'Accept':'application/json'}});
@@ -2058,9 +2222,13 @@ document.addEventListener('DOMContentLoaded',function(){
       table.innerHTML='';
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(p){table.insertAdjacentHTML('beforeend',paymentRow(p));});
+      paymentLoading=false;
       if(pager)renderPager(pager,data,'건','server-payment-info',loadPayments);
     }catch(e){
-      if(pager)pager.innerHTML='<span class="server-payment-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
+      showTableMessage(table,'결제내역을 불러오지 못했습니다.','loading-row');
+      if(pager)pager.innerHTML='<span class="server-payment-info">서버 페이지 데이터를 불러오지 못했습니다.</span>';
+    }finally{
+      paymentLoading=false;
     }
   }
 
@@ -2114,7 +2282,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var pager=ensureReportPager(table);
     reportPage=Math.max(1,page||1);
     reportLoading=true;
-    setTimeout(function(){reportLoading=false;},900);
+    showTableMessage(table,'신고목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-report-info">신고목록을 불러오는 중입니다.</span>';
     try{
       var res=await fetch('/admin/api/reports?page='+reportPage+'&limit='+reportLimit,{headers:{'Accept':'application/json'}});
@@ -2124,10 +2292,14 @@ document.addEventListener('DOMContentLoaded',function(){
       table.innerHTML='';
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(f){table.insertAdjacentHTML('beforeend',reportRow(f));});
+      reportLoading=false;
       applyReportFilter(); sortReports();
       if(pager)renderPager(pager,data,'건','server-report-info',loadReports);
     }catch(e){
-      if(pager)pager.innerHTML='<span class="server-report-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
+      showTableMessage(table,'신고목록을 불러오지 못했습니다.','loading-row');
+      if(pager)pager.innerHTML='<span class="server-report-info">서버 페이지 데이터를 불러오지 못했습니다.</span>';
+    }finally{
+      reportLoading=false;
     }
   }
 
@@ -2138,18 +2310,9 @@ document.addEventListener('DOMContentLoaded',function(){
   function maybeLoad(){
     var id=activePanelId();
     if(id==='revenue'){
-      if(false && !firstPaymentAutoLoadSkipped){
-        firstPaymentAutoLoadSkipped=true;
-        // 최초 결제내역 화면은 서버 렌더링 상태를 유지합니다.
-        return;
-      }
       loadPayments(paymentPage||1);
     }
     if(id==='reports'){
-      if(false && !firstReportAutoLoadSkipped){
-        firstReportAutoLoadSkipped=true;
-        return;
-      }
       loadReports(reportPage||1);
     }
   }
@@ -2166,6 +2329,7 @@ document.addEventListener('DOMContentLoaded',function(){
       setTimeout(maybeLoad,280);
     }
   });
+  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
