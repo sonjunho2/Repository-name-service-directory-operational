@@ -1397,7 +1397,7 @@ async function validateAdminUserChange(req,userId,nextRole,nextStatus){
   return {ok:true,user};
 }
 
-app.post('/admin/users/:id/update',admin,async(req,res)=>{
+app.post('/admin/users/:id/update',admin,upload.none(),async(req,res)=>{
   const userId=parseInt(req.params.id||req.body.id||0,10);
   if(!userId)return res.status(400).json({ok:false,error:'잘못된 회원입니다.'});
   const current=await q('SELECT id,username,nickname,role,status FROM users WHERE id=$1',[userId]);
@@ -1576,7 +1576,7 @@ app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCou
   await logAdmin(req,'환경설정 저장','settings','options','업종/지역/결제/브랜딩 설정 수정');
   return sendOk(req,res,'/admin#settings');
 });
-app.post('/admin/settings/admin-account',admin,async(req,res)=>{
+app.post('/admin/settings/admin-account',admin,upload.none(),async(req,res)=>{
   const username=(req.body.username||'').trim();
   const nickname=(req.body.nickname||'관리자').trim().slice(0,50);
   const password=(req.body.password||'').trim();
@@ -1676,7 +1676,7 @@ app.post('/admin/vendor',admin,upload.single('image'),async(req,res)=>{
   }
 });
 app.post('/admin/banner',admin,upload.single('image'),async(req,res)=>{const im=img(req.file); if(req.body.id){let p=[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,req.body.id]; await q(`UPDATE banners SET title=$1,subtitle=$2,link_url=$3,position=$4,sort_order=$5,is_active=$6 ${im?', image_data=$8':''} WHERE id=$7`, im?[...p,im]:p)} else await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[req.body.title,req.body.subtitle,req.body.link_url,req.body.position||'premium',req.body.sort_order||0,!!req.body.is_active,im]); await logAdmin(req,req.body.id?'배너 수정':'배너 등록','banner',req.body.id||'new',req.body.title||''); return sendOk(req,res,'/admin#banners');});
-app.post('/admin/user',admin,async(req,res)=>{
+app.post('/admin/user',admin,upload.none(),async(req,res)=>{
   const userId=parseInt(req.body.id||0,10);
   if(!userId)return res.redirect('/admin#users');
   const current=await q('SELECT id,username,nickname,role,status FROM users WHERE id=$1',[userId]);
