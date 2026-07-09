@@ -1406,7 +1406,7 @@ app.post('/admin/users/:id/update',admin,upload.none(),async(req,res)=>{
   const hasNickname=Object.prototype.hasOwnProperty.call(req.body,'nickname');
   const nickname=hasNickname&&String(req.body.nickname||'').trim()?String(req.body.nickname).trim().slice(0,50):user.nickname;
   const role=['admin','user'].includes(req.body.role)?req.body.role:user.role;
-  const status=['active','blocked'].includes(req.body.status)?req.body.status:user.status;
+  const status=['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:user.status;
   const password=(req.body.password||'').trim();
   const protection=await validateAdminUserChange(req,userId,role,status);
   if(!protection.ok)return res.status(protection.status||400).json({ok:false,error:protection.error});
@@ -1688,7 +1688,7 @@ app.post('/admin/user',admin,upload.none(),async(req,res)=>{
   const hasNickname=Object.prototype.hasOwnProperty.call(req.body,'nickname');
   const nickname=hasNickname&&String(req.body.nickname||'').trim()?String(req.body.nickname).trim().slice(0,50):user.nickname;
   const role=['admin','user'].includes(req.body.role)?req.body.role:user.role;
-  const status=['active','blocked'].includes(req.body.status)?req.body.status:user.status;
+  const status=['active','blocked','suspended','inactive'].includes(req.body.status)?req.body.status:user.status;
   const password=req.body.password||'';
   if(password&&password.length<6)return res.redirect('/admin#users');
   const protection=await validateAdminUserChange(req,userId,role,status);
