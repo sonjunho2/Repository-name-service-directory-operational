@@ -799,6 +799,69 @@ app.get('/admin/api/reports',admin,async(req,res)=>{
   const fromSql=" FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id";
   return adminPagedJson(req,res,`SELECT f.*,v.name vendor_name,rv.title review_title${fromSql}${whereSql} ORDER BY f.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
+app.get('/admin/api/banners',admin,async(req,res)=>{
+  const params=[];
+  const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const source=String(req.query.source||'').trim();
+  const status=String(req.query.status||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(x.title ILIKE $${params.length} OR x.link_url ILIKE $${params.length} OR x.vendor_name ILIKE $${params.length} OR x.position ILIKE $${params.length})`);}
+  if(['direct','vendor'].includes(source)){params.push(source);where.push(`x.source=$${params.length}`);}
+  if(['active','inactive','expired'].includes(status)){params.push(status);where.push(`x.display_status=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const baseSql=` FROM (
+    SELECT b.id banner_id,b.id::text row_key,b.title,b.subtitle,b.link_url,b.position,b.sort_order,b.is_active,b.vendor_id,b.created_at,
+      CASE WHEN COALESCE(b.image_data,'')<>'' THEN true ELSE false END has_image_data,
+      v.name vendor_name,v.status vendor_status,v.ad_type vendor_ad_type,v.expire_at vendor_expire_at,v.banner_active vendor_banner_active,v.banner_until vendor_banner_until,
+      CASE WHEN b.vendor_id IS NULL THEN 'direct' ELSE 'vendor' END source,
+      CASE WHEN b.vendor_id IS NULL THEN CASE WHEN b.is_active THEN 'active' ELSE 'inactive' END
+        WHEN v.status='expired' OR v.expire_at<CURRENT_DATE OR v.banner_until<CURRENT_DATE THEN 'expired'
+        WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE THEN 'active'
+        ELSE 'inactive' END display_status
+    FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id
+    UNION ALL
+    SELECT NULL banner_id,('vendor-'||v.id)::text row_key,v.name title,'' subtitle,'' link_url,'premium' position,0 sort_order,true is_active,v.id vendor_id,v.created_at,
+      CASE WHEN COALESCE(v.image_data,'')<>'' THEN true ELSE false END has_image_data,
+      v.name vendor_name,v.status vendor_status,v.ad_type vendor_ad_type,v.expire_at vendor_expire_at,v.banner_active vendor_banner_active,v.banner_until vendor_banner_until,'vendor' source,
+      CASE WHEN v.status='expired' OR v.expire_at<CURRENT_DATE OR v.banner_until<CURRENT_DATE THEN 'expired'
+        WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE THEN 'active'
+        ELSE 'inactive' END display_status
+    FROM vendors v WHERE COALESCE(v.banner_active,false)=true AND NOT EXISTS(SELECT 1 FROM banners b2 WHERE b2.vendor_id=v.id)
+  ) x`;
+  return adminPagedJson(req,res,`SELECT x.*${baseSql}${whereSql} ORDER BY x.sort_order,x.created_at DESC,x.row_key DESC`,`SELECT COUNT(*)${baseSql}${whereSql}`,params);
+});
+app.get('/admin/api/notices',admin,async(req,res)=>{
+  const params=[];const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const pinned=String(req.query.pinned??req.query.is_pinned??'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(n.title ILIKE $${params.length} OR n.content ILIKE $${params.length})`);}
+  if(['true','1','pinned'].includes(pinned)){params.push(true);where.push(`n.is_pinned=$${params.length}`);}
+  else if(['false','0','normal'].includes(pinned)){params.push(false);where.push(`n.is_pinned=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  return adminPagedJson(req,res,`SELECT n.id,n.title,n.content,n.is_pinned,n.created_at FROM notices n${whereSql} ORDER BY n.id DESC`,`SELECT COUNT(*) FROM notices n${whereSql}`,params);
+});
+app.get('/admin/api/reviews',admin,async(req,res)=>{
+  const params=[];const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const status=String(req.query.status||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(r.title ILIKE $${params.length} OR r.content ILIKE $${params.length} OR v.name ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
+  if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`r.status=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const fromSql=' FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id';
+  return adminPagedJson(req,res,`SELECT r.id,r.vendor_id,r.user_id,r.title,r.content,r.rating,r.status,r.created_at,v.name vendor_name,u.username,u.nickname${fromSql}${whereSql} ORDER BY r.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+});
+app.get('/admin/api/logs',admin,async(req,res)=>{
+  const params=[];const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const action=String(req.query.action||'').trim().slice(0,100);
+  const targetType=String(req.query.target_type||'').trim().slice(0,100);
+  if(qText){params.push(`%${qText}%`);where.push(`(l.action ILIKE $${params.length} OR l.target_type ILIKE $${params.length} OR l.target_id ILIKE $${params.length} OR l.memo ILIKE $${params.length} OR l.admin_username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
+  if(action){params.push(action);where.push(`l.action=$${params.length}`);}
+  if(targetType){params.push(targetType);where.push(`l.target_type=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const fromSql=' FROM admin_logs l LEFT JOIN users u ON u.id=l.admin_id';
+  return adminPagedJson(req,res,`SELECT l.id,l.admin_id,l.admin_username,l.action,l.target_type,l.target_id,l.memo,l.created_at,u.nickname admin_nickname${fromSql}${whereSql} ORDER BY l.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+});
 
 
 app.get('/admin/api/live-summary',admin,async(req,res)=>{
