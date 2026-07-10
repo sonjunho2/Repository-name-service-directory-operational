@@ -1520,7 +1520,46 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script><script>
 (function(){
-  var vendorServerPage=1;
+  var storageKey='adminListState';
+  function allState(){try{return JSON.parse(sessionStorage.getItem(storageKey)||'{}')||{};}catch(e){return {};}}
+  window.getAdminListState=function(key){return allState()[key]||{};};
+  window.setAdminListState=function(key,patch){var all=allState();all[key]=Object.assign({},all[key]||{},patch||{});try{sessionStorage.setItem(storageKey,JSON.stringify(all));}catch(e){}return all[key];};
+  window.getPanelKeyFromActivePanel=function(){var id=document.querySelector('.admin-panel.active')?.id||String(location.hash||'').replace('#','')||'dashboard';return id==='revenue'?'payments':id;};
+  function value(id,fallback){var el=document.getElementById(id);return el?el.value:(fallback||'');}
+  window.saveActiveAdminListState=function(key,page){key=key||window.getPanelKeyFromActivePanel();var patch={page:Math.max(1,Number(page||window.getAdminListState(key).page||1))};
+    if(key==='vendors')Object.assign(patch,{q:value('vendorSearch'),status:value('vendorStatusFilter','all'),ad_type:value('vendorTypeFilter','all')});
+    else if(key==='users')Object.assign(patch,{q:value('userSearch'),role:value('userRoleFilter','all'),status:value('userStatusFilter','all')});
+    else if(key==='inquiries'){var inquiryFilter=typeof currentInquiryFilter!=='undefined'?currentInquiryFilter:'all';Object.assign(patch,{q:value('inquirySearch'),filter:inquiryFilter,type:(inquiryFilter==='apply'||inquiryFilter==='ad')?inquiryFilter:'all',status:(inquiryFilter!=='all'&&inquiryFilter!=='apply'&&inquiryFilter!=='ad')?inquiryFilter:'all'});}
+    else if(key==='reports'){var reportFilter=typeof currentReportFilter!=='undefined'?currentReportFilter:'all';Object.assign(patch,{q:value('reportSearch'),filter:reportFilter,type:(reportFilter==='vendor'||reportFilter==='review')?reportFilter:'all',status:(reportFilter!=='all'&&reportFilter!=='vendor'&&reportFilter!=='review')?reportFilter:'all'});}
+    else if(key==='banners')Object.assign(patch,{q:value('bannerSearch'),source:value('bannerSourceFilter','all'),status:value('bannerStatusFilter','all')});
+    else if(key==='notices')Object.assign(patch,{q:value('noticeSearch'),pinned:value('noticePinnedFilter','all')});
+    else if(key==='reviews')Object.assign(patch,{q:value('reviewSearch'),status:value('reviewRatingFilter','all')});
+    else if(key==='adminLogs')Object.assign(patch,{q:value('adminLogSearch'),action:value('adminLogActionFilter','all'),target_type:value('adminLogTargetFilter','all')});
+    else if(key==='vendorRequests')Object.assign(patch,{q:value('vendorRequestSearch'),status:value('vendorRequestStatus','all')});
+    else if(key==='adCenter')Object.assign(patch,{q:value('adCenterSearch'),status:document.querySelector('[data-ad-center-filter].on')?.dataset.adCenterFilter||'all',payment_status:value('adCenterPayment','all'),request_type:value('adCenterType','all'),source:value('adCenterSource','all')});
+    return window.setAdminListState(key,patch);
+  };
+  window.restoreAdminListControls=function(key){var s=window.getAdminListState(key);var set=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null)el.value=v;};
+    if(key==='vendors'){set('vendorSearch',s.q);set('vendorStatusFilter',s.status);set('vendorTypeFilter',s.ad_type);}
+    else if(key==='users'){set('userSearch',s.q);set('userRoleFilter',s.role);set('userStatusFilter',s.status);}
+    else if(key==='inquiries'){set('inquirySearch',s.q);var inquiryRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentInquiryFilter!=='undefined'){currentInquiryFilter=inquiryRestore;document.querySelectorAll('.inquiry-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===inquiryRestore);});}}
+    else if(key==='reports'){set('reportSearch',s.q);var reportRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentReportFilter!=='undefined'){currentReportFilter=reportRestore;document.querySelectorAll('.report-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===reportRestore);});}}
+    else if(key==='banners'){set('bannerSearch',s.q);set('bannerSourceFilter',s.source);set('bannerStatusFilter',s.status);}
+    else if(key==='notices'){set('noticeSearch',s.q);set('noticePinnedFilter',s.pinned);}
+    else if(key==='reviews'){set('reviewSearch',s.q);set('reviewRatingFilter',s.status);}
+    else if(key==='adminLogs'){set('adminLogSearch',s.q);set('adminLogTargetFilter',s.target_type);}
+    else if(key==='vendorRequests'){set('vendorRequestSearch',s.q);set('vendorRequestStatus',s.status);}
+    else if(key==='adCenter'){set('adCenterSearch',s.q);set('adCenterPayment',s.payment_status);set('adCenterType',s.request_type);set('adCenterSource',s.source);document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',(s.status||'all')===b.dataset.adCenterFilter);});}
+    return s;
+  };
+  window.normalizeAdminListPage=function(key,data,reload){var pages=Math.max(1,Number(data?.totalPages||1)),page=Math.max(1,Number(data?.page||1));if(page>pages){window.setAdminListState(key,{page:pages});setTimeout(function(){reload(pages);},0);return true;}return false;};
+  window.reloadAdminPanelList=function(key){var map={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',payments:'loadAdminPayments'};var fn=window[map[key]];if(typeof fn==='function')return fn(window.getAdminListState(key).page||1);};
+  ['vendors','users','inquiries','reports'].forEach(window.restoreAdminListControls);
+  document.addEventListener('submit',function(e){var form=e.target;if(!form||!form.closest('.admin-content'))return;var action=String(form.getAttribute('action')||'');if(action.includes('/settings/')||action.includes('/restore-json')||action.includes('/backup')||action.includes('/logout'))return;var key=window.getPanelKeyFromActivePanel();window.saveActiveAdminListState(key,window.getAdminListState(key).page||1);try{sessionStorage.setItem('adminReturnPanel',key);}catch(err){}},true);
+})();
+</script><script>
+(function(){
+  var vendorServerPage=Number(window.getAdminListState?.('vendors').page||1);
   var vendorServerLimit=20;
   var vendorServerReady=false;
   var vendorLoading=false;
@@ -1661,6 +1700,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   async function loadVendors(page){
+    page=page||Number(window.getAdminListState?.('vendors').page||1);
     if(vendorLoading){clearTimeout(vendorSearchTimer);vendorSearchTimer=setTimeout(function(){loadVendors(page);},100);return;}
     var panel=document.getElementById('vendors');
     if(!panel)return;
@@ -1668,6 +1708,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!table)return;
     var pager=ensurePager(table);
     vendorServerPage=Math.max(1,page||1);
+    window.saveActiveAdminListState?.('vendors',vendorServerPage);
     vendorLoading=true;
     showTableMessage(table,'업체목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-vendor-info">업체목록을 불러오는 중입니다.</span>';
@@ -1675,6 +1716,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var res=await fetch('/admin/api/vendors?'+vendorQuery(vendorServerPage).toString(),{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
+      if(vendorServerPage>Math.max(1,Number(data.totalPages||1))){vendorLoading=false;window.normalizeAdminListPage?.('vendors',data,loadVendors);return;}
       var header=table.querySelector('tr');
       table.innerHTML='';
       if(header)table.appendChild(header);
@@ -1707,6 +1749,7 @@ document.addEventListener('DOMContentLoaded',function(){
       if(pager)pager.innerHTML='<span class="server-vendor-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
     }
   }
+  window.loadAdminVendors=loadVendors;
   function activePanelId(){
     var p=document.querySelector('.admin-panel.active');
     return p&&p.id;
@@ -1735,7 +1778,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(window.__adminUsersModuleV3)return;
   window.__adminUsersModuleV3=true;
 
-  var userServerPage=1;
+  var userServerPage=Number(window.getAdminListState?.('users').page||1);
   var userServerLimit=20;
   var loading=false;
   var userSearchTimer=null;
@@ -1870,11 +1913,13 @@ document.addEventListener('DOMContentLoaded',function(){
     ths.forEach(function(th,i){if(labels[i])th.textContent=labels[i];});
   }
   async function loadUsers(page){
+    page=page||Number(window.getAdminListState?.('users').page||1);
     if(loading){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(function(){loadUsers(page);},100);return;}
     var table=usersTable();
     if(!table)return;
     var pager=ensurePager(table);
     userServerPage=Math.max(1,page||1);
+    window.saveActiveAdminListState?.('users',userServerPage);
     loading=true;
     showTableMessage(table,'회원목록을 불러오는 중입니다.','loading-row');
     var loadOk=false;
@@ -1883,6 +1928,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var res=await fetch('/admin/api/users?'+userQuery(userServerPage).toString(),{credentials:'same-origin',headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error(data.error||'회원목록 로드 실패');
+      if(userServerPage>Math.max(1,Number(data.totalPages||1))){loading=false;window.normalizeAdminListPage?.('users',data,loadUsers);return;}
       var header=table.querySelector('tr');
       table.innerHTML='';
       if(header)table.appendChild(header);
@@ -1897,7 +1943,9 @@ document.addEventListener('DOMContentLoaded',function(){
       loading=false;
     }
   }
+  window.loadAdminUsers=loadUsers;
   async function saveUser(btn){
+    window.saveActiveAdminListState?.('users',userServerPage);
     var row=btn.closest('tr');
     if(!row)return;
     var id=btn.dataset.id||row.dataset.id;
@@ -1929,6 +1977,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   async function deleteUser(btn){
+    window.saveActiveAdminListState?.('users',userServerPage);
     var row=btn.closest('tr');
     if(!row)return;
     var id=btn.dataset.id||row.dataset.id;
@@ -1977,7 +2026,7 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script><script>
 (function(){
-  var inquiryServerPage=1;
+  var inquiryServerPage=Number(window.getAdminListState?.('inquiries').page||1);
   var inquiryServerLimit=20;
   var inquiryLoading=false;
   var inquirySearchTimer=null;
@@ -2092,6 +2141,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   async function loadInquiries(page){
+    page=page||Number(window.getAdminListState?.('inquiries').page||1);
     if(inquiryLoading){clearTimeout(inquirySearchTimer);inquirySearchTimer=setTimeout(function(){loadInquiries(page);},100);return;}
     var panel=document.getElementById('inquiries');
     if(!panel)return;
@@ -2099,6 +2149,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!table)return;
     var pager=ensurePager(table);
     inquiryServerPage=Math.max(1,page||1);
+    window.saveActiveAdminListState?.('inquiries',inquiryServerPage);
     inquiryLoading=true;
     showTableMessage(table,'신청목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
@@ -2106,6 +2157,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var res=await fetch('/admin/api/inquiries?'+inquiryQuery(inquiryServerPage).toString(),{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
+      if(inquiryServerPage>Math.max(1,Number(data.totalPages||1))){inquiryLoading=false;window.normalizeAdminListPage?.('inquiries',data,loadInquiries);return;}
       var header=table.querySelector('tr');
       table.innerHTML='';
       if(header)table.appendChild(header);
@@ -2133,6 +2185,7 @@ document.addEventListener('DOMContentLoaded',function(){
       inquiryLoading=false;
     }
   }
+  window.loadAdminInquiries=loadInquiries;
   function activePanelId(){
     var p=document.querySelector('.admin-panel.active');
     return p&&p.id;
@@ -2211,7 +2264,7 @@ document.addEventListener('DOMContentLoaded',function(){
     table.insertAdjacentHTML('beforeend','<tr class="'+(cls||'loading-row')+'"><td colspan="'+colspan+'">'+esc(msg)+'</td></tr>');
   }
 
-  var paymentPage=1, paymentLimit=20, paymentLoading=false;
+  var paymentPage=Number(window.getAdminListState?.('payments').page||1), paymentLimit=20, paymentLoading=false;
   function productLabel(p){
     if(p.product_type==='banner')return '프리미엄배너';
     if(p.product_type==='recommended')return '추천광고';
@@ -2258,6 +2311,7 @@ document.addEventListener('DOMContentLoaded',function(){
     return pager;
   }
   async function loadPayments(page){
+    page=page||Number(window.getAdminListState?.('payments').page||1);
     if(paymentLoading)return;
     var panel=document.getElementById('revenue');
     if(!panel)return;
@@ -2265,6 +2319,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!table)return;
     var pager=ensurePaymentPager(table);
     paymentPage=Math.max(1,page||1);
+    window.setAdminListState?.('payments',{page:paymentPage});
     paymentLoading=true;
     showTableMessage(table,'결제내역을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-payment-info">결제내역을 불러오는 중입니다.</span>';
@@ -2272,6 +2327,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var res=await fetch('/admin/api/payments?page='+paymentPage+'&limit='+paymentLimit,{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
+      if(paymentPage>Math.max(1,Number(data.totalPages||1))){paymentLoading=false;window.normalizeAdminListPage?.('payments',data,loadPayments);return;}
       var header=table.querySelector('tr');
       table.innerHTML='';
       if(header)table.appendChild(header);
@@ -2286,7 +2342,8 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
 
-  var reportPage=1, reportLimit=20, reportLoading=false, reportSearchTimer=null;
+  window.loadAdminPayments=loadPayments;
+  var reportPage=Number(window.getAdminListState?.('reports').page||1), reportLimit=20, reportLoading=false, reportSearchTimer=null;
   function reportQuery(page){
     var params=new URLSearchParams();
     params.set('page',String(page));
@@ -2338,6 +2395,7 @@ document.addEventListener('DOMContentLoaded',function(){
     return pager;
   }
   async function loadReports(page){
+    page=page||Number(window.getAdminListState?.('reports').page||1);
     if(reportLoading){clearTimeout(reportSearchTimer);reportSearchTimer=setTimeout(function(){loadReports(page);},100);return;}
     var panel=document.getElementById('reports');
     if(!panel)return;
@@ -2345,6 +2403,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!table)return;
     var pager=ensureReportPager(table);
     reportPage=Math.max(1,page||1);
+    window.saveActiveAdminListState?.('reports',reportPage);
     reportLoading=true;
     showTableMessage(table,'신고목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-report-info">신고목록을 불러오는 중입니다.</span>';
@@ -2352,6 +2411,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var res=await fetch('/admin/api/reports?'+reportQuery(reportPage).toString(),{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
+      if(reportPage>Math.max(1,Number(data.totalPages||1))){reportLoading=false;window.normalizeAdminListPage?.('reports',data,loadReports);return;}
       var header=table.querySelector('tr');
       table.innerHTML='';
       if(header)table.appendChild(header);
@@ -2367,6 +2427,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
 
+  window.loadAdminReports=loadReports;
   function activePanelId(){
     var p=document.querySelector('.admin-panel.active');
     return p&&p.id;
@@ -3418,7 +3479,7 @@ document.addEventListener('DOMContentLoaded',function(){
 (function(){
   if(window.__adminDisplayListsApiV1)return;
   window.__adminDisplayListsApiV1=true;
-  var state={banners:1,notices:1,reviews:1,adminLogs:1};
+  var state={banners:Number(window.getAdminListState?.('banners').page||1),notices:Number(window.getAdminListState?.('notices').page||1),reviews:Number(window.getAdminListState?.('reviews').page||1),adminLogs:Number(window.getAdminListState?.('adminLogs').page||1)};
   var loading={};
   var timers={};
   var limit=20;
@@ -3459,11 +3520,11 @@ document.addEventListener('DOMContentLoaded',function(){
   function params(page,q){var p=new URLSearchParams();p.set('page',String(page));p.set('limit',String(limit));if(q)p.set('q',q);return p;}
   async function fetchRows(id,kind,page,url,query,row){
     if(loading[id]){clearTimeout(timers[id]);timers[id]=setTimeout(function(){fetchRows(id,kind,page,url,query,row);},100);return;}
-    var table=tableFor(id);if(!table)return;var pager=pagerFor(id,table,kind);state[id]=Math.max(1,page||1);loading[id]=true;
+    var table=tableFor(id);if(!table)return;page=page||Number(window.getAdminListState?.(id).page||1);var pager=pagerFor(id,table,kind);state[id]=Math.max(1,page||1);window.saveActiveAdminListState?.(id,state[id]);loading[id]=true;
     message(table,'목록을 불러오는 중입니다.');if(pager)pager.innerHTML='<span class="server-vendor-info">목록을 불러오는 중입니다.</span>';
     try{
       var response=await fetch(url+'?'+query(state[id]).toString(),{credentials:'same-origin',headers:{Accept:'application/json'}});
-      var data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'load_failed');
+      var data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'load_failed');if(state[id]>Math.max(1,Number(data.totalPages||1))){loading[id]=false;if(window.normalizeAdminListPage?.(id,data,function(next){fetchRows(id,kind,next,url,query,row);}))return;}
       var head=table.querySelector('tr');table.innerHTML='';if(head)table.appendChild(head);
       (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',row(x));});
       if(!(data.rows||[]).length)message(table,'조건에 맞는 항목이 없습니다.','empty-row');
@@ -3501,6 +3562,9 @@ document.addEventListener('DOMContentLoaded',function(){
   function logRow(l){return '<tr class="admin-log-row"><td>'+esc(l.id)+'</td><td>'+esc(l.admin_username||l.admin_nickname||'-')+'</td><td><b>'+esc(l.action||'-')+'</b></td><td>'+esc(l.target_type||'-')+' #'+esc(l.target_id||'-')+'</td><td class="memo">'+esc(l.memo||'-')+'</td><td>'+esc(dateText(l.created_at))+'</td></tr>';}
   function loadAdminLogs(page){return fetchRows('adminLogs','log',page,'/admin/api/logs',logQuery,logRow);}
 
+  window.loadAdminBanners=loadBanners;window.loadAdminNotices=loadNotices;window.loadAdminReviews=loadReviews;window.loadAdminLogs=loadAdminLogs;
+  ['banners','notices','reviews','adminLogs'].forEach(function(key){window.restoreAdminListControls?.(key);});
+
   function debounce(id,fn){clearTimeout(timers[id]);timers[id]=setTimeout(function(){fn(1);},300);}
   document.getElementById('bannerSearch')?.addEventListener('input',function(){debounce('banners',loadBanners);});bannerSource?.addEventListener('change',function(){loadBanners(1);});bannerStatus?.addEventListener('change',function(){loadBanners(1);});document.getElementById('bannerFilterReset')?.addEventListener('click',function(){if(bannerSource)bannerSource.value='all';setTimeout(function(){loadBanners(1);},0);});
   document.getElementById('noticeSearch')?.addEventListener('input',function(){debounce('notices',loadNotices);});document.getElementById('noticePinnedFilter')?.addEventListener('change',function(){loadNotices(1);});document.getElementById('noticeFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadNotices(1);},0);});
@@ -3515,7 +3579,7 @@ document.addEventListener('DOMContentLoaded',function(){
 (function(){
   if(window.__adminRequestListsApiV1)return;
   window.__adminRequestListsApiV1=true;
-  var pages={vendorRequests:1,adCenter:1},busy={},timers={},limit=20,adStatus='all';
+  var pages={vendorRequests:Number(window.getAdminListState?.('vendorRequests').page||1),adCenter:Number(window.getAdminListState?.('adCenter').page||1)},busy={},timers={},limit=20,adStatus='all';
   function dt(v){if(!v)return '-';var d=new Date(v);if(isNaN(d.getTime()))return '-';return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   function short(v){v=String(v||'-');return v.length>140?v.slice(0,140)+'...':v;}
   function table(id){return document.querySelector('#'+id+' table');}
@@ -3523,7 +3587,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function pager(id,t,cls){var panel=document.getElementById(id);if(!panel||!t)return null;panel.querySelectorAll('.admin-pager').forEach(function(x){x.remove();});panel.querySelectorAll('.'+cls).forEach(function(x,i){if(i)x.remove();});var p=panel.querySelector('.'+cls);if(!p){p=document.createElement('div');p.className=cls+' server-vendor-pager';t.insertAdjacentElement('afterend',p);}return p;}
   function btn(text,disabled,active,fn){var b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=!!disabled;if(active)b.classList.add('active');b.onclick=fn;return b;}
   function drawPager(p,data,loader){p.innerHTML='';var page=data.page||1,totalPages=data.totalPages||1,total=data.total||0;var from=total?((page-1)*data.limit+1):0,to=Math.min(page*data.limit,total);p.appendChild(btn('처음',page<=1,false,function(){loader(1);}));p.appendChild(btn('이전',page<=1,false,function(){loader(page-1);}));var start=Math.max(1,page-2),end=Math.min(totalPages,start+4);start=Math.max(1,end-4);for(var n=start;n<=end;n++){(function(x){p.appendChild(btn(String(x),false,x===page,function(){loader(x);}));})(n);}p.appendChild(btn('다음',page>=totalPages,false,function(){loader(page+1);}));p.appendChild(btn('마지막',page>=totalPages,false,function(){loader(totalPages);}));var info=document.createElement('span');info.className='server-vendor-info';info.textContent='총 '+total+'건 · 현재 '+from+'-'+to+'건 표시';p.appendChild(info);}
-  async function load(id,cls,page,url,query,row,loader){if(busy[id]){clearTimeout(timers[id]);timers[id]=setTimeout(function(){load(id,cls,page,url,query,row,loader);},100);return;}var t=table(id);if(!t)return;pages[id]=Math.max(1,page||1);var p=pager(id,t,cls);busy[id]=true;message(t,'목록을 불러오는 중입니다.');if(p)p.innerHTML='<span class="server-vendor-info">목록을 불러오는 중입니다.</span>';try{var res=await fetch(url+'?'+query(pages[id]).toString(),{credentials:'same-origin',headers:{Accept:'application/json'}});var data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');var h=t.querySelector('tr');t.innerHTML='';if(h)t.appendChild(h);(data.rows||[]).forEach(function(x){t.insertAdjacentHTML('beforeend',row(x));});if(!(data.rows||[]).length)message(t,'조건에 맞는 요청이 없습니다.');if(p)drawPager(p,data,loader);}catch(e){message(t,'목록을 불러오지 못했습니다.');if(p)p.innerHTML='<span class="server-vendor-info">서버 데이터를 불러오지 못했습니다.</span>';}finally{busy[id]=false;}}
+  async function load(id,cls,page,url,query,row,loader){if(busy[id]){clearTimeout(timers[id]);timers[id]=setTimeout(function(){load(id,cls,page,url,query,row,loader);},100);return;}var t=table(id);if(!t)return;page=page||Number(window.getAdminListState?.(id).page||1);pages[id]=Math.max(1,page||1);window.saveActiveAdminListState?.(id,pages[id]);var p=pager(id,t,cls);busy[id]=true;message(t,'목록을 불러오는 중입니다.');if(p)p.innerHTML='<span class="server-vendor-info">목록을 불러오는 중입니다.</span>';try{var res=await fetch(url+'?'+query(pages[id]).toString(),{credentials:'same-origin',headers:{Accept:'application/json'}});var data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(pages[id]>Math.max(1,Number(data.totalPages||1))){busy[id]=false;if(window.normalizeAdminListPage?.(id,data,loader))return;}var h=t.querySelector('tr');t.innerHTML='';if(h)t.appendChild(h);(data.rows||[]).forEach(function(x){t.insertAdjacentHTML('beforeend',row(x));});if(!(data.rows||[]).length)message(t,'조건에 맞는 요청이 없습니다.');if(p)drawPager(p,data,loader);}catch(e){message(t,'목록을 불러오지 못했습니다.');if(p)p.innerHTML='<span class="server-vendor-info">서버 데이터를 불러오지 못했습니다.</span>';}finally{busy[id]=false;}}
 
   var vendorPanel=document.getElementById('vendorRequests'),vendorSearch=document.getElementById('vendorRequestSearch'),vendorStatus=document.getElementById('vendorRequestStatus');
   if(vendorPanel&&!vendorSearch){var tools=document.createElement('div');tools.className='admin-searchbar';tools.innerHTML='<input id="vendorRequestSearch" placeholder="업체명 / 요청자 / 전화 / 내용 검색"><select id="vendorRequestStatus"><option value="all">전체 상태</option><option value="new">대기</option><option value="approved">승인</option><option value="rejected">반려</option><option value="cancelled">취소</option></select><button type="button" id="vendorRequestReset">초기화</button>';vendorPanel.querySelector('table')?.insertAdjacentElement('beforebegin',tools);vendorSearch=document.getElementById('vendorRequestSearch');vendorStatus=document.getElementById('vendorRequestStatus');}
@@ -3543,6 +3607,8 @@ document.addEventListener('DOMContentLoaded',function(){
   function adRow(x){var actual=paid(x),kind=x.source==='banner_request'?'프리미엄배너':'변경/연장';return '<tr class="ad-center-row" data-status="'+esc(x.status==='approved'?'approved':x.status==='rejected'?'rejected':x.status==='cancelled'?'cancelled':x.payment_status==='waiting'?'waiting':'unpaid')+'"><td>'+esc(x.id)+'</td><td><span class="ad-kind-badge '+(x.source==='banner_request'?'ad-kind-banner':'ad-kind-plan')+'">'+kind+'</span></td><td>'+esc(x.vendor_name||x.vendor_id||'-')+'<br><small>'+esc(x.username||'')+'</small></td><td><b>'+esc(x.product_name||'-')+'</b><br><small>'+(x.source==='banner_request'?(x.product_sub?'배너명: '+esc(x.product_sub):''):(x.period?esc(x.period)+'일':''))+'</small></td><td>'+Number(x.krw_price||0).toLocaleString()+'원<br>'+esc(x.usdt_amount||0)+' USDT<br><small>기한: '+esc(dt(x.payment_expires_at))+'</small><br><small>'+paymentLabel(x)+'</small>'+((x.status==='approved'||x.payment_status==='paid'||actual||x.payment_txid)?'<span class="payment-trace">실제입금: '+(actual?esc(actual)+' USDT':'미입력')+'<em>TXID: '+esc(x.payment_txid||'미입력')+'</em></span>':'')+'</td><td><span class="'+(x.status==='approved'?'done':(x.status==='rejected'||x.status==='cancelled')?'rejected':'pending')+'">'+statusLabel(x)+'</span><br><small>'+esc(cleanMemo(x)||'')+'</small></td><td>'+adActions(x)+'</td></tr>';}
   function loadAdCenter(page){return load('adCenter','server-ad-center-pager',page,'/admin/api/ad-center',adQuery,adRow,loadAdCenter);}
 
+  window.loadAdminVendorRequests=loadVendorUpdateRequests;window.loadAdminAdCenter=loadAdCenter;
+  window.restoreAdminListControls?.('vendorRequests');window.restoreAdminListControls?.('adCenter');adStatus=window.getAdminListState?.('adCenter').status||'all';
   function debounce(id,fn){clearTimeout(timers[id]);timers[id]=setTimeout(function(){fn(1);},300);}
   vendorSearch?.addEventListener('input',function(){debounce('vendorRequests',loadVendorUpdateRequests);});vendorStatus?.addEventListener('change',function(){loadVendorUpdateRequests(1);});document.getElementById('vendorRequestReset')?.addEventListener('click',function(){if(vendorSearch)vendorSearch.value='';if(vendorStatus)vendorStatus.value='all';loadVendorUpdateRequests(1);});
   adSearch?.addEventListener('input',function(){debounce('adCenter',loadAdCenter);});['adCenterSource','adCenterPayment','adCenterType'].forEach(function(id){document.getElementById(id)?.addEventListener('change',function(){loadAdCenter(1);});});document.getElementById('adCenterReset')?.addEventListener('click',function(){if(adSearch)adSearch.value='';['adCenterSource','adCenterPayment','adCenterType'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='all';});adStatus='all';document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',b.dataset.adCenterFilter==='all');});loadAdCenter(1);});
@@ -3563,6 +3629,7 @@ document.addEventListener('DOMContentLoaded',function(){
     option.textContent=item[1];
     statusFilter.appendChild(option);
   });
+  window.restoreAdminListControls?.('users');
 })();
 </script>
 
