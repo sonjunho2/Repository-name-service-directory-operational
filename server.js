@@ -862,6 +862,47 @@ app.get('/admin/api/logs',admin,async(req,res)=>{
   const fromSql=' FROM admin_logs l LEFT JOIN users u ON u.id=l.admin_id';
   return adminPagedJson(req,res,`SELECT l.id,l.admin_id,l.admin_username,l.action,l.target_type,l.target_id,l.memo,l.created_at,u.nickname admin_nickname${fromSql}${whereSql} ORDER BY l.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
+app.get('/admin/api/vendor-update-requests',admin,async(req,res)=>{
+  const params=[];const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const status=String(req.query.status||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(r.name ILIKE $${params.length} OR v.name ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length} OR r.phone ILIKE $${params.length} OR r.description ILIKE $${params.length} OR r.admin_memo ILIKE $${params.length} OR CAST(r.vendor_id AS text) ILIKE $${params.length})`);}
+  if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`r.status=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const fromSql=' FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id';
+  return adminPagedJson(req,res,`SELECT r.id,r.user_id,r.vendor_id,r.name,r.category,r.region,r.phone,r.kakao_url,r.business_hours,r.tags,r.description,r.status,r.admin_memo,r.created_at,r.processed_at,u.username,u.nickname,
+    CASE WHEN COALESCE(r.image_data,'')<>'' THEN true ELSE false END has_image_data,
+    v.name current_vendor_name,v.category current_category,v.region current_region,v.phone current_phone,v.kakao_url current_kakao_url,v.business_hours current_business_hours,v.tags current_tags,v.description current_description
+    ${fromSql}${whereSql} ORDER BY r.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+});
+app.get('/admin/api/ad-center',admin,async(req,res)=>{
+  const params=[];const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const status=String(req.query.status||'').trim();
+  const paymentStatus=String(req.query.payment_status||'').trim();
+  const requestType=String(req.query.type||req.query.request_type||'').trim().slice(0,100);
+  const source=String(req.query.source||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(x.vendor_name ILIKE $${params.length} OR x.username ILIKE $${params.length} OR x.nickname ILIKE $${params.length} OR x.product_name ILIKE $${params.length} OR x.request_type ILIKE $${params.length} OR x.admin_memo ILIKE $${params.length} OR x.payment_txid ILIKE $${params.length} OR x.vendor_phone ILIKE $${params.length})`);}
+  if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`x.status=$${params.length}`);}
+  if(['unpaid','waiting','paid','rejected','cancelled'].includes(paymentStatus)){params.push(paymentStatus);where.push(`COALESCE(x.payment_status,'unpaid')=$${params.length}`);}
+  if(requestType){params.push(requestType);where.push(`x.request_type=$${params.length}`);}
+  if(['ad_request','banner_request'].includes(source)){params.push(source);where.push(`x.source=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const baseSql=` FROM (
+    SELECT r.id,'ad_request'::text source,COALESCE(r.product_type,'recommended')::text request_type,r.user_id,r.vendor_id,
+      COALESCE(r.plan,r.product_type,'-')::text product_name,''::text product_sub,r.period::text period,r.content::text content,
+      r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
+      u.username,u.nickname,v.name vendor_name,v.phone vendor_phone,false has_image_data
+    FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id
+    UNION ALL
+    SELECT r.id,'banner_request'::text source,'banner'::text request_type,r.user_id,r.vendor_id,
+      '프리미엄배너 신청'::text product_name,COALESCE(r.title,'')::text product_sub,NULL::text period,NULL::text content,
+      r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
+      u.username,u.nickname,v.name vendor_name,v.phone vendor_phone,CASE WHEN COALESCE(r.image_data,'')<>'' THEN true ELSE false END has_image_data
+    FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id
+  ) x`;
+  return adminPagedJson(req,res,`SELECT x.*${baseSql}${whereSql} ORDER BY x.created_at DESC,x.id DESC`,`SELECT COUNT(*)${baseSql}${whereSql}`,params);
+});
 
 
 app.get('/admin/api/live-summary',admin,async(req,res)=>{
