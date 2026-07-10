@@ -1533,6 +1533,20 @@ document.addEventListener('DOMContentLoaded',function(){
   var vendorServerLimit=20;
   var vendorServerReady=false;
   var vendorLoading=false;
+  var vendorSearchTimer=null;
+
+  function vendorQuery(page){
+    var params=new URLSearchParams();
+    params.set('page',String(page));
+    params.set('limit',String(vendorServerLimit));
+    var search=(document.getElementById('vendorSearch')?.value||'').trim();
+    var adType=document.getElementById('vendorTypeFilter')?.value||'all';
+    var status=document.getElementById('vendorStatusFilter')?.value||'all';
+    if(search)params.set('q',search);
+    if(adType!=='all')params.set('ad_type',adType);
+    if(status!=='all')params.set('status',status);
+    return params;
+  }
 
   function fmtDate(v){
     if(!v)return '-';
@@ -1656,7 +1670,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   async function loadVendors(page){
-    if(vendorLoading)return;
+    if(vendorLoading){clearTimeout(vendorSearchTimer);vendorSearchTimer=setTimeout(function(){loadVendors(page);},100);return;}
     var panel=document.getElementById('vendors');
     if(!panel)return;
     var table=panel.querySelector('table');
@@ -1667,7 +1681,7 @@ document.addEventListener('DOMContentLoaded',function(){
     showTableMessage(table,'업체목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-vendor-info">업체목록을 불러오는 중입니다.</span>';
     try{
-      var res=await fetch('/admin/api/vendors?page='+vendorServerPage+'&limit='+vendorServerLimit,{headers:{'Accept':'application/json'}});
+      var res=await fetch('/admin/api/vendors?'+vendorQuery(vendorServerPage).toString(),{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
       var header=table.querySelector('tr');
@@ -1676,7 +1690,6 @@ document.addEventListener('DOMContentLoaded',function(){
       (data.rows||[]).forEach(function(v){
         table.insertAdjacentHTML('beforeend',rowHtml(v));
       });
-      if(typeof applyVendorFilter==='function')applyVendorFilter();
       if(typeof sortVendorRows==='function')sortVendorRows();
       if(pager){
         pager.innerHTML='';
@@ -1717,6 +1730,13 @@ document.addEventListener('DOMContentLoaded',function(){
       setTimeout(maybeLoad,250);
     }
   });
+  document.getElementById('vendorSearch')?.addEventListener('input',function(){
+    clearTimeout(vendorSearchTimer);
+    vendorSearchTimer=setTimeout(function(){loadVendors(1);},300);
+  });
+  document.getElementById('vendorTypeFilter')?.addEventListener('change',function(){loadVendors(1);});
+  document.getElementById('vendorStatusFilter')?.addEventListener('change',function(){loadVendors(1);});
+  document.getElementById('vendorFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadVendors(1);},0);});
   setTimeout(maybeLoad,0);
 })();
 </script><script>
@@ -1727,6 +1747,20 @@ document.addEventListener('DOMContentLoaded',function(){
   var userServerPage=1;
   var userServerLimit=20;
   var loading=false;
+  var userSearchTimer=null;
+
+  function userQuery(page){
+    var params=new URLSearchParams();
+    params.set('page',String(page));
+    params.set('limit',String(userServerLimit));
+    var search=(document.getElementById('userSearch')?.value||'').trim();
+    var role=document.getElementById('userRoleFilter')?.value||'all';
+    var status=document.getElementById('userStatusFilter')?.value||'all';
+    if(search)params.set('q',search);
+    if(role!=='all')params.set('role',role);
+    if(status!=='all')params.set('status',status);
+    return params;
+  }
 
   function roleText(u){
     if(u.role==='admin')return '관리자';
@@ -1845,7 +1879,7 @@ document.addEventListener('DOMContentLoaded',function(){
     ths.forEach(function(th,i){if(labels[i])th.textContent=labels[i];});
   }
   async function loadUsers(page){
-    if(loading)return;
+    if(loading){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(function(){loadUsers(page);},100);return;}
     var table=usersTable();
     if(!table)return;
     var pager=ensurePager(table);
@@ -1855,7 +1889,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var loadOk=false;
     if(pager)pager.innerHTML='<span class="server-user-info">회원목록을 불러오는 중입니다.</span>';
     try{
-      var res=await fetch('/admin/api/users?page='+userServerPage+'&limit='+userServerLimit,{credentials:'same-origin',headers:{'Accept':'application/json'}});
+      var res=await fetch('/admin/api/users?'+userQuery(userServerPage).toString(),{credentials:'same-origin',headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error(data.error||'회원목록 로드 실패');
       var header=table.querySelector('tr');
@@ -1941,6 +1975,13 @@ document.addEventListener('DOMContentLoaded',function(){
   },true);
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,250);});
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,250);});
+  document.getElementById('userSearch')?.addEventListener('input',function(){
+    clearTimeout(userSearchTimer);
+    userSearchTimer=setTimeout(function(){loadUsers(1);},300);
+  });
+  document.getElementById('userRoleFilter')?.addEventListener('change',function(){loadUsers(1);});
+  document.getElementById('userStatusFilter')?.addEventListener('change',function(){loadUsers(1);});
+  document.getElementById('userFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadUsers(1);},0);});
   setTimeout(maybeLoad,0);
 })();
 </script><script>
@@ -1948,6 +1989,18 @@ document.addEventListener('DOMContentLoaded',function(){
   var inquiryServerPage=1;
   var inquiryServerLimit=20;
   var inquiryLoading=false;
+  var inquirySearchTimer=null;
+
+  function inquiryQuery(page){
+    var params=new URLSearchParams();
+    params.set('page',String(page));
+    params.set('limit',String(inquiryServerLimit));
+    var search=(document.getElementById('inquirySearch')?.value||'').trim();
+    if(search)params.set('q',search);
+    if(currentInquiryFilter==='apply'||currentInquiryFilter==='ad')params.set('type',currentInquiryFilter);
+    else if(currentInquiryFilter!=='all')params.set('status',currentInquiryFilter);
+    return params;
+  }
 
   function typeLabel(x){
     return x.type==='apply'?'입점신청':'광고문의';
@@ -2048,7 +2101,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   async function loadInquiries(page){
-    if(inquiryLoading)return;
+    if(inquiryLoading){clearTimeout(inquirySearchTimer);inquirySearchTimer=setTimeout(function(){loadInquiries(page);},100);return;}
     var panel=document.getElementById('inquiries');
     if(!panel)return;
     var table=panel.querySelector('table');
@@ -2059,7 +2112,7 @@ document.addEventListener('DOMContentLoaded',function(){
     showTableMessage(table,'신청목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
     try{
-      var res=await fetch('/admin/api/inquiries?page='+inquiryServerPage+'&limit='+inquiryServerLimit,{headers:{'Accept':'application/json'}});
+      var res=await fetch('/admin/api/inquiries?'+inquiryQuery(inquiryServerPage).toString(),{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
       var header=table.querySelector('tr');
@@ -2067,7 +2120,7 @@ document.addEventListener('DOMContentLoaded',function(){
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',rowHtml(x));});
       inquiryLoading=false;
-      applyInquiryFilter(); sortInquiries();
+      sortInquiries();
       if(pager){
         pager.innerHTML='';
         var from=data.total?((data.page-1)*data.limit+1):0;
@@ -2100,10 +2153,19 @@ document.addEventListener('DOMContentLoaded',function(){
   document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,220);});
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,220);});
   document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest('.inquiry-filterbar button')){
+      setTimeout(function(){loadInquiries(1);},0);
+      return;
+    }
     if(e.target&&e.target.matches('[data-panel],.admin-sidebar a')){
       setTimeout(maybeLoad,260);
     }
   });
+  document.getElementById('inquirySearch')?.addEventListener('input',function(){
+    clearTimeout(inquirySearchTimer);
+    inquirySearchTimer=setTimeout(function(){loadInquiries(1);},300);
+  });
+  document.getElementById('inquirySearchReset')?.addEventListener('click',function(){setTimeout(function(){loadInquiries(1);},0);});
   setTimeout(maybeLoad,0);
 })();
 </script><script>
@@ -2233,7 +2295,17 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
 
-  var reportPage=1, reportLimit=20, reportLoading=false;
+  var reportPage=1, reportLimit=20, reportLoading=false, reportSearchTimer=null;
+  function reportQuery(page){
+    var params=new URLSearchParams();
+    params.set('page',String(page));
+    params.set('limit',String(reportLimit));
+    var search=(document.getElementById('reportSearch')?.value||'').trim();
+    if(search)params.set('q',search);
+    if(currentReportFilter==='vendor'||currentReportFilter==='review')params.set('type',currentReportFilter);
+    else if(currentReportFilter!=='all')params.set('status',currentReportFilter);
+    return params;
+  }
   function reportStatus(f){
     if(f.status==='done')return '<span class="status-on">처리완료</span>';
     if(f.status==='rejected')return '<span class="status-off">반려</span>';
@@ -2275,7 +2347,7 @@ document.addEventListener('DOMContentLoaded',function(){
     return pager;
   }
   async function loadReports(page){
-    if(reportLoading)return;
+    if(reportLoading){clearTimeout(reportSearchTimer);reportSearchTimer=setTimeout(function(){loadReports(page);},100);return;}
     var panel=document.getElementById('reports');
     if(!panel)return;
     var table=panel.querySelector('table');
@@ -2286,7 +2358,7 @@ document.addEventListener('DOMContentLoaded',function(){
     showTableMessage(table,'신고목록을 불러오는 중입니다.','loading-row');
     if(pager)pager.innerHTML='<span class="server-report-info">신고목록을 불러오는 중입니다.</span>';
     try{
-      var res=await fetch('/admin/api/reports?page='+reportPage+'&limit='+reportLimit,{headers:{'Accept':'application/json'}});
+      var res=await fetch('/admin/api/reports?'+reportQuery(reportPage).toString(),{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
       var header=table.querySelector('tr');
@@ -2294,7 +2366,7 @@ document.addEventListener('DOMContentLoaded',function(){
       if(header)table.appendChild(header);
       (data.rows||[]).forEach(function(f){table.insertAdjacentHTML('beforeend',reportRow(f));});
       reportLoading=false;
-      applyReportFilter(); sortReports();
+      sortReports();
       if(pager)renderPager(pager,data,'건','server-report-info',loadReports);
     }catch(e){
       showTableMessage(table,'신고목록을 불러오지 못했습니다.','loading-row');
@@ -2326,10 +2398,19 @@ document.addEventListener('DOMContentLoaded',function(){
   });
   window.addEventListener('hashchange',function(){setTimeout(maybeLoad,240);});
   document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest('.report-filterbar button')){
+      setTimeout(function(){loadReports(1);},0);
+      return;
+    }
     if(e.target&&e.target.matches('[data-panel],.admin-sidebar a')){
       setTimeout(maybeLoad,280);
     }
   });
+  document.getElementById('reportSearch')?.addEventListener('input',function(){
+    clearTimeout(reportSearchTimer);
+    reportSearchTimer=setTimeout(function(){loadReports(1);},300);
+  });
+  document.getElementById('reportSearchReset')?.addEventListener('click',function(){setTimeout(function(){loadReports(1);},0);});
   setTimeout(maybeLoad,0);
 })();
 </script><script>

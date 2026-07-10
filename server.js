@@ -681,7 +681,7 @@ app.get('/admin/login',(req,res)=>res.render('admin-login',{error:null})); app.p
 
 function adminPageParams(req){
   const page=Math.max(1,parseInt(req.query.page||'1',10)||1);
-  const limit=Math.min(100,Math.max(10,parseInt(req.query.limit||'20',10)||20));
+  const limit=Math.min(100,Math.max(1,parseInt(req.query.limit||'20',10)||20));
   const offset=(page-1)*limit;
   return {page,limit,offset};
 }
@@ -721,13 +721,25 @@ async function runAdminAction(req,res,redirectTo,fn){
 }
 app.get('/admin/api/vendors',admin,async(req,res)=>{
   await expireAds();
+  const where=[];
+  const params=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const status=String(req.query.status||'').trim();
+  const adType=String(req.query.ad_type||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(v.name ILIKE $${params.length} OR v.category ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.phone ILIKE $${params.length} OR v.tags ILIKE $${params.length} OR v.description ILIKE $${params.length} OR v.business_hours ILIKE $${params.length})`);}
+  if(['pending','active','hidden','expired','inactive'].includes(status)){params.push(status);where.push(`v.status=$${params.length}`);}
+  if(adType==='noad'||adType==='none')where.push("COALESCE(v.ad_type,'none')='none'");
+  else if(adType==='banner')where.push('COALESCE(v.banner_active,false)=true');
+  else if(adType==='expiring')where.push("v.expire_at>=CURRENT_DATE AND v.expire_at<=CURRENT_DATE+INTERVAL '7 days'");
+  else if(['general','recommended'].includes(adType)){params.push(adType);where.push(`v.ad_type=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
   return adminPagedJson(req,res,`SELECT v.*,
     (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
     (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
     (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
     (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
     (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count
-    FROM vendors v ORDER BY v.id DESC`,'SELECT COUNT(*) FROM vendors');
+    FROM vendors v${whereSql} ORDER BY v.id DESC`,`SELECT COUNT(*) FROM vendors v${whereSql}`,params);
 });
 app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
   try{
@@ -741,18 +753,52 @@ app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
     res.status(500).json({ok:false,error:e.message||'vendor_detail_failed'});
   }
 });
-app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT u.id,u.username,u.nickname,u.role,u.status,COALESCE(u.is_vendor,false) is_vendor,u.vendor_id,u.created_at FROM users u ORDER BY u.id DESC','SELECT COUNT(*) FROM users u'));
-app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.id,i.type,i.company_name,i.name,i.phone,i.kakao,i.email,i.category,i.region,i.content,i.status,i.banner_status,i.user_id,i.vendor_id,i.created_at,
+app.get('/admin/api/users',admin,async(req,res)=>{
+  const where=[];
+  const params=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const role=String(req.query.role||'').trim();
+  const status=String(req.query.status||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
+  if(['active','blocked','suspended','inactive'].includes(status)){params.push(status);where.push(`u.status=$${params.length}`);}
+  if(role==='admin')where.push("u.role='admin'");
+  else if(role==='vendor')where.push('(COALESCE(u.is_vendor,false)=true OR u.vendor_id IS NOT NULL)');
+  else if(role==='user')where.push("u.role<>'admin' AND COALESCE(u.is_vendor,false)=false AND u.vendor_id IS NULL");
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  return adminPagedJson(req,res,`SELECT u.id,u.username,u.nickname,u.role,u.status,COALESCE(u.is_vendor,false) is_vendor,u.vendor_id,u.created_at FROM users u${whereSql} ORDER BY u.id DESC`,`SELECT COUNT(*) FROM users u${whereSql}`,params);
+});
+app.get('/admin/api/inquiries',admin,async(req,res)=>{
+  const where=[];
+  const params=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const type=String(req.query.type||'').trim();
+  const status=String(req.query.status||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(i.company_name ILIKE $${params.length} OR i.name ILIKE $${params.length} OR i.phone ILIKE $${params.length} OR i.content ILIKE $${params.length} OR i.kakao ILIKE $${params.length} OR i.email ILIKE $${params.length} OR i.category ILIKE $${params.length} OR i.region ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
+  if(['apply','ad'].includes(type)){params.push(type);where.push(`i.type=$${params.length}`);}
+  if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`i.status=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const fromSql=` FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true`;
+  return adminPagedJson(req,res,`SELECT i.id,i.type,i.company_name,i.name,i.phone,i.kakao,i.email,i.category,i.region,i.content,i.status,i.banner_status,i.user_id,i.vendor_id,i.created_at,
   u.username applicant_username,u.nickname applicant_nickname,
   CASE WHEN COALESCE(i.main_image_data,iv.image_data,i.banner_image_data,'')<>'' THEN true ELSE false END has_main_image_data,
   CASE WHEN COALESCE(i.banner_image_data,'')<>'' THEN true ELSE false END has_banner_image_data,
   CASE WHEN COALESCE(i.main_image_data,iv.image_data,i.banner_image_data,'')<>'' THEN true ELSE false END has_image_data
-  FROM inquiries i
-  LEFT JOIN users u ON u.id=i.user_id
-  LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true
-  ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
+  ${fromSql}${whereSql} ORDER BY i.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+});
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
-app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`,'SELECT COUNT(*) FROM flags'));
+app.get('/admin/api/reports',admin,async(req,res)=>{
+  const where=[];
+  const params=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
+  const type=String(req.query.type||'').trim();
+  const status=String(req.query.status||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(f.reason ILIKE $${params.length} OR f.content ILIKE $${params.length} OR f.admin_memo ILIKE $${params.length} OR f.type ILIKE $${params.length} OR v.name ILIKE $${params.length} OR rv.title ILIKE $${params.length})`);}
+  if(['vendor','review'].includes(type)){params.push(type);where.push(`f.type=$${params.length}`);}
+  if(['new','done','rejected','cancelled'].includes(status)){params.push(status);where.push(`f.status=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const fromSql=" FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id";
+  return adminPagedJson(req,res,`SELECT f.*,v.name vendor_name,rv.title review_title${fromSql}${whereSql} ORDER BY f.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+});
 
 
 app.get('/admin/api/live-summary',admin,async(req,res)=>{
