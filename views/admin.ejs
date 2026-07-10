@@ -907,19 +907,7 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
 
   <div id="settings-basic" class="settings-panel active">
     <form method="post" action="/admin/settings/options" enctype="multipart/form-data" class="settings-form">
-      <input type="hidden" name="usdt_address" value="<%=(settings?.raw?.usdt_address)||''%>">
-      <input type="hidden" name="usdt_network" value="<%=(settings?.raw?.usdt_network)||'TRC20'%>">
-      <input type="hidden" name="usdt_krw_rate" value="<%=(settings?.raw?.usdt_krw_rate)||1400%>">
-      <input type="hidden" name="banner_price_krw" value="<%=(settings?.raw?.banner_price_krw)||100000%>">
-      <input type="hidden" name="ad_price_krw_30" value="<%=(settings?.raw?.ad_price_krw_30)||100000%>">
-      <input type="hidden" name="ad_price_krw_60" value="<%=(settings?.raw?.ad_price_krw_60)||180000%>">
-      <input type="hidden" name="ad_price_krw_90" value="<%=(settings?.raw?.ad_price_krw_90)||250000%>">
-      <input type="hidden" name="default_register_days" value="<%=(settings?.raw?.default_register_days)||30%>">
-      <input type="hidden" name="general_register_price_krw" value="<%=(settings?.raw?.general_register_price_krw)||30000%>">
-      <input type="hidden" name="recommended_register_price_krw" value="<%=(settings?.raw?.recommended_register_price_krw)||70000%>">
-      <input type="hidden" name="general_to_recommended_price_krw" value="<%=(settings?.raw?.general_to_recommended_price_krw)||40000%>">
-      <input type="hidden" name="general_to_banner_price_krw" value="<%=(settings?.raw?.general_to_banner_price_krw)||100000%>">
-      <input type="hidden" name="recommended_to_banner_price_krw" value="<%=(settings?.raw?.recommended_to_banner_price_krw)||70000%>">
+      <input type="hidden" name="settings_section" value="basic">
 
       <div class="settings-box brand-settings-box" style="margin-bottom:18px">
         <h3 class="settings-section-title">사이트 브랜딩</h3>
@@ -995,12 +983,7 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
 
   <div id="settings-payment" class="settings-panel">
     <form method="post" action="/admin/settings/options" class="settings-form">
-      <input type="hidden" name="categories" value="<%=(settings?.raw?.categories)||''%>">
-      <input type="hidden" name="regions" value="<%=(settings?.raw?.regions)||''%>">
-      <input type="hidden" name="site_name" value="<%=(settings?.raw?.site_name)||'서비스 디렉터리'%>">
-      <input type="hidden" name="site_link_url" value="<%=(settings?.raw?.site_link_url)||'/'%>">
-      <% if(settings?.raw?.brand_show_logo==='on'){%><input type="hidden" name="brand_show_logo" value="on"><%}%>
-      <% if(settings?.raw?.brand_show_name!=='off'){%><input type="hidden" name="brand_show_name" value="on"><%}%>
+      <input type="hidden" name="settings_section" value="payment">
 
       <div class="settings-box">
         <h3 class="settings-section-title">USDT 결제 설정</h3>
@@ -1975,16 +1958,34 @@ document.addEventListener('DOMContentLoaded',function(){
     return '대기';
   }
   function imageButtons(x){
-    var has=x.has_image_data||x.has_main_image_data||x.has_banner_image_data;
-    if(!has)return '<span class="image-none">-</span>';
-    return '<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiry-image/'+esc(x.id)+'/main" data-title="'+esc(x.company_name||'대표 이미지')+'">대표보기</button>';
+    var html='';
+    if(x.has_main_image_data){
+      html+='<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiry-image/'+esc(x.id)+'/main" data-title="'+esc(x.company_name||'대표 이미지')+'">대표보기</button>';
+    }
+    if(x.type==='apply'&&x.has_banner_image_data){
+      html+='<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiry-image/'+esc(x.id)+'/banner" data-title="'+esc((x.company_name||'입점신청')+' 배너 이미지')+'">배너보기</button>';
+    }
+    return html||'<span class="image-none">-</span>';
   }
   function actions(x){
-    if(x.status==='approved')return '<span class="done">업체 등록완료</span>';
+    if(x.status==='approved'){
+      var approved='<span class="done">업체 등록완료</span>';
+      if(x.type==='apply'&&x.has_banner_image_data&&x.banner_status!=='approved'){
+        approved+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button class="banner-btn">배너등록</button></form>';
+      }else if(x.type==='apply'&&x.banner_status==='approved'){
+        approved+='<span class="banner-status">배너등록완료</span>';
+      }
+      return approved;
+    }
     if(x.status==='rejected')return '<span class="rejected">반려</span>';
     var html='';
     if(x.type==='apply'){
       html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn">업체등록</button></form>';
+      if(x.has_banner_image_data&&x.banner_status!=='approved'){
+        html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button class="banner-btn">배너등록</button></form>';
+      }else if(x.banner_status==='approved'){
+        html+='<span class="banner-status">배너등록완료</span>';
+      }
     }
     html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn">반려</button></form>';
     return html;
@@ -3338,6 +3339,20 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',renderReviewAdminRows);
   else renderReviewAdminRows();
+})();
+</script>
+
+<script>
+(function(){
+  var statusFilter=document.getElementById('userStatusFilter');
+  if(!statusFilter)return;
+  [['suspended','일시정지'],['inactive','휴면']].forEach(function(item){
+    if(statusFilter.querySelector('option[value="'+item[0]+'"]'))return;
+    var option=document.createElement('option');
+    option.value=item[0];
+    option.textContent=item[1];
+    statusFilter.appendChild(option);
+  });
 })();
 </script>
 

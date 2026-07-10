@@ -742,7 +742,15 @@ app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
   }
 });
 app.get('/admin/api/users',admin,async(req,res)=>adminPagedJson(req,res,'SELECT u.id,u.username,u.nickname,u.role,u.status,COALESCE(u.is_vendor,false) is_vendor,u.vendor_id,u.created_at FROM users u ORDER BY u.id DESC','SELECT COUNT(*) FROM users u'));
-app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.*,u.username applicant_username,u.nickname applicant_nickname,COALESCE(i.main_image_data,iv.image_data,i.banner_image_data) display_main_image_data FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
+app.get('/admin/api/inquiries',admin,async(req,res)=>adminPagedJson(req,res,`SELECT i.id,i.type,i.company_name,i.name,i.phone,i.kakao,i.email,i.category,i.region,i.content,i.status,i.banner_status,i.user_id,i.vendor_id,i.created_at,
+  u.username applicant_username,u.nickname applicant_nickname,
+  CASE WHEN COALESCE(i.main_image_data,iv.image_data,i.banner_image_data,'')<>'' THEN true ELSE false END has_main_image_data,
+  CASE WHEN COALESCE(i.banner_image_data,'')<>'' THEN true ELSE false END has_banner_image_data,
+  CASE WHEN COALESCE(i.main_image_data,iv.image_data,i.banner_image_data,'')<>'' THEN true ELSE false END has_image_data
+  FROM inquiries i
+  LEFT JOIN users u ON u.id=i.user_id
+  LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true
+  ORDER BY i.id DESC`,'SELECT COUNT(*) FROM inquiries'));
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
 app.get('/admin/api/reports',admin,async(req,res)=>adminPagedJson(req,res,`SELECT f.*, v.name vendor_name, rv.title review_title FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id ORDER BY f.id DESC`,'SELECT COUNT(*) FROM flags'));
 
@@ -1472,13 +1480,15 @@ app.post('/admin/link-user-vendor',admin,async(req,res)=>{
 
 
 app.post('/admin/banner-requests/:id/cancel',admin,async(req,res)=>{
-  await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  const cancelled=await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new' RETURNING id",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  if(!cancelled.rows[0])return sendFail(req,res,409,'already_processed','/admin#bannerRequests');
   await logAdmin(req,'배너신청 취소','banner_request',req.params.id,req.body.admin_memo||'관리자 취소');
   return sendOk(req,res,'/admin#bannerRequests');
 });
 
 app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
-  await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new'",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  const cancelled=await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new' RETURNING id",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
+  if(!cancelled.rows[0])return sendFail(req,res,409,'already_processed','/admin#adRequests');
   await logAdmin(req,'상품/광고신청 취소','ad_request',req.params.id,req.body.admin_memo||'관리자 취소');
   return sendOk(req,res,'/admin#adRequests');
 });
@@ -1547,33 +1557,52 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   res.redirect('/admin#settings');
 });
 
-app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCount:1},{name:'site_favicon',maxCount:1}]),async(req,res)=>{const categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n'); const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)}; const size=(v,d,min,max)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=min&&n<=max?String(n):String(d)}; const decimal=(v,d,min,max)=>{const n=parseFloat(v);return Number.isFinite(n)?String(Math.max(min,Math.min(max,n))):String(d)};
+app.post('/admin/settings/options',admin,upload.fields([{name:'site_logo',maxCount:1},{name:'site_favicon',maxCount:1}]),async(req,res)=>{const money=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=0&&n<=100000000?String(n):String(d)}; const days=(v,d)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=1&&n<=3650?String(n):String(d)}; const size=(v,d,min,max)=>{const n=parseInt(v,10);return Number.isFinite(n)&&n>=min&&n<=max?String(n):String(d)}; const decimal=(v,d,min,max)=>{const n=parseFloat(v);return Number.isFinite(n)?String(Math.max(min,Math.min(max,n))):String(d)};
   const current=await getSettings();
-  const hasRateFields=Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_source')||Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_margin_percent')||Object.prototype.hasOwnProperty.call(req.body,'usdt_rate_auto');
-  const rateSource=['auto','upbit','bithumb'].includes(req.body.usdt_rate_source)?req.body.usdt_rate_source:(current.raw.usdt_rate_source||'auto');
-  const fields={categories,regions,usdt_address:(req.body.usdt_address||'').trim().slice(0,200),usdt_network:(req.body.usdt_network||'TRC20').trim().slice(0,30),usdt_krw_rate:money(req.body.usdt_krw_rate,current.raw.usdt_krw_rate||1400),usdt_rate_auto:hasRateFields?(req.body.usdt_rate_auto?'on':'off'):(current.raw.usdt_rate_auto||'on'),usdt_rate_source:rateSource,usdt_rate_margin_percent:hasRateFields?decimal(req.body.usdt_rate_margin_percent,current.raw.usdt_rate_margin_percent||0,-10,10):(current.raw.usdt_rate_margin_percent||'0'),banner_price_krw:money(req.body.banner_price_krw,100000),ad_price_krw_30:money(req.body.ad_price_krw_30,100000),ad_price_krw_60:money(req.body.ad_price_krw_60,180000),ad_price_krw_90:money(req.body.ad_price_krw_90,250000),general_register_price_krw:money(req.body.general_register_price_krw,30000),recommended_register_price_krw:money(req.body.recommended_register_price_krw,70000),general_to_recommended_price_krw:money(req.body.general_to_recommended_price_krw,40000),general_to_banner_price_krw:money(req.body.general_to_banner_price_krw,100000),recommended_to_banner_price_krw:money(req.body.recommended_to_banner_price_krw,70000),default_register_days:days(req.body.default_register_days,30),payment_expire_hours:days(req.body.payment_expire_hours,current.raw.payment_expire_hours||24),site_name:(req.body.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리',brand_show_logo:req.body.brand_show_logo?'on':'off',brand_show_name:req.body.brand_show_name?'on':'off',site_link_url:(req.body.site_link_url||'/').trim().slice(0,200)||'/',brand_logo_height:size(req.body.brand_logo_height,current.raw.brand_logo_height||56,24,120),brand_name_size:size(req.body.brand_name_size,current.raw.brand_name_size||32,14,72)};
-  const logoFile=req.files?.site_logo?.[0];
-  const faviconFile=req.files?.site_favicon?.[0];
-  if(req.body.remove_site_logo){
-    fields.site_logo_data='';
-  }else if(logoFile){
-    const logo=img(logoFile);
-    if(logo)fields.site_logo_data=logo;
-  }else{
+  const section=String(req.body.settings_section||'').trim();
+  const fields={};
+  if(section==='basic'){
+    fields.categories=(req.body.categories||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n');
+    fields.regions=(req.body.regions||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,50).join('\n');
+    fields.site_name=(req.body.site_name||current.raw.site_name||'서비스 디렉터리').trim().slice(0,80)||'서비스 디렉터리';
+    fields.site_link_url=(req.body.site_link_url||current.raw.site_link_url||'/').trim().slice(0,200)||'/';
+    fields.brand_show_logo=req.body.brand_show_logo?'on':'off';
+    fields.brand_show_name=req.body.brand_show_name?'on':'off';
+    fields.brand_logo_height=size(req.body.brand_logo_height,current.raw.brand_logo_height||56,24,120);
+    fields.brand_name_size=size(req.body.brand_name_size,current.raw.brand_name_size||32,14,72);
+    const logoFile=req.files?.site_logo?.[0];
+    const faviconFile=req.files?.site_favicon?.[0];
     fields.site_logo_data=current.raw.site_logo_data||'';
-  }
-  if(req.body.remove_site_favicon){
-    fields.site_favicon_data='';
-  }else if(faviconFile){
-    const favicon=img(faviconFile);
-    if(favicon)fields.site_favicon_data=favicon;
-  }else{
     fields.site_favicon_data=current.raw.site_favicon_data||'';
+    if(req.body.remove_site_logo)fields.site_logo_data='';
+    else if(logoFile){const logo=img(logoFile);if(logo)fields.site_logo_data=logo;}
+    if(req.body.remove_site_favicon)fields.site_favicon_data='';
+    else if(faviconFile){const favicon=img(faviconFile);if(favicon)fields.site_favicon_data=favicon;}
+  }else if(section==='payment'){
+    fields.usdt_address=(req.body.usdt_address||'').trim().slice(0,200);
+    fields.usdt_network=(req.body.usdt_network||current.raw.usdt_network||'TRC20').trim().slice(0,30);
+    fields.usdt_krw_rate=money(req.body.usdt_krw_rate,current.raw.usdt_krw_rate||1400);
+    fields.usdt_rate_auto=req.body.usdt_rate_auto?'on':'off';
+    fields.usdt_rate_source=['auto','upbit','bithumb'].includes(req.body.usdt_rate_source)?req.body.usdt_rate_source:(current.raw.usdt_rate_source||'auto');
+    fields.usdt_rate_margin_percent=decimal(req.body.usdt_rate_margin_percent,current.raw.usdt_rate_margin_percent||0,-10,10);
+    fields.banner_price_krw=money(req.body.banner_price_krw,current.raw.banner_price_krw||100000);
+    fields.ad_price_krw_30=money(req.body.ad_price_krw_30,current.raw.ad_price_krw_30||100000);
+    fields.ad_price_krw_60=money(req.body.ad_price_krw_60,current.raw.ad_price_krw_60||180000);
+    fields.ad_price_krw_90=money(req.body.ad_price_krw_90,current.raw.ad_price_krw_90||250000);
+    fields.general_register_price_krw=money(req.body.general_register_price_krw,current.raw.general_register_price_krw||30000);
+    fields.recommended_register_price_krw=money(req.body.recommended_register_price_krw,current.raw.recommended_register_price_krw||70000);
+    fields.general_to_recommended_price_krw=money(req.body.general_to_recommended_price_krw,current.raw.general_to_recommended_price_krw||40000);
+    fields.general_to_banner_price_krw=money(req.body.general_to_banner_price_krw,current.raw.general_to_banner_price_krw||100000);
+    fields.recommended_to_banner_price_krw=money(req.body.recommended_to_banner_price_krw,current.raw.recommended_to_banner_price_krw||70000);
+    fields.default_register_days=days(req.body.default_register_days,current.raw.default_register_days||30);
+    fields.payment_expire_hours=days(req.body.payment_expire_hours,current.raw.payment_expire_hours||24);
+  }else{
+    return sendFail(req,res,400,'invalid_settings_section','/admin#settings');
   }
   for(const [key,value] of Object.entries(fields)){
     await q("INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",[key,String(value)]);
   }
-  await logAdmin(req,'환경설정 저장','settings','options','업종/지역/결제/브랜딩 설정 수정');
+  await logAdmin(req,'환경설정 저장','settings',section,section==='basic'?'업종/지역/브랜딩 설정 수정':'결제/가격 설정 수정');
   return sendOk(req,res,'/admin#settings');
 });
 app.post('/admin/settings/admin-account',admin,upload.none(),async(req,res)=>{
