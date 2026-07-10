@@ -1531,26 +1531,26 @@ document.addEventListener('DOMContentLoaded',function(){
   window.getPanelKeyFromActivePanel=function(){var id=document.querySelector('.admin-panel.active')?.id||String(location.hash||'').replace('#','')||'dashboard';return id==='revenue'?'payments':id;};
   function value(id,fallback){var el=document.getElementById(id);return el?el.value:(fallback||'');}
   window.saveActiveAdminListState=function(key,page){key=key||window.getPanelKeyFromActivePanel();var patch={page:Math.max(1,Number(page||window.getAdminListState(key).page||1))};
-    if(key==='vendors')Object.assign(patch,{q:value('vendorSearch'),status:value('vendorStatusFilter','all'),ad_type:value('vendorTypeFilter','all')});
-    else if(key==='users')Object.assign(patch,{q:value('userSearch'),role:value('userRoleFilter','all'),status:value('userStatusFilter','all')});
-    else if(key==='inquiries'){var inquiryFilter=typeof currentInquiryFilter!=='undefined'?currentInquiryFilter:'all';Object.assign(patch,{q:value('inquirySearch'),filter:inquiryFilter,type:(inquiryFilter==='apply'||inquiryFilter==='ad')?inquiryFilter:'all',status:(inquiryFilter!=='all'&&inquiryFilter!=='apply'&&inquiryFilter!=='ad')?inquiryFilter:'all'});}
-    else if(key==='reports'){var reportFilter=typeof currentReportFilter!=='undefined'?currentReportFilter:'all';Object.assign(patch,{q:value('reportSearch'),filter:reportFilter,type:(reportFilter==='vendor'||reportFilter==='review')?reportFilter:'all',status:(reportFilter!=='all'&&reportFilter!=='vendor'&&reportFilter!=='review')?reportFilter:'all'});}
-    else if(key==='banners')Object.assign(patch,{q:value('bannerSearch'),source:value('bannerSourceFilter','all'),status:value('bannerStatusFilter','all')});
-    else if(key==='notices')Object.assign(patch,{q:value('noticeSearch'),pinned:value('noticePinnedFilter','all')});
-    else if(key==='reviews')Object.assign(patch,{q:value('reviewSearch'),status:value('reviewRatingFilter','all')});
+    if(key==='vendors')Object.assign(patch,{q:value('vendorSearch'),status:value('vendorStatusFilter','all'),ad_type:value('vendorTypeFilter','all'),sort:value('vendorSortFilter','default')});
+    else if(key==='users')Object.assign(patch,{q:value('userSearch'),role:value('userRoleFilter','all'),status:value('userStatusFilter','all'),sort:value('userSortFilter','default')});
+    else if(key==='inquiries'){var inquiryFilter=typeof currentInquiryFilter!=='undefined'?currentInquiryFilter:'all';Object.assign(patch,{q:value('inquirySearch'),filter:inquiryFilter,type:(inquiryFilter==='apply'||inquiryFilter==='ad')?inquiryFilter:'all',status:(inquiryFilter!=='all'&&inquiryFilter!=='apply'&&inquiryFilter!=='ad')?inquiryFilter:'all',sort:value('inquirySort','latest')});}
+    else if(key==='reports'){var reportFilter=typeof currentReportFilter!=='undefined'?currentReportFilter:'all';Object.assign(patch,{q:value('reportSearch'),filter:reportFilter,type:(reportFilter==='vendor'||reportFilter==='review')?reportFilter:'all',status:(reportFilter!=='all'&&reportFilter!=='vendor'&&reportFilter!=='review')?reportFilter:'all',sort:value('reportSort','latest')});}
+    else if(key==='banners')Object.assign(patch,{q:value('bannerSearch'),source:value('bannerSourceFilter','all'),status:value('bannerStatusFilter','all'),sort:value('bannerSortFilter','default')});
+    else if(key==='notices')Object.assign(patch,{q:value('noticeSearch'),pinned:value('noticePinnedFilter','all'),sort:value('noticeSortFilter','default')});
+    else if(key==='reviews')Object.assign(patch,{q:value('reviewSearch'),status:value('reviewRatingFilter','all'),sort:value('reviewSortFilter','default')});
     else if(key==='adminLogs')Object.assign(patch,{q:value('adminLogSearch'),action:value('adminLogActionFilter','all'),target_type:value('adminLogTargetFilter','all')});
     else if(key==='vendorRequests')Object.assign(patch,{q:value('vendorRequestSearch'),status:value('vendorRequestStatus','all')});
     else if(key==='adCenter')Object.assign(patch,{q:value('adCenterSearch'),status:document.querySelector('[data-ad-center-filter].on')?.dataset.adCenterFilter||'all',payment_status:value('adCenterPayment','all'),request_type:value('adCenterType','all'),source:value('adCenterSource','all')});
     return window.setAdminListState(key,patch);
   };
   window.restoreAdminListControls=function(key){var s=window.getAdminListState(key);var set=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null)el.value=v;};
-    if(key==='vendors'){set('vendorSearch',s.q);set('vendorStatusFilter',s.status);set('vendorTypeFilter',s.ad_type);}
-    else if(key==='users'){set('userSearch',s.q);set('userRoleFilter',s.role);set('userStatusFilter',s.status);}
-    else if(key==='inquiries'){set('inquirySearch',s.q);var inquiryRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentInquiryFilter!=='undefined'){currentInquiryFilter=inquiryRestore;document.querySelectorAll('.inquiry-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===inquiryRestore);});}}
-    else if(key==='reports'){set('reportSearch',s.q);var reportRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentReportFilter!=='undefined'){currentReportFilter=reportRestore;document.querySelectorAll('.report-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===reportRestore);});}}
-    else if(key==='banners'){set('bannerSearch',s.q);set('bannerSourceFilter',s.source);set('bannerStatusFilter',s.status);}
-    else if(key==='notices'){set('noticeSearch',s.q);set('noticePinnedFilter',s.pinned);}
-    else if(key==='reviews'){set('reviewSearch',s.q);set('reviewRatingFilter',s.status);}
+    if(key==='vendors'){set('vendorSearch',s.q);set('vendorStatusFilter',s.status);set('vendorTypeFilter',s.ad_type);set('vendorSortFilter',s.sort);}
+    else if(key==='users'){set('userSearch',s.q);set('userRoleFilter',s.role);set('userStatusFilter',s.status);set('userSortFilter',s.sort);}
+    else if(key==='inquiries'){set('inquirySearch',s.q);set('inquirySort',s.sort);var inquiryRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentInquiryFilter!=='undefined'){currentInquiryFilter=inquiryRestore;document.querySelectorAll('.inquiry-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===inquiryRestore);});}}
+    else if(key==='reports'){set('reportSearch',s.q);set('reportSort',s.sort);var reportRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentReportFilter!=='undefined'){currentReportFilter=reportRestore;document.querySelectorAll('.report-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===reportRestore);});}}
+    else if(key==='banners'){set('bannerSearch',s.q);set('bannerSourceFilter',s.source);set('bannerStatusFilter',s.status);set('bannerSortFilter',s.sort);}
+    else if(key==='notices'){set('noticeSearch',s.q);set('noticePinnedFilter',s.pinned);set('noticeSortFilter',s.sort);}
+    else if(key==='reviews'){set('reviewSearch',s.q);set('reviewRatingFilter',s.status);set('reviewSortFilter',s.sort);}
     else if(key==='adminLogs'){set('adminLogSearch',s.q);set('adminLogTargetFilter',s.target_type);}
     else if(key==='vendorRequests'){set('vendorRequestSearch',s.q);set('vendorRequestStatus',s.status);}
     else if(key==='adCenter'){set('adCenterSearch',s.q);set('adCenterPayment',s.payment_status);set('adCenterType',s.request_type);set('adCenterSource',s.source);document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',(s.status||'all')===b.dataset.adCenterFilter);});}
@@ -1576,9 +1576,11 @@ document.addEventListener('DOMContentLoaded',function(){
     var search=(document.getElementById('vendorSearch')?.value||'').trim();
     var adType=document.getElementById('vendorTypeFilter')?.value||'all';
     var status=document.getElementById('vendorStatusFilter')?.value||'all';
+    var sort=document.getElementById('vendorSortFilter')?.value||'default';
     if(search)params.set('q',search);
     if(adType!=='all')params.set('ad_type',adType);
     if(status!=='all')params.set('status',status);
+    params.set('sort',sort);
     return params;
   }
 
@@ -1779,9 +1781,11 @@ document.addEventListener('DOMContentLoaded',function(){
     var search=(document.getElementById('userSearch')?.value||'').trim();
     var role=document.getElementById('userRoleFilter')?.value||'all';
     var status=document.getElementById('userStatusFilter')?.value||'all';
+    var sort=document.getElementById('userSortFilter')?.value||'default';
     if(search)params.set('q',search);
     if(role!=='all')params.set('role',role);
     if(status!=='all')params.set('status',status);
+    params.set('sort',sort);
     return params;
   }
 
@@ -2013,9 +2017,11 @@ document.addEventListener('DOMContentLoaded',function(){
     params.set('page',String(page));
     params.set('limit',String(inquiryServerLimit));
     var search=(document.getElementById('inquirySearch')?.value||'').trim();
+    var sort=document.getElementById('inquirySort')?.value||'latest';
     if(search)params.set('q',search);
     if(currentInquiryFilter==='apply'||currentInquiryFilter==='ad')params.set('type',currentInquiryFilter);
     else if(currentInquiryFilter!=='all')params.set('status',currentInquiryFilter);
+    params.set('sort',sort);
     return params;
   }
 
@@ -2312,9 +2318,11 @@ document.addEventListener('DOMContentLoaded',function(){
     params.set('page',String(page));
     params.set('limit',String(reportLimit));
     var search=(document.getElementById('reportSearch')?.value||'').trim();
+    var sort=document.getElementById('reportSort')?.value||'latest';
     if(search)params.set('q',search);
     if(currentReportFilter==='vendor'||currentReportFilter==='review')params.set('type',currentReportFilter);
     else if(currentReportFilter!=='all')params.set('status',currentReportFilter);
+    params.set('sort',sort);
     return params;
   }
   function reportStatus(f){
@@ -3481,7 +3489,7 @@ document.addEventListener('DOMContentLoaded',function(){
   if(!bannerSource){bannerSource=document.createElement('select');bannerSource.id='bannerSourceFilter';bannerSource.innerHTML='<option value="all">전체 구분</option><option value="direct">관리자직접</option><option value="vendor">업체연동</option>';document.getElementById('bannerStatusFilter')?.insertAdjacentElement('beforebegin',bannerSource);}
   var bannerStatus=document.getElementById('bannerStatusFilter');
   if(bannerStatus&&!bannerStatus.querySelector('option[value="expired"]')){bannerStatus.querySelector('option[value="hidden"]')?.setAttribute('value','inactive');var expired=document.createElement('option');expired.value='expired';expired.textContent='만료';bannerStatus.appendChild(expired);}
-  function bannerQuery(page){var p=params(page,(document.getElementById('bannerSearch')?.value||'').trim());var source=bannerSource?.value||'all',status=bannerStatus?.value||'all';if(source!=='all')p.set('source',source);if(status!=='all')p.set('status',status);return p;}
+  function bannerQuery(page){var p=params(page,(document.getElementById('bannerSearch')?.value||'').trim());var source=bannerSource?.value||'all',status=bannerStatus?.value||'all',sort=document.getElementById('bannerSortFilter')?.value||'default';if(source!=='all')p.set('source',source);if(status!=='all')p.set('status',status);p.set('sort',sort);return p;}
   function bannerRow(b){
     var direct=b.source==='direct',active=b.display_status==='active';
     if(direct&&window.ADMIN_BANNERS){var old=window.ADMIN_BANNERS.findIndex(function(x){return String(x.id)===String(b.banner_id);});var item={...b,id:b.banner_id};if(old>=0)window.ADMIN_BANNERS[old]=item;else window.ADMIN_BANNERS.push(item);}
@@ -3489,14 +3497,14 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function loadBanners(page){return fetchRows('banners','banner',page,'/admin/api/banners',bannerQuery,bannerRow);}
 
-  function noticeQuery(page){var p=params(page,(document.getElementById('noticeSearch')?.value||'').trim());var pinned=document.getElementById('noticePinnedFilter')?.value||'all';if(pinned!=='all')p.set('pinned',pinned);return p;}
+  function noticeQuery(page){var p=params(page,(document.getElementById('noticeSearch')?.value||'').trim());var pinned=document.getElementById('noticePinnedFilter')?.value||'all',sort=document.getElementById('noticeSortFilter')?.value||'default';if(pinned!=='all')p.set('pinned',pinned);p.set('sort',sort);return p;}
   function noticeRow(n){return '<tr class="notice-row" data-id="'+esc(n.id)+'" data-title="'+esc(String(n.title||'').toLowerCase())+'" data-pinned="'+(n.is_pinned?'pinned':'normal')+'"><td>'+esc(n.id)+'</td><td>'+esc(n.title||'-')+'</td><td><span class="'+(n.is_pinned?'status-pin':'status-off')+'">'+(n.is_pinned?'● 상단고정':'● 일반공지')+'</span></td><td><form method="post" action="/admin/delete/notices/'+esc(n.id)+'"><button onclick="return confirm(&quot;삭제할까요?&quot;)">삭제</button></form></td></tr>';}
   function loadNotices(page){return fetchRows('notices','notice',page,'/admin/api/notices',noticeQuery,noticeRow);}
 
   var reviewStatus=document.getElementById('reviewRatingFilter');
   if(reviewStatus){reviewStatus.innerHTML='<option value="all">전체 상태</option><option value="visible">공개</option><option value="hidden">숨김</option><option value="deleted">삭제됨</option>';}
   var reviewTable=tableFor('reviews');if(reviewTable){var reviewHeads=reviewTable.querySelectorAll('th');if(reviewHeads.length===5){reviewHeads[4].textContent='상태';var actionHead=document.createElement('th');actionHead.textContent='관리';reviewTable.querySelector('tr')?.appendChild(actionHead);}}
-  function reviewQuery(page){var p=params(page,(document.getElementById('reviewSearch')?.value||'').trim());var status=reviewStatus?.value||'all';if(status!=='all')p.set('status',status);return p;}
+  function reviewQuery(page){var p=params(page,(document.getElementById('reviewSearch')?.value||'').trim());var status=reviewStatus?.value||'all',sort=document.getElementById('reviewSortFilter')?.value||'default';if(status!=='all')p.set('status',status);p.set('sort',sort);return p;}
   function reviewRow(r){var deleted=r.status==='deleted';return '<tr class="review-row" data-id="'+esc(r.id)+'" data-text="'+esc(String((r.vendor_name||'')+' '+(r.title||'')+' '+(r.username||'')+' '+(r.nickname||'')).toLowerCase())+'" data-rating="'+esc(r.rating||0)+'"><td>'+esc(r.id)+'</td><td>'+esc(r.vendor_name||'-')+'</td><td>'+esc(r.title||'-')+'</td><td>★ '+esc(r.rating||0)+'</td><td>'+esc(r.status||'visible')+'</td><td>'+(deleted?'<span class="rejected">삭제됨</span>':'<form method="post" action="/admin/delete/reviews/'+esc(r.id)+'"><button onclick="return confirm(&quot;삭제할까요?&quot;)">삭제</button></form>')+'</td></tr>';}
   function loadReviews(page){return fetchRows('reviews','review',page,'/admin/api/reviews',reviewQuery,reviewRow);}
 
@@ -3586,10 +3594,12 @@ document.addEventListener('DOMContentLoaded',function(){
   window.scheduleAdminPanelLoad=function(){clearTimeout(panelTimer);panelTimer=setTimeout(window.loadActiveAdminPanelOnce,20);};
 
   var controlMap={
-    vendorSearch:'vendors',vendorTypeFilter:'vendors',vendorStatusFilter:'vendors',
-    userSearch:'users',userRoleFilter:'users',userStatusFilter:'users',
-    bannerSearch:'banners',bannerSourceFilter:'banners',bannerStatusFilter:'banners',
-    noticeSearch:'notices',noticePinnedFilter:'notices',reviewSearch:'reviews',reviewRatingFilter:'reviews'
+    vendorSearch:'vendors',vendorTypeFilter:'vendors',vendorStatusFilter:'vendors',vendorSortFilter:'vendors',
+    userSearch:'users',userRoleFilter:'users',userStatusFilter:'users',userSortFilter:'users',
+    inquirySort:'inquiries',reportSort:'reports',
+    bannerSearch:'banners',bannerSourceFilter:'banners',bannerStatusFilter:'banners',bannerSortFilter:'banners',
+    noticeSearch:'notices',noticePinnedFilter:'notices',noticeSortFilter:'notices',
+    reviewSearch:'reviews',reviewRatingFilter:'reviews',reviewSortFilter:'reviews'
   };
   var searchIds=new Set(['vendorSearch','userSearch','bannerSearch','noticeSearch','reviewSearch']);
   function loadFiltered(key,delay){window.setAdminListState?.(key,{page:1});clearTimeout(searchTimers[key]);searchTimers[key]=setTimeout(function(){var fn=window[loadMap[key]];if(typeof fn==='function')fn(1);},delay);}
