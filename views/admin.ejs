@@ -1144,6 +1144,7 @@ document.addEventListener('click',function(e){const btn=e.target.closest('.edit-
 window.ADMIN_VENDORS=ADMIN_VENDORS;window.ADMIN_BANNERS=ADMIN_BANNERS;
 let currentInquiryFilter='all';
 function applyInquiryFilter(){
+  if(window.isAdminApiPanel?.('inquiries'))return;
   const q=(document.getElementById('inquirySearch')?.value||'').trim().toLowerCase();
   document.querySelectorAll('.inquiry-row').forEach(row=>{
     const status=row.dataset.status||'';
@@ -1181,6 +1182,7 @@ document.getElementById('inquirySearchReset')?.addEventListener('click',()=>{
 });
 let currentReportFilter='all';
 function applyReportFilter(){
+  if(window.isAdminApiPanel?.('reports'))return;
   const q=(document.getElementById('reportSearch')?.value||'').trim().toLowerCase();
   document.querySelectorAll('.report-row').forEach(row=>{
     const status=row.dataset.status||'';
@@ -1390,6 +1392,7 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
     document.querySelectorAll('[data-ad-center-filter]').forEach(x=>x.classList.remove('on'));
     btn.classList.add('on');
     const f=btn.dataset.adCenterFilter;
+    if(window.isAdminApiPanel?.('adCenter'))return;
     document.querySelectorAll('.ad-center-row').forEach(row=>{
       row.classList.toggle('hide', f!=='all' && row.dataset.status!==f);
     });
@@ -1404,6 +1407,7 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
   if(!typeSel||!rows.length)return;
   const oldOnChange=typeSel.onchange;
   function applyVendorAdFilter(){
+    if(window.isAdminApiPanel?.('vendors'))return;
     const f=typeSel.value;
     rows.forEach(row=>{
       if(f==='expiring'){
@@ -1750,20 +1754,6 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   window.loadAdminVendors=loadVendors;
-  function activePanelId(){
-    var p=document.querySelector('.admin-panel.active');
-    return p&&p.id;
-  }
-  function maybeLoad(){
-    if(activePanelId()==='vendors')loadVendors(vendorServerPage||1);
-  }
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,200);});
-  window.addEventListener('hashchange',function(){setTimeout(maybeLoad,200);});
-  document.addEventListener('click',function(e){
-    if(e.target&&e.target.matches('[data-panel],.admin-sidebar a')){
-      setTimeout(maybeLoad,250);
-    }
-  });
   document.getElementById('vendorSearch')?.addEventListener('input',function(){
     clearTimeout(vendorSearchTimer);
     vendorSearchTimer=setTimeout(function(){loadVendors(1);},300);
@@ -1771,7 +1761,6 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('vendorTypeFilter')?.addEventListener('change',function(){loadVendors(1);});
   document.getElementById('vendorStatusFilter')?.addEventListener('change',function(){loadVendors(1);});
   document.getElementById('vendorFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadVendors(1);},0);});
-  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
@@ -1998,23 +1987,12 @@ document.addEventListener('DOMContentLoaded',function(){
       btn.textContent=old;
     }
   }
-  function activePanelId(){
-    var p=document.querySelector('.admin-panel.active');
-    return p&&p.id;
-  }
-  function maybeLoad(){
-    if(activePanelId()!=='users')return;
-    loadUsers(userServerPage||1);
-  }
   document.addEventListener('click',function(e){
     var save=e.target.closest('.user-save-btn');
     if(save){e.preventDefault();e.stopPropagation();saveUser(save);return;}
     var del=e.target.closest('.user-delete-btn');
     if(del){e.preventDefault();e.stopPropagation();deleteUser(del);return;}
-    if(e.target&&e.target.matches('[data-panel],.admin-sidebar a'))setTimeout(maybeLoad,250);
   },true);
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,250);});
-  window.addEventListener('hashchange',function(){setTimeout(maybeLoad,250);});
   document.getElementById('userSearch')?.addEventListener('input',function(){
     clearTimeout(userSearchTimer);
     userSearchTimer=setTimeout(function(){loadUsers(1);},300);
@@ -2022,7 +2000,6 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('userRoleFilter')?.addEventListener('change',function(){loadUsers(1);});
   document.getElementById('userStatusFilter')?.addEventListener('change',function(){loadUsers(1);});
   document.getElementById('userFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadUsers(1);},0);});
-  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
@@ -2186,23 +2163,10 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   window.loadAdminInquiries=loadInquiries;
-  function activePanelId(){
-    var p=document.querySelector('.admin-panel.active');
-    return p&&p.id;
-  }
-  function maybeLoad(){
-    if(activePanelId()!=='inquiries')return;
-    loadInquiries(inquiryServerPage||1);
-  }
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,220);});
-  window.addEventListener('hashchange',function(){setTimeout(maybeLoad,220);});
   document.addEventListener('click',function(e){
     if(e.target&&e.target.closest('.inquiry-filterbar button')){
       setTimeout(function(){loadInquiries(1);},0);
       return;
-    }
-    if(e.target&&e.target.matches('[data-panel],.admin-sidebar a')){
-      setTimeout(maybeLoad,260);
     }
   });
   document.getElementById('inquirySearch')?.addEventListener('input',function(){
@@ -2210,7 +2174,6 @@ document.addEventListener('DOMContentLoaded',function(){
     inquirySearchTimer=setTimeout(function(){loadInquiries(1);},300);
   });
   document.getElementById('inquirySearchReset')?.addEventListener('click',function(){setTimeout(function(){loadInquiries(1);},0);});
-  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
@@ -2428,34 +2391,16 @@ document.addEventListener('DOMContentLoaded',function(){
   }
 
   window.loadAdminReports=loadReports;
-  function activePanelId(){
-    var p=document.querySelector('.admin-panel.active');
-    return p&&p.id;
-  }
-  function maybeLoad(){
-    var id=activePanelId();
-    if(id==='revenue'){
-      loadPayments(paymentPage||1);
-    }
-    if(id==='reports'){
-      loadReports(reportPage||1);
-    }
-  }
   document.addEventListener('DOMContentLoaded',function(){
     try{
       var saved=sessionStorage.getItem('adminReturnPanel');
       if(saved){sessionStorage.removeItem('adminReturnPanel'); showAdminPanel(saved); history.replaceState(null,'','#'+saved);}
     }catch(e){}
-    setTimeout(maybeLoad,240);
   });
-  window.addEventListener('hashchange',function(){setTimeout(maybeLoad,240);});
   document.addEventListener('click',function(e){
     if(e.target&&e.target.closest('.report-filterbar button')){
       setTimeout(function(){loadReports(1);},0);
       return;
-    }
-    if(e.target&&e.target.matches('[data-panel],.admin-sidebar a')){
-      setTimeout(maybeLoad,280);
     }
   });
   document.getElementById('reportSearch')?.addEventListener('input',function(){
@@ -2463,7 +2408,6 @@ document.addEventListener('DOMContentLoaded',function(){
     reportSearchTimer=setTimeout(function(){loadReports(1);},300);
   });
   document.getElementById('reportSearchReset')?.addEventListener('click',function(){setTimeout(function(){loadReports(1);},0);});
-  setTimeout(maybeLoad,0);
 })();
 </script><script>
 (function(){
@@ -3570,8 +3514,6 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('noticeSearch')?.addEventListener('input',function(){debounce('notices',loadNotices);});document.getElementById('noticePinnedFilter')?.addEventListener('change',function(){loadNotices(1);});document.getElementById('noticeFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadNotices(1);},0);});
   document.getElementById('reviewSearch')?.addEventListener('input',function(){debounce('reviews',loadReviews);});reviewStatus?.addEventListener('change',function(){loadReviews(1);});document.getElementById('reviewFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadReviews(1);},0);});
   logSearch?.addEventListener('input',function(){debounce('adminLogs',loadAdminLogs);});document.getElementById('adminLogReset')?.addEventListener('click',function(){if(logSearch)logSearch.value='';loadAdminLogs(1);});
-  function maybeLoad(){var active=document.querySelector('.admin-panel.active')?.id;if(active==='banners')loadBanners(state.banners);else if(active==='notices')loadNotices(state.notices);else if(active==='reviews')loadReviews(state.reviews);else if(active==='adminLogs')loadAdminLogs(state.adminLogs);}
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,250);});window.addEventListener('hashchange',function(){setTimeout(maybeLoad,220);});document.addEventListener('click',function(e){if(e.target&&e.target.matches('[data-panel],.admin-sidebar a'))setTimeout(maybeLoad,260);});setTimeout(maybeLoad,0);
 })();
 </script>
 
@@ -3612,9 +3554,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function debounce(id,fn){clearTimeout(timers[id]);timers[id]=setTimeout(function(){fn(1);},300);}
   vendorSearch?.addEventListener('input',function(){debounce('vendorRequests',loadVendorUpdateRequests);});vendorStatus?.addEventListener('change',function(){loadVendorUpdateRequests(1);});document.getElementById('vendorRequestReset')?.addEventListener('click',function(){if(vendorSearch)vendorSearch.value='';if(vendorStatus)vendorStatus.value='all';loadVendorUpdateRequests(1);});
   adSearch?.addEventListener('input',function(){debounce('adCenter',loadAdCenter);});['adCenterSource','adCenterPayment','adCenterType'].forEach(function(id){document.getElementById(id)?.addEventListener('change',function(){loadAdCenter(1);});});document.getElementById('adCenterReset')?.addEventListener('click',function(){if(adSearch)adSearch.value='';['adCenterSource','adCenterPayment','adCenterType'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='all';});adStatus='all';document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',b.dataset.adCenterFilter==='all');});loadAdCenter(1);});
-  document.addEventListener('click',function(e){var f=e.target&&e.target.closest&&e.target.closest('[data-ad-center-filter]');if(f){adStatus=f.dataset.adCenterFilter||'all';setTimeout(function(){loadAdCenter(1);},0);return;}if(e.target&&e.target.matches('[data-panel],.admin-sidebar a'))setTimeout(maybeLoad,260);});
-  function maybeLoad(){var id=document.querySelector('.admin-panel.active')?.id;if(id==='vendorRequests')loadVendorUpdateRequests(pages.vendorRequests);else if(id==='adCenter')loadAdCenter(pages.adCenter);}
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(maybeLoad,240);});window.addEventListener('hashchange',function(){setTimeout(maybeLoad,220);});setTimeout(maybeLoad,0);
+  document.addEventListener('click',function(e){var f=e.target&&e.target.closest&&e.target.closest('[data-ad-center-filter]');if(f){adStatus=f.dataset.adCenterFilter||'all';setTimeout(function(){loadAdCenter(1);},0);}});
 })();
 </script>
 
@@ -3630,6 +3570,36 @@ document.addEventListener('DOMContentLoaded',function(){
     statusFilter.appendChild(option);
   });
   window.restoreAdminListControls?.('users');
+})();
+</script>
+
+<script>
+(function(){
+  if(window.__adminPanelDispatcherV1)return;
+  window.__adminPanelDispatcherV1=true;
+  var apiPanels=new Set(['vendors','users','inquiries','reports','payments','banners','notices','reviews','adminLogs','vendorRequests','adCenter']);
+  var loadMap={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',payments:'loadAdminPayments',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter'};
+  var panelTimer=null,searchTimers={};
+  window.isAdminApiPanel=function(key){return apiPanels.has(key);};
+  window.getActiveAdminPanelKey=function(){var id=document.querySelector('.admin-panel.active')?.id||String(location.hash||'').replace('#','');return id==='revenue'?'payments':id;};
+  window.loadActiveAdminPanelOnce=function(){var key=window.getActiveAdminPanelKey();if(!apiPanels.has(key))return;var fn=window[loadMap[key]];if(typeof fn!=='function')return;var page=Number(window.getAdminListState?.(key).page||1);fn(page);};
+  window.scheduleAdminPanelLoad=function(){clearTimeout(panelTimer);panelTimer=setTimeout(window.loadActiveAdminPanelOnce,20);};
+
+  var controlMap={
+    vendorSearch:'vendors',vendorTypeFilter:'vendors',vendorStatusFilter:'vendors',
+    userSearch:'users',userRoleFilter:'users',userStatusFilter:'users',
+    bannerSearch:'banners',bannerSourceFilter:'banners',bannerStatusFilter:'banners',
+    noticeSearch:'notices',noticePinnedFilter:'notices',reviewSearch:'reviews',reviewRatingFilter:'reviews'
+  };
+  var searchIds=new Set(['vendorSearch','userSearch','bannerSearch','noticeSearch','reviewSearch']);
+  function loadFiltered(key,delay){window.setAdminListState?.(key,{page:1});clearTimeout(searchTimers[key]);searchTimers[key]=setTimeout(function(){var fn=window[loadMap[key]];if(typeof fn==='function')fn(1);},delay);}
+  document.addEventListener('input',function(e){var key=controlMap[e.target?.id];if(!key||!searchIds.has(e.target.id))return;e.stopImmediatePropagation();loadFiltered(key,300);},true);
+  document.addEventListener('change',function(e){var key=controlMap[e.target?.id];if(!key||searchIds.has(e.target.id))return;e.stopImmediatePropagation();loadFiltered(key,0);},true);
+  var resetMap={vendorFilterReset:{key:'vendors',values:{vendorSearch:'',vendorTypeFilter:'all',vendorStatusFilter:'all',vendorSortFilter:'default'}},userFilterReset:{key:'users',values:{userSearch:'',userRoleFilter:'all',userStatusFilter:'all',userSortFilter:'default'}},bannerFilterReset:{key:'banners',values:{bannerSearch:'',bannerSourceFilter:'all',bannerStatusFilter:'all',bannerSortFilter:'default'}},noticeFilterReset:{key:'notices',values:{noticeSearch:'',noticePinnedFilter:'all',noticeSortFilter:'default'}},reviewFilterReset:{key:'reviews',values:{reviewSearch:'',reviewRatingFilter:'all',reviewSortFilter:'default'}}};
+  document.addEventListener('click',function(e){var cfg=resetMap[e.target?.id];if(!cfg)return;e.preventDefault();e.stopImmediatePropagation();Object.entries(cfg.values).forEach(function(entry){var el=document.getElementById(entry[0]);if(el)el.value=entry[1];});loadFiltered(cfg.key,0);},true);
+  document.addEventListener('DOMContentLoaded',window.scheduleAdminPanelLoad);
+  window.addEventListener('hashchange',window.scheduleAdminPanelLoad);
+  document.addEventListener('click',function(e){if(e.target&&e.target.closest('[data-panel],.admin-sidebar a'))window.scheduleAdminPanelLoad();});
 })();
 </script>
 
