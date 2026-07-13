@@ -284,6 +284,8 @@ document.body.appendChild(reviewPopupScript);
   if(window.__boardUiV1)return;
   window.__boardUiV1=true;
   document.addEventListener('click',function(e){
+    var faq=e.target&&e.target.closest&&e.target.closest('.faq-question');
+    if(faq){e.preventDefault();var item=faq.closest('.faq-item'),answer=item&&item.querySelector('.faq-answer'),open=!!item&&!item.classList.contains('open');if(item)item.classList.toggle('open',open);faq.setAttribute('aria-expanded',open?'true':'false');if(answer)answer.hidden=!open;return;}
     var toggle=e.target&&e.target.closest&&e.target.closest('[data-board-menu-toggle]');
     if(toggle){e.preventDefault();toggle.closest('.board-ui-group')?.classList.toggle('open');return;}
     var row=e.target&&e.target.closest&&e.target.closest('tr[data-board-href]');

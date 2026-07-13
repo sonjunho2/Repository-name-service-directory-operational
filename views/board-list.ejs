@@ -1,7 +1,53 @@
-<!doctype html><html lang="ko"><head><% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><%=mode==='posts'?board.title:'커뮤니티 게시판'%> - <%=brand.name%></title><link rel="stylesheet" href="/public/css/style.css"></head><body>
+<!doctype html>
+<html lang="ko">
+<head>
+  <% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; const layout=board?.layout_type||'list'; %>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%=mode==='posts'?board.title:'커뮤니티 게시판'%> - <%=brand.name%></title>
+  <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
 <%- include('partials/public-mobile-menu') %>
-<header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=brand.link||'/'%>"><% if(brand.showLogo&&brand.logo){%><img src="<%=brand.logo%>" alt=""><%}%><% if(brand.showName){%><span><%=brand.name%></span><%}%></a><nav><a href="/boards">게시판</a><% if(me){%><a href="<%=me.role==='admin'?'/admin':me.is_vendor?'/vendor-dashboard':'/mypage'%>">내 메뉴</a><a href="/logout">로그아웃</a><%}else{%><a href="/login">로그인</a><%}%></nav></header>
-<main class="board-wrap"><%- include('partials/board-top-banner') %>
-<% if(mode==='categories'){%><div class="board-head"><div><h1>게시판</h1><p>관심 있는 게시판을 선택해 주세요.</p></div></div><div class="board-category-grid"><% boards.forEach(b=>{%><article class="board-category-card"><a href="/boards/<%=b.slug%>"><h2><%=b.title%></h2><p><%=b.description||'게시판에 참여해 보세요.'%></p><strong>게시글 <%=b.post_count||0%>개</strong></a><ul><% (recentByBoard[b.id]||[]).forEach(p=>{%><li><a href="/boards/<%=b.slug%>/<%=p.id%>"><%=p.title%></a></li><%})%></ul></article><%})%></div>
-<%}else{%><div class="board-head"><div><h1><%=board.title%></h1><p><%=board.description||''%></p></div><form method="get" action="/boards/<%=board.slug%>" class="board-search"><input name="q" value="<%=qText%>" placeholder="제목/내용 검색"><button>검색</button></form></div><div class="board-table-wrap"><table class="board-table"><thead><tr><th>번호</th><th>제목</th><th>작성자</th><th>작성일</th><th>조회수</th></tr></thead><tbody><% posts.forEach(p=>{%><tr data-board-href="/boards/<%=board.slug%>/<%=p.id%>"><td><%=p.is_pinned?'공지':p.id%></td><td><a href="/boards/<%=board.slug%>/<%=p.id%>"><%=p.title%> <% if(p.comment_count){%><small>[<%=p.comment_count%>]</small><%}%></a></td><td><%=p.nickname||p.username||'탈퇴회원'%></td><td><%=fmtDate(p.created_at)%></td><td><%=p.views||0%></td></tr><%})%><% if(!posts.length){%><tr><td colspan="5" class="board-empty">등록된 게시글이 없습니다.</td></tr><%}%></tbody></table></div>
-<div class="board-pagination"><a href="?page=1&q=<%=encodeURIComponent(qText)%>">처음</a><a href="?page=<%=Math.max(1,page-1)%>&q=<%=encodeURIComponent(qText)%>">이전</a><% for(let n=Math.max(1,page-2);n<=Math.min(totalPages,page+2);n++){%><a class="<%=n===page?'active':''%>" href="?page=<%=n%>&q=<%=encodeURIComponent(qText)%>"><%=n%></a><%}%><a href="?page=<%=Math.min(totalPages,page+1)%>&q=<%=encodeURIComponent(qText)%>">다음</a><a href="?page=<%=totalPages%>&q=<%=encodeURIComponent(qText)%>">마지막</a></div><div class="board-actions"><a href="/boards">게시판 목록</a><% if(canWrite){%><a class="board-write-btn" href="/boards/<%=board.slug%>/write">새 글 작성</a><%}%></div><%}%></main><script src="/public/js/app.js"></script></body></html>
+<header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=brand.link||'/'%>"><% if(brand.showLogo&&brand.logo){%><img src="<%=brand.logo%>" alt=""><%}%><% if(brand.showName){%><span><%=brand.name%></span><%}%></a><nav><a href="/boards">게시판</a><% if(me){%><a href="<%=me.role==='admin'?'/admin':me.is_vendor?'/vendor-dashboard':'/mypage'%>">내메뉴</a><a href="/logout">로그아웃</a><%}else{%><a href="/login">로그인</a><%}%></nav></header>
+<main class="board-wrap">
+  <%- include('partials/board-top-banner') %>
+  <% if(mode==='categories'){ %>
+    <div class="board-head"><div><h1>게시판</h1><p>관심 있는 게시판을 선택해 주세요.</p></div></div>
+    <div class="board-category-grid">
+      <% boards.forEach(b=>{ %><article class="board-category-card"><a href="/boards/<%=b.slug%>"><h2><%=b.title%></h2><p><%=b.description||'게시판에 참여해 보세요.'%></p><strong>게시글 <%=b.post_count||0%>개</strong></a><ul><% (recentByBoard[b.id]||[]).forEach(p=>{ %><li><a href="/boards/<%=b.slug%>/<%=p.id%>"><%=p.title%></a></li><% }) %></ul></article><% }) %>
+    </div>
+  <% } else { %>
+    <div class="board-head"><div><h1><%=board.title%></h1><p><%=board.description||''%></p></div><form method="get" action="/boards/<%=board.slug%>" class="board-search"><input name="q" value="<%=qText%>" placeholder="제목/내용 검색"><button>검색</button></form></div>
+
+    <% if(layout==='private'){ %><div class="private-board-note"><b>1:1 문의 게시판</b><span><%=me?.role==='admin'?'관리자는 모든 문의를 확인할 수 있습니다.':me?'본인이 작성한 문의만 표시됩니다.':'로그인하면 본인의 문의를 확인하고 작성할 수 있습니다.'%></span></div><% } %>
+
+    <% if(layout==='gallery'){ %>
+      <div class="board-gallery-grid">
+        <% posts.forEach(p=>{ %><article class="board-gallery-card"><a href="/boards/<%=board.slug%>/<%=p.id%>"><% if(p.image_data){ %><img src="<%=p.image_data%>" alt=""><% }else{ %><span class="board-image-placeholder">이미지 없음</span><% } %><div><h2><%=p.title%></h2><p><%=p.nickname||p.username||'탈퇴회원'%> · <%=fmtDate(p.created_at)%></p></div></a></article><% }) %>
+        <% if(!posts.length){ %><p class="board-empty board-layout-empty">등록된 게시글이 없습니다.</p><% } %>
+      </div>
+    <% } else if(layout==='webzine'){ %>
+      <div class="board-webzine-list">
+        <% posts.forEach(p=>{ %><article class="board-webzine-item"><a href="/boards/<%=board.slug%>/<%=p.id%>"><% if(p.image_data){ %><img src="<%=p.image_data%>" alt=""><% }else{ %><span class="board-image-placeholder">이미지 없음</span><% } %><div><h2><%=p.title%></h2><p class="board-webzine-summary"><%=String(p.content||'').slice(0,180)%><%=String(p.content||'').length>180?'…':''%></p><small><%=p.nickname||p.username||'탈퇴회원'%> · <%=fmtDate(p.created_at)%></small></div></a></article><% }) %>
+        <% if(!posts.length){ %><p class="board-empty board-layout-empty">등록된 게시글이 없습니다.</p><% } %>
+      </div>
+    <% } else if(layout==='faq'){ %>
+      <div class="faq-list">
+        <% posts.forEach(p=>{ %><article class="faq-item"><button type="button" class="faq-question" aria-expanded="false"><span>Q. <%=p.title%></span><em>+</em></button><div class="faq-answer" hidden><%=p.content%></div></article><% }) %>
+        <% if(!posts.length){ %><p class="board-empty">등록된 FAQ가 없습니다.</p><% } %>
+      </div>
+    <% } else { %>
+      <div class="board-table-wrap"><table class="board-table"><thead><tr><th>번호</th><th>제목</th><% if(layout==='qna'){ %><th>답변상태</th><% } %><th>작성자</th><th>작성일</th><th>조회수</th></tr></thead><tbody>
+        <% posts.forEach(p=>{ %><tr data-board-href="/boards/<%=board.slug%>/<%=p.id%>"><td><%=p.is_pinned?'공지':p.id%></td><td><a href="/boards/<%=board.slug%>/<%=p.id%>"><%=p.title%> <% if(p.comment_count){ %><small>[<%=p.comment_count%>]</small><% } %></a></td><% if(layout==='qna'){ %><td><span class="qna-status <%=p.admin_comment_count?'qna-done':'qna-waiting'%>"><%=p.admin_comment_count?'답변완료':'답변대기'%></span></td><% } %><td><%=p.nickname||p.username||'탈퇴회원'%></td><td><%=fmtDate(p.created_at)%></td><td><%=p.views||0%></td></tr><% }) %>
+        <% if(!posts.length){ %><tr><td colspan="<%=layout==='qna'?6:5%>" class="board-empty"><%=layout==='private'&&!me?'로그인 후 본인의 문의를 확인할 수 있습니다.':'등록된 게시글이 없습니다.'%></td></tr><% } %>
+      </tbody></table></div>
+    <% } %>
+
+    <div class="board-pagination"><a href="?page=1&q=<%=encodeURIComponent(qText)%>">처음</a><a href="?page=<%=Math.max(1,page-1)%>&q=<%=encodeURIComponent(qText)%>">이전</a><% for(let n=Math.max(1,page-2);n<=Math.min(totalPages,page+2);n++){ %><a class="<%=n===page?'active':''%>" href="?page=<%=n%>&q=<%=encodeURIComponent(qText)%>"><%=n%></a><% } %><a href="?page=<%=Math.min(totalPages,page+1)%>&q=<%=encodeURIComponent(qText)%>">다음</a><a href="?page=<%=totalPages%>&q=<%=encodeURIComponent(qText)%>">마지막</a></div>
+    <div class="board-actions"><a href="/boards">게시판 목록</a><% if(canWrite){ %><a class="board-write-btn" href="/boards/<%=board.slug%>/write">새 글 작성</a><% } %></div>
+  <% } %>
+</main>
+<script src="/public/js/app.js"></script>
+</body>
+</html>

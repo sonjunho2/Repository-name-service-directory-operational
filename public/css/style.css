@@ -10,6 +10,22 @@
   input,select,textarea,button{font-size:16px}
 }
 
+/* Public board layout types */
+.board-gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.board-gallery-card{overflow:hidden;border:1px solid #29324f;border-radius:18px;background:#080d18}
+.board-gallery-card>a{display:block;color:#eaf2ff;text-decoration:none}
+.board-gallery-card img,.board-gallery-card .board-image-placeholder{display:flex;width:100%;aspect-ratio:4/3;align-items:center;justify-content:center;object-fit:cover;background:#171d30;color:#8d98b8}
+.board-gallery-card> a>div{padding:16px}.board-gallery-card h2{margin:0 0 8px;font-size:18px}.board-gallery-card p{margin:0;color:#8d98b8;font-size:13px}
+.board-webzine-list{display:grid;gap:14px}.board-webzine-item{border:1px solid #29324f;border-radius:18px;background:#080d18;overflow:hidden}
+.board-webzine-item>a{display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:center;color:#eaf2ff;text-decoration:none}
+.board-webzine-item img,.board-webzine-item .board-image-placeholder{display:flex;width:220px;height:150px;align-items:center;justify-content:center;object-fit:cover;background:#171d30;color:#8d98b8}
+.board-webzine-item h2{margin:0 0 9px}.board-webzine-item small{color:#8d98b8}.board-webzine-summary{margin:0 0 12px;color:#b9c3de;line-height:1.6}
+.qna-status{display:inline-flex;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap}.qna-waiting{background:#33280d;color:#ffd56a}.qna-done{background:#103225;color:#69e6ad}
+.faq-list{display:grid;gap:10px}.faq-item{overflow:hidden;border:1px solid #29324f;border-radius:14px;background:#080d18}.faq-question{display:flex;width:100%;min-height:58px;align-items:center;justify-content:space-between;padding:14px 18px;border:0;background:transparent;color:#eaf2ff;text-align:left;font-size:16px;font-weight:900;cursor:pointer}.faq-question em{font-style:normal;font-size:22px}.faq-answer{padding:18px;border-top:1px solid #29324f;color:#c8d0e8;white-space:pre-wrap;line-height:1.8}.faq-item.open .faq-question em{transform:rotate(45deg)}
+.private-board-note{display:flex;gap:10px;align-items:center;margin:0 0 16px;padding:14px 16px;border:1px solid #364568;border-radius:14px;background:#10182b}.private-board-note b{color:#10d9ff}.private-board-note span{color:#c8d0e8}.board-layout-empty{grid-column:1/-1}
+@media(max-width:900px){.board-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.board-webzine-item>a{grid-template-columns:170px 1fr}.board-webzine-item img,.board-webzine-item .board-image-placeholder{width:170px}}
+@media(max-width:600px){.board-gallery-grid{grid-template-columns:1fr}.board-webzine-item>a{grid-template-columns:1fr;gap:0}.board-webzine-item img,.board-webzine-item .board-image-placeholder{width:100%;height:auto;aspect-ratio:16/9}.board-webzine-item>a>div{padding:16px}.private-board-note{align-items:flex-start;flex-direction:column}}
+
 /* Public mobile side menu V1 */
 .public-menu-toggle{display:flex!important;position:fixed!important;right:12px!important;top:12px!important;left:auto!important;width:46px!important;height:46px!important;z-index:2147483000!important;align-items:center!important;justify-content:center!important;flex-direction:column!important;gap:5px!important;padding:0!important;margin:0!important;border:1px solid rgba(255,255,255,.35)!important;border-radius:14px!important;background:rgba(7,11,21,.92)!important;box-shadow:0 10px 30px rgba(0,0,0,.45)!important;opacity:1!important;visibility:visible!important;transform:none!important;pointer-events:auto!important;cursor:pointer}
 .public-menu-toggle span{display:block!important;width:24px!important;height:3px!important;margin:0!important;border-radius:999px!important;background:#fff!important;opacity:1!important}
