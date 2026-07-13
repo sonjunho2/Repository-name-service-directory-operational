@@ -10,8 +10,8 @@
 <body>
 <%- include('partials/public-mobile-menu') %>
 <header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=brand.link||'/'%>"><% if(brand.showLogo&&brand.logo){%><img src="<%=brand.logo%>" alt=""><%}%><% if(brand.showName){%><span><%=brand.name%></span><%}%></a><nav><a href="/boards">게시판</a><% if(me){%><a href="<%=me.role==='admin'?'/admin':me.is_vendor?'/vendor-dashboard':'/mypage'%>">내메뉴</a><a href="/logout">로그아웃</a><%}else{%><a href="/login">로그인</a><%}%></nav></header>
+<%- include('partials/public-page-banner',{pageTitle:mode==='posts'?board.title:'커뮤니티 게시판',pageDesc:mode==='posts'?(board.description||'게시판의 최신 글을 확인하세요.'):'관심 있는 게시판과 새로운 글을 확인하세요.'}) %>
 <main class="board-wrap">
-  <%- include('partials/board-top-banner') %>
   <% if(mode==='categories'){ %>
     <div class="board-head"><div><h1>게시판</h1><p>관심 있는 게시판을 선택해 주세요.</p></div></div>
     <div class="board-category-grid">

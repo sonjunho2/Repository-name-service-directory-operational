@@ -1063,3 +1063,35 @@ body>header:not(.top)>.site-brand-center span{
     font-size:23px!important;
   }
 }
+
+/* Shared banner for public content pages */
+.public-page-banner,
+.board-top-banner{
+  width:min(1180px,calc(100% - 32px));
+  margin:28px auto 24px;
+  border:1px solid #29324f;
+  border-radius:22px;
+  background:linear-gradient(135deg,rgba(255,63,180,.14),rgba(16,217,255,.18));
+  overflow:hidden;
+}
+.public-page-banner-inner{
+  min-height:112px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:26px 34px;
+}
+.public-page-banner b,
+.board-top-banner b{display:block;color:#fff;font-size:clamp(26px,3.2vw,38px);font-weight:1000;line-height:1.1}
+.public-page-banner span,
+.board-top-banner span{display:block;margin-top:8px;color:#c8d0e8;font-size:15px;font-weight:700}
+.public-page-banner a,
+.board-top-banner a{display:inline-flex;align-items:center;justify-content:center;min-width:128px;height:44px;padding:0 18px;border:1px solid rgba(255,255,255,.78);border-radius:999px;color:#fff;text-decoration:none;font-weight:900}
+.public-page-banner+.board-wrap,.public-page-banner+.wrap{margin-top:0}
+@media(max-width:700px){
+  .public-page-banner,.board-top-banner{width:calc(100% - 24px);margin:18px auto;border-radius:18px}
+  .public-page-banner-inner{min-height:82px;padding:18px 20px;align-items:flex-start;flex-direction:column;gap:12px}
+  .public-page-banner b,.board-top-banner b{font-size:26px}
+  .public-page-banner span,.board-top-banner span{font-size:13px}
+}

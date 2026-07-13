@@ -1,2 +1,1 @@
-<% const _boardTitle=typeof board!=='undefined'&&board&&board.title?board.title:'커뮤니티 게시판'; %>
-<section class="board-top-banner board-top-banner-v2"><div><b><%=_boardTitle%></b><span>회원들과 정보를 나누고 소통하세요.</span></div><a href="/boards">게시판 전체보기</a></section>
+<%- include('public-page-banner',{pageTitle:typeof pageTitle!=='undefined'?pageTitle:(typeof board!=='undefined'&&board?board.title:'커뮤니티 게시판'),pageDesc:typeof pageDesc!=='undefined'?pageDesc:'회원들과 정보를 나누고 소통하세요.',pageActionText:typeof pageActionText!=='undefined'?pageActionText:'',pageActionUrl:typeof pageActionUrl!=='undefined'?pageActionUrl:''}) %>
