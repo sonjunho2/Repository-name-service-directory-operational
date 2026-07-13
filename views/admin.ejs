@@ -1707,11 +1707,11 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   async function loadVendors(page){
     page=page||Number(window.getAdminListState?.('vendors').page||1);
-    if(vendorLoading){clearTimeout(vendorSearchTimer);vendorSearchTimer=setTimeout(function(){loadVendors(page);},100);return;}
+    if(vendorLoading){clearTimeout(vendorSearchTimer);return new Promise(function(resolve){vendorSearchTimer=setTimeout(async function(){resolve(await loadVendors(page));},100);});}
     var panel=document.getElementById('vendors');
-    if(!panel)return;
+    if(!panel)return false;
     var table=panel.querySelector('table');
-    if(!table)return;
+    if(!table)return false;
     var pager=ensurePager(table);
     vendorServerPage=Math.max(1,page||1);
     window.saveActiveAdminListState?.('vendors',vendorServerPage);
@@ -1722,7 +1722,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var res=await fetch('/admin/api/vendors?'+vendorQuery(vendorServerPage).toString(),{headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error('load failed');
-      if(vendorServerPage>Math.max(1,Number(data.totalPages||1))){vendorLoading=false;window.normalizeAdminListPage?.('vendors',data,loadVendors);return;}
+      if(vendorServerPage>Math.max(1,Number(data.totalPages||1))){vendorLoading=false;window.normalizeAdminListPage?.('vendors',data,loadVendors);return true;}
       var header=table.querySelector('tr');
       table.innerHTML='';
       if(header)table.appendChild(header);
@@ -1749,10 +1749,12 @@ document.addEventListener('DOMContentLoaded',function(){
       vendorServerReady=true;
       if(window.applyPanelPagination)try{window.applyPanelPagination(true);}catch(e){}
       vendorLoading=false;
+      return true;
     }catch(e){
       vendorLoading=false;
       showTableMessage(table,'업체목록을 불러오지 못했습니다.','loading-row');
       if(pager)pager.innerHTML='<span class="server-vendor-info">서버 페이지 데이터를 불러오지 못했습니다. 기존 목록을 표시합니다.</span>';
+      return false;
     }
   }
   window.loadAdminVendors=loadVendors;
@@ -2506,6 +2508,37 @@ document.addEventListener('DOMContentLoaded',function(){
 
       var actionPath=String(action||'').toLowerCase();
       var formId=String(form.id||'');
+      async function finishVendorFormSave(){
+        var modal=document.getElementById('vendorModal');
+        var title=document.getElementById('vendorModalTitle');
+        var submit=document.getElementById('vendorSubmitBtn');
+        var cancel=document.getElementById('cancelVendorEdit');
+        if(modal)modal.classList.remove('active','open','show');
+        document.body.style.overflow='';
+        form.reset();
+        if(form.elements.id)form.elements.id.value='';
+        if(form.elements.status)form.elements.status.value='active';
+        if(form.elements.ad_type)form.elements.ad_type.value='none';
+        if(form.elements.banner_active)form.elements.banner_active.checked=false;
+        if(form.elements.expire_at)form.elements.expire_at.value='';
+        var preview=document.getElementById('vendorImagePreview');
+        if(preview){preview.style.display='none';var image=preview.querySelector('img');if(image)image.removeAttribute('src');}
+        if(title)title.textContent='업체 등록';
+        if(submit){submit.textContent='업체 등록';submit.disabled=false;submit.classList.remove('ajax-loading');}
+        if(cancel)cancel.style.display='none';
+        var page=Number(window.getAdminListState?.('vendors').page||1);
+        window.saveActiveAdminListState?.('vendors',page);
+        var refreshed=typeof window.loadAdminVendors==='function' ? await window.loadAdminVendors(page) : false;
+        if(refreshed!==true){
+          try{sessionStorage.setItem('adminReturnPanel','vendors');}catch(e){}
+          location.hash='vendors';
+          location.reload();
+        }
+      }
+      if(formId==='vendorForm'&&actionPath==='/admin/vendor'){
+        await finishVendorFormSave();
+        return;
+      }
       function closeAdminEditorIfNeeded(){
         var modal=document.getElementById('vendorModal');
         if(modal&&modal.classList.contains('active')){
