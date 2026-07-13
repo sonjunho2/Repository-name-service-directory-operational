@@ -336,7 +336,7 @@ document.body.appendChild(reviewPopupScript);
   });
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();});
   var path=location.pathname.replace(/\/$/,'')||'/';
-  if(path.indexOf('/boards')===0){var community=qs('[data-public-menu-community]');if(community){community.classList.add('open');var communityButton=qs('[data-public-submenu-toggle]',community);if(communityButton)communityButton.setAttribute('aria-expanded','true');}}
+  if(path.indexOf('/boards')===0&&path.indexOf('/boards/ad-inquiry')!==0){var community=qs('[data-public-menu-community]');if(community){community.classList.add('open');var communityButton=qs('[data-public-submenu-toggle]',community);if(communityButton)communityButton.setAttribute('aria-expanded','true');}}
   var best=null,bestLength=-1;
   qsa('.public-side-menu a').forEach(function(a){
     var linkPath=a.pathname.replace(/\/$/,'')||'/';

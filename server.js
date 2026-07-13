@@ -117,7 +117,7 @@ async function ensureSchema(){
     await q("CREATE INDEX IF NOT EXISTS idx_board_categories_active_sort ON board_categories(is_active,sort_order)");
     await q("CREATE INDEX IF NOT EXISTS idx_board_posts_board_status_pinned_created ON board_posts(board_id,status,is_pinned,created_at DESC)");
     await q("CREATE INDEX IF NOT EXISTS idx_board_comments_post_status_created ON board_comments(post_id,status,created_at)");
-    for(const board of [['공지사항','notice','notice','admin'],['자유게시판','free','community','member'],['이용후기','reviews','review','member'],['제보/신고','reports','report','member']]){
+    for(const board of [['공지사항','notice','notice','admin'],['자유게시판','free','community','member'],['이용후기','reviews','review','member'],['제보/신고','reports','report','member'],['광고문의','ad-inquiry','qna','member']]){
       await q('INSERT INTO board_categories(title,slug,type,write_role) VALUES($1,$2,$3,$4) ON CONFLICT (slug) DO NOTHING',board);
     }
 
