@@ -1119,7 +1119,86 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     yearRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)"),
     totalRevenue:await scalar("SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs")
   };
-  res.render('admin',{adminSummary,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
+  const [listCounts,bannerCounts,adRequestCounts,bannerRequestCounts]=await Promise.all([
+    q(`SELECT
+      (SELECT COUNT(*) FROM users)::int users_total,
+      (SELECT COUNT(*) FROM users WHERE role='admin')::int users_admin,
+      (SELECT COUNT(*) FROM users WHERE role<>'admin' AND (COALESCE(is_vendor,false)=true OR vendor_id IS NOT NULL))::int users_vendor,
+      (SELECT COUNT(*) FROM users WHERE role<>'admin' AND COALESCE(is_vendor,false)=false AND vendor_id IS NULL)::int users_normal,
+      (SELECT COUNT(*) FROM users WHERE status IS NULL OR status='active')::int users_active,
+      (SELECT COUNT(*) FROM notices)::int notices_total,
+      (SELECT COUNT(*) FROM notices WHERE COALESCE(is_pinned,false)=true)::int notices_pinned,
+      (SELECT COUNT(*) FROM reviews)::int reviews_total,
+      (SELECT COUNT(*) FROM reviews WHERE status='visible')::int reviews_visible,
+      (SELECT COUNT(*) FROM reviews WHERE status='hidden')::int reviews_hidden,
+      (SELECT COUNT(*) FROM reviews WHERE status='deleted')::int reviews_deleted,
+      (SELECT COUNT(*) FROM admin_logs)::int admin_logs_total,
+      (SELECT COUNT(*) FROM vendor_update_requests)::int vendor_requests_total,
+      (SELECT COUNT(*) FROM vendor_update_requests WHERE status='new')::int vendor_requests_new,
+      (SELECT COUNT(*) FROM vendor_update_requests WHERE status='approved')::int vendor_requests_approved,
+      (SELECT COUNT(*) FROM vendor_update_requests WHERE status='rejected')::int vendor_requests_rejected,
+      (SELECT COUNT(*) FROM vendor_update_requests WHERE status='cancelled')::int vendor_requests_cancelled,
+      (SELECT COUNT(*) FROM inquiries)::int inquiries_total,
+      (SELECT COUNT(*) FROM inquiries WHERE status='new')::int inquiries_new,
+      (SELECT COUNT(*) FROM inquiries WHERE status='approved')::int inquiries_approved,
+      (SELECT COUNT(*) FROM inquiries WHERE status='rejected')::int inquiries_rejected,
+      (SELECT COUNT(*) FROM inquiries WHERE type='apply')::int inquiries_apply,
+      (SELECT COUNT(*) FROM inquiries WHERE type<>'apply' OR type IS NULL)::int inquiries_ad,
+      (SELECT COUNT(*) FROM flags)::int reports_total,
+      (SELECT COUNT(*) FROM flags WHERE status<>'done' OR status IS NULL)::int reports_new,
+      (SELECT COUNT(*) FROM flags WHERE status='done')::int reports_done,
+      (SELECT COUNT(*) FROM flags WHERE type='vendor')::int reports_vendor,
+      (SELECT COUNT(*) FROM flags WHERE type='review')::int reports_review`),
+    q(`SELECT COUNT(*)::int total,
+      COUNT(*) FILTER (WHERE source='direct')::int direct,
+      COUNT(*) FILTER (WHERE source='vendor')::int vendor,
+      COUNT(*) FILTER (WHERE display_status='active')::int active,
+      COUNT(*) FILTER (WHERE display_status='inactive')::int inactive,
+      COUNT(*) FILTER (WHERE display_status='expired')::int expired
+      FROM (
+        SELECT CASE WHEN b.vendor_id IS NULL THEN 'direct' ELSE 'vendor' END source,
+          CASE WHEN b.vendor_id IS NULL THEN CASE WHEN b.is_active THEN 'active' ELSE 'inactive' END
+            WHEN v.status='expired' OR v.expire_at<CURRENT_DATE OR v.banner_until<CURRENT_DATE THEN 'expired'
+            WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE THEN 'active'
+            ELSE 'inactive' END display_status
+        FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id
+        UNION ALL
+        SELECT 'vendor' source,
+          CASE WHEN v.status='expired' OR v.expire_at<CURRENT_DATE OR v.banner_until<CURRENT_DATE THEN 'expired'
+            WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE THEN 'active'
+            ELSE 'inactive' END display_status
+        FROM vendors v WHERE COALESCE(v.banner_active,false)=true AND NOT EXISTS(SELECT 1 FROM banners b2 WHERE b2.vendor_id=v.id)
+      ) x`),
+    q(`SELECT COUNT(*)::int total, COUNT(*) FILTER (WHERE status='new')::int new,
+      COUNT(*) FILTER (WHERE status='approved')::int approved, COUNT(*) FILTER (WHERE status='rejected')::int rejected,
+      COUNT(*) FILTER (WHERE status='cancelled')::int cancelled,
+      COUNT(*) FILTER (WHERE status='new' AND COALESCE(payment_status,'unpaid')='unpaid')::int unpaid,
+      COUNT(*) FILTER (WHERE status='new' AND payment_status='waiting')::int waiting,
+      COUNT(*) FILTER (WHERE payment_status='paid')::int paid FROM vendor_ad_requests`),
+    q(`SELECT COUNT(*)::int total, COUNT(*) FILTER (WHERE status='new')::int new,
+      COUNT(*) FILTER (WHERE status='approved')::int approved, COUNT(*) FILTER (WHERE status='rejected')::int rejected,
+      COUNT(*) FILTER (WHERE status='cancelled')::int cancelled,
+      COUNT(*) FILTER (WHERE status='new' AND COALESCE(payment_status,'unpaid')='unpaid')::int unpaid,
+      COUNT(*) FILTER (WHERE status='new' AND payment_status='waiting')::int waiting,
+      COUNT(*) FILTER (WHERE payment_status='paid')::int paid FROM vendor_banner_requests`)
+  ]);
+  const lc=listCounts.rows[0]||{},bc=bannerCounts.rows[0]||{},ac=adRequestCounts.rows[0]||{},brc=bannerRequestCounts.rows[0]||{};
+  const nums=(row,keys)=>Object.fromEntries(keys.map(key=>[key,Number(row[key]||0)]));
+  const requestKeys=['total','new','approved','rejected','cancelled','unpaid','waiting','paid'];
+  const adRequestStats=nums(ac,requestKeys),bannerRequestStats=nums(brc,requestKeys);
+  const adminListStats={
+    users:{total:Number(lc.users_total||0),normal:Number(lc.users_normal||0),vendor:Number(lc.users_vendor||0),admin:Number(lc.users_admin||0),active:Number(lc.users_active||0)},
+    banners:nums(bc,['total','direct','vendor','active','inactive','expired']),
+    notices:{total:Number(lc.notices_total||0),pinned:Number(lc.notices_pinned||0)},
+    reviews:{total:Number(lc.reviews_total||0),visible:Number(lc.reviews_visible||0),hidden:Number(lc.reviews_hidden||0),deleted:Number(lc.reviews_deleted||0)},
+    adminLogs:{total:Number(lc.admin_logs_total||0)},
+    vendorUpdateRequests:{total:Number(lc.vendor_requests_total||0),new:Number(lc.vendor_requests_new||0),approved:Number(lc.vendor_requests_approved||0),rejected:Number(lc.vendor_requests_rejected||0),cancelled:Number(lc.vendor_requests_cancelled||0)},
+    inquiries:{total:Number(lc.inquiries_total||0),new:Number(lc.inquiries_new||0),approved:Number(lc.inquiries_approved||0),rejected:Number(lc.inquiries_rejected||0),apply:Number(lc.inquiries_apply||0),ad:Number(lc.inquiries_ad||0)},
+    reports:{total:Number(lc.reports_total||0),new:Number(lc.reports_new||0),done:Number(lc.reports_done||0),vendor:Number(lc.reports_vendor||0),review:Number(lc.reports_review||0)},
+    adRequests:adRequestStats,bannerRequests:bannerRequestStats,
+    adCenter:Object.fromEntries(requestKeys.map(key=>[key,adRequestStats[key]+bannerRequestStats[key]]))
+  };
+  res.render('admin',{adminSummary,adminListStats,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
   }catch(e){
     console.error('admin load failed',e);
     if(!res.headersSent)res.status(500).send('admin load failed: '+String(e.message||e));

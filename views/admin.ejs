@@ -715,7 +715,7 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
   const _activeUsers=_usersSafe.filter(u=>!u.status||u.status==='active').length;
 %>
 <div class="admin-section-summary">
-  <div class="admin-summary-card"><b>전체 회원</b><strong><%=_usersSafe.length%></strong></div>
+  <div class="admin-summary-card"><b>전체 회원</b><strong><%=adminListStats?.users?.total ?? _usersSafe.length%></strong></div>
   <div class="admin-summary-card"><b>일반회원</b><strong><%=_normalUsers%></strong></div>
   <div class="admin-summary-card"><b>업체회원</b><strong><%=_vendorUsers%></strong></div>
   <div class="admin-summary-card"><b>관리자</b><strong><%=_adminUsers%></strong></div>
@@ -731,11 +731,11 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
   const _bannerCancelled=_bannerReqSafe.filter(x=>x.status==='cancelled').length;
 %>
 <div class="request-summary">
-  <div class="request-summary-card"><b>전체 신청</b><strong><%=_bannerReqSafe.length%></strong></div>
-  <div class="request-summary-card waiting"><b>입금대기</b><strong><%=_bannerUnpaid%></strong></div>
-  <div class="request-summary-card waiting"><b>입금확인중</b><strong><%=_bannerWaiting%></strong></div>
-  <div class="request-summary-card approved"><b>승인완료</b><strong><%=_bannerApproved%></strong></div>
-  <div class="request-summary-card rejected"><b>반려/취소</b><strong><%=_bannerRejected+_bannerCancelled%></strong></div>
+  <div class="request-summary-card"><b>전체 신청</b><strong><%=adminListStats?.bannerRequests?.total ?? _bannerReqSafe.length%></strong></div>
+  <div class="request-summary-card waiting"><b>입금대기</b><strong><%=adminListStats?.bannerRequests?.unpaid ?? _bannerUnpaid%></strong></div>
+  <div class="request-summary-card waiting"><b>입금확인중</b><strong><%=adminListStats?.bannerRequests?.waiting ?? _bannerWaiting%></strong></div>
+  <div class="request-summary-card approved"><b>승인완료</b><strong><%=adminListStats?.bannerRequests?.approved ?? _bannerApproved%></strong></div>
+  <div class="request-summary-card rejected"><b>반려/취소</b><strong><%=(adminListStats?.bannerRequests?.rejected ?? _bannerRejected)+(adminListStats?.bannerRequests?.cancelled ?? _bannerCancelled)%></strong></div>
 </div>
 <div class="integrated-tools"><div class="integrated-card"><b>전체 신청</b><strong><%=(bannerRequests||[]).length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=(bannerRequests||[]).filter(x=>x.status==='new').length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=(bannerRequests||[]).filter(x=>x.status==='approved').length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=(bannerRequests||[]).filter(x=>x.status==='rejected').length%></strong></div></div><table><tr><th>ID</th><th>업체</th><th>제목</th><th>결제</th><th>링크</th><th>이미지</th><th>상태</th><th>처리</th></tr><% (bannerRequests||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.vendor_name||x.vendor_id%><br><small><%=x.username||''%></small></td><td><b><%=x.title%></b><br><%=x.subtitle||''%></td><td><%=Number(x.krw_price||0).toLocaleString()%>원<br><%=x.usdt_amount||0%> USDT<br><% if(x.payment_expires_at){ %><small>기한: <%=fmtDateTime(x.payment_expires_at)%></small><br><% } %><small><%=_paymentRequestLabel(x)%></small><% if(x.status==='approved'||x.payment_status==='paid'||x.paid_usdt_amount||x.payment_txid){ %><span class="payment-trace">실제입금: <%=_centerPaidUsdt(x)||'미입력'%><% if(_centerPaidUsdt(x)){ %> USDT<% } %><em>TXID: <%=x.payment_txid||'미입력'%></em></span><% } %></td><td><%=x.link_url||'-'%></td><td><%=x.has_image_data?'이미지 있음':'-'%></td><td><span class="<%=x.status==='approved'?'done':(x.status==='rejected'||x.status==='cancelled')?'rejected':'pending'%>"><%=_paymentRequestStatusLabel(x)%></span><br><small><%=_cleanCenterMemo(x)%></small></td><td><% if(x.status==='new'){%><% if(x.payment_status==='waiting'){%><form method="post" action="/admin/banner-requests/<%=x.id%>/payment-confirm" class="payment-confirm-form"><input name="paid_usdt_amount" placeholder="실제 USDT" value="<%=x.usdt_amount||''%>"><input name="payment_txid" placeholder="TXID / 거래해시"><input name="admin_memo" placeholder="입금확인 메모"><button class="approve-btn">입금확인</button></form><%}else{%><span class="pending">입금대기</span><%}%><form method="post" action="/admin/banner-requests/<%=x.id%>/reject" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="반려 사유"><button class="reject-btn">반려</button></form><form method="post" action="/admin/banner-requests/<%=x.id%>/cancel" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="취소 메모"><button class="cancel-edit">취소</button></form><%}else{%>처리완료<%}%></td></tr><%})%></table></section>
 <section id="adCenter" class="panel admin-panel">
@@ -753,11 +753,11 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
 %>
 
 <div class="ad-center-summary">
-  <div class="ad-center-card"><b>전체 신청</b><strong><%=_centerAll.length%></strong></div>
-  <div class="ad-center-card waiting"><b>입금대기</b><strong><%=_centerUnpaid%></strong></div>
-  <div class="ad-center-card waiting"><b>입금확인중</b><strong><%=_centerWaiting%></strong></div>
-  <div class="ad-center-card done"><b>승인완료</b><strong><%=_centerApproved%></strong></div>
-  <div class="ad-center-card bad"><b>반려/취소</b><strong><%=_centerRejected+_centerCancelled%></strong></div>
+  <div class="ad-center-card"><b>전체 신청</b><strong><%=adminListStats?.adCenter?.total ?? _centerAll.length%></strong></div>
+  <div class="ad-center-card waiting"><b>입금대기</b><strong><%=adminListStats?.adCenter?.unpaid ?? _centerUnpaid%></strong></div>
+  <div class="ad-center-card waiting"><b>입금확인중</b><strong><%=adminListStats?.adCenter?.waiting ?? _centerWaiting%></strong></div>
+  <div class="ad-center-card done"><b>승인완료</b><strong><%=adminListStats?.adCenter?.approved ?? _centerApproved%></strong></div>
+  <div class="ad-center-card bad"><b>반려/취소</b><strong><%=(adminListStats?.adCenter?.rejected ?? _centerRejected)+(adminListStats?.adCenter?.cancelled ?? _centerCancelled)%></strong></div>
 </div>
 
 <div class="ad-center-filter">
@@ -847,11 +847,11 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
   const _adCancelled=_adReqSafe.filter(x=>x.status==='cancelled').length;
 %>
 <div class="request-summary">
-  <div class="request-summary-card"><b>전체 신청</b><strong><%=_adReqSafe.length%></strong></div>
-  <div class="request-summary-card waiting"><b>입금대기</b><strong><%=_adUnpaid%></strong></div>
-  <div class="request-summary-card waiting"><b>입금확인중</b><strong><%=_adWaiting%></strong></div>
-  <div class="request-summary-card approved"><b>승인완료</b><strong><%=_adApproved%></strong></div>
-  <div class="request-summary-card rejected"><b>반려/취소</b><strong><%=_adRejected+_adCancelled%></strong></div>
+  <div class="request-summary-card"><b>전체 신청</b><strong><%=adminListStats?.adRequests?.total ?? _adReqSafe.length%></strong></div>
+  <div class="request-summary-card waiting"><b>입금대기</b><strong><%=adminListStats?.adRequests?.unpaid ?? _adUnpaid%></strong></div>
+  <div class="request-summary-card waiting"><b>입금확인중</b><strong><%=adminListStats?.adRequests?.waiting ?? _adWaiting%></strong></div>
+  <div class="request-summary-card approved"><b>승인완료</b><strong><%=adminListStats?.adRequests?.approved ?? _adApproved%></strong></div>
+  <div class="request-summary-card rejected"><b>반려/취소</b><strong><%=(adminListStats?.adRequests?.rejected ?? _adRejected)+(adminListStats?.adRequests?.cancelled ?? _adCancelled)%></strong></div>
 </div>
 <div class="integrated-tools"><div class="integrated-card"><b>전체 신청</b><strong><%=(adRequests||[]).length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=(adRequests||[]).filter(x=>x.status==='new').length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=(adRequests||[]).filter(x=>x.status==='approved').length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=(adRequests||[]).filter(x=>x.status==='rejected').length%></strong></div></div><table><tr><th>ID</th><th>업체</th><th>상품</th><th>상품구분</th><th>기간</th><th>결제</th><th>내용</th><th>상태</th><th>처리</th></tr><% (adRequests||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.vendor_name||x.vendor_id%><br><small><%=x.username||''%></small></td><td><%=x.plan||'-'%></td><td><%=x.product_type==="recommended_upgrade"?"일반→추천":x.product_type==="banner_from_general"?"일반→배너":x.product_type==="banner_from_recommended"?"추천→배너":x.product_type==="renewal_general"?"일반연장":x.product_type==="renewal_recommended"?"추천연장":x.product_type==="renewal_banner"?"배너신청/연장":x.product_type==="schedule_to_general"?"일반변경/연장":x.product_type==="schedule_remove_banner"?"배너제거예약":x.product_type==="schedule_to_recommended"?"추천변경/연장":x.product_type||"추천등록"%></td><td><%=x.period||'-'%>일</td><td><%=Number(x.krw_price||0).toLocaleString()%>원<br><%=x.usdt_amount||0%> USDT<br><% if(x.payment_expires_at){ %><small>기한: <%=fmtDateTime(x.payment_expires_at)%></small><br><% } %><small><%=_paymentRequestLabel(x)%></small><% if(x.status==='approved'||x.payment_status==='paid'||x.paid_usdt_amount||x.payment_txid){ %><span class="payment-trace">실제입금: <%=_centerPaidUsdt(x)||'미입력'%><% if(_centerPaidUsdt(x)){ %> USDT<% } %><em>TXID: <%=x.payment_txid||'미입력'%></em></span><% } %></td><td class="memo"><%=x.content||'-'%></td><td><span class="<%=x.status==='approved'?'done':(x.status==='rejected'||x.status==='cancelled')?'rejected':'pending'%>"><%=_paymentRequestStatusLabel(x)%></span><br><small><%=_cleanCenterMemo(x)%></small></td><td><% if(x.status==='new'){%><% if(x.payment_status==='waiting'){%><form method="post" action="/admin/ad-requests/<%=x.id%>/payment-confirm" class="payment-confirm-form"><input name="paid_usdt_amount" placeholder="실제 USDT" value="<%=x.usdt_amount||''%>"><input name="payment_txid" placeholder="TXID / 거래해시"><input name="admin_memo" placeholder="입금확인 메모"><button class="approve-btn">입금확인</button></form><%}else{%><span class="pending">입금대기</span><%}%><form method="post" action="/admin/ad-requests/<%=x.id%>/reject" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="반려 사유"><button class="reject-btn">반려</button></form><form method="post" action="/admin/ad-requests/<%=x.id%>/cancel" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="취소 메모"><button class="cancel-edit">취소</button></form><%}else{%>처리완료<%}%></td></tr><%})%></table></section><section id="revenue" class="panel admin-panel">
   <h2>매출관리</h2>
@@ -3613,5 +3613,22 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script>
 
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  const stats=<%- JSON.stringify(typeof adminListStats==='object'&&adminListStats?adminListStats:{}).replace(/</g,'\\u003c') %>;
+  const setCards=function(selector,values){const cards=document.querySelectorAll(selector);values.forEach(function(value,index){if(cards[index]&&value!=null)cards[index].textContent=String(value);});};
+  setCards('#users .admin-section-summary .admin-summary-card strong',[stats.users?.total,stats.users?.normal,stats.users?.vendor,stats.users?.admin,stats.users?.active]);
+  setCards('#inquiries .integrated-tools:first-of-type .integrated-card strong',[stats.inquiries?.total,stats.inquiries?.new,stats.inquiries?.approved,stats.inquiries?.rejected]);
+  setCards('#reports .integrated-tools:first-of-type .integrated-card strong',[stats.reports?.total,stats.reports?.new,stats.reports?.done]);
+  setCards('#vendorRequests .integrated-tools:first-of-type .integrated-card strong',[stats.vendorUpdateRequests?.total,stats.vendorUpdateRequests?.new,stats.vendorUpdateRequests?.approved,stats.vendorUpdateRequests?.rejected]);
+  setCards('#bannerRequests .integrated-tools:first-of-type .integrated-card strong',[stats.bannerRequests?.total,stats.bannerRequests?.new,stats.bannerRequests?.approved,stats.bannerRequests?.rejected]);
+  setCards('#adRequests .integrated-tools:first-of-type .integrated-card strong',[stats.adRequests?.total,stats.adRequests?.new,stats.adRequests?.approved,stats.adRequests?.rejected]);
+  const setButton=function(selector,label,value){const button=document.querySelector(selector);if(button&&value!=null)button.textContent=label+' '+value;};
+  setButton('#inquiries [data-filter="all"]','전체',stats.inquiries?.total);setButton('#inquiries [data-filter="new"]','대기',stats.inquiries?.new);setButton('#inquiries [data-filter="approved"]','승인',stats.inquiries?.approved);setButton('#inquiries [data-filter="rejected"]','반려',stats.inquiries?.rejected);setButton('#inquiries [data-filter="apply"]','입점신청',stats.inquiries?.apply);setButton('#inquiries [data-filter="ad"]','광고문의',stats.inquiries?.ad);
+  setButton('#reports [data-filter="all"]','전체',stats.reports?.total);setButton('#reports [data-filter="new"]','미처리',stats.reports?.new);setButton('#reports [data-filter="done"]','처리완료',stats.reports?.done);setButton('#reports [data-filter="vendor"]','업체신고',stats.reports?.vendor);setButton('#reports [data-filter="review"]','후기신고',stats.reports?.review);
+  const logTotal=document.querySelector('#adminLogs .integrated-tools .integrated-card strong');
+  if(logTotal&&stats.adminLogs?.total!=null)logTotal.textContent=String(stats.adminLogs.total);
+});
+</script>
 </body></html>
 
