@@ -1064,28 +1064,14 @@ body>header:not(.top)>.site-brand-center span{
   }
 }
 
-/* Public top ads reuse the home premium slider and premiumMarquee. */
-.public-ad-banner.public-top-premium{width:100%;margin:14px auto 18px;overflow:hidden}
-.public-top-premium .premium-row-slider{width:100%;height:225px!important;min-height:225px!important;max-height:225px!important;margin:0;padding:0!important;border-radius:0}
-.public-top-premium .premium-track{display:flex!important;align-items:stretch!important;width:max-content!important;min-width:max-content!important;height:225px!important;gap:12px!important;animation:premiumMarquee 28s linear infinite!important;will-change:transform}
-.public-top-premium .premium-row-slider:hover .premium-track{animation-play-state:paused!important}
-.public-top-premium .public-top-premium-card{position:relative;width:180px!important;min-width:180px!important;max-width:180px!important;height:225px!important;min-height:225px!important;max-height:225px!important;flex:0 0 180px!important;aspect-ratio:4/5!important;padding:0!important;border-radius:18px!important;overflow:hidden;text-decoration:none}
-.public-top-premium .public-top-premium-card .thumb{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:100%!important;border:0!important;border-radius:0!important;background:#050913!important;overflow:hidden!important}
-.public-top-premium .public-top-premium-card .thumb img{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important}
-.public-top-premium .public-top-premium-card:after{content:''!important;position:absolute!important;inset:0!important;z-index:2!important;pointer-events:none!important;background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.75))!important}
-.public-top-premium .public-top-premium-card .ad-card-meta{position:absolute!important;inset:0!important;z-index:5!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto 1fr auto!important;grid-template-areas:'badge' '.' 'name'!important;padding:10px!important;min-height:0!important;background:transparent!important;pointer-events:none!important}
-.public-top-premium .public-top-premium-card .ad-card-meta em{grid-area:badge!important;justify-self:start!important;align-self:start!important;height:22px!important;margin:0!important;padding:0 8px!important;font-size:11px!important;font-style:italic!important}
-.public-top-premium .public-top-premium-card .ad-card-meta h3{grid-area:name!important;align-self:end!important;max-width:100%!important;margin:0!important;overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;font-size:14px!important;line-height:1.15!important}
-.public-top-premium .public-top-premium-card .ad-card-meta p{display:none!important}
-.public-ad-banner+.board-wrap,.public-ad-banner+.wrap{margin-top:0}
-@media(max-width:900px){.public-top-premium .premium-row-slider:hover .premium-track{animation-play-state:running!important}}
-@media(max-width:560px){
-  .public-ad-banner.public-top-premium{margin:10px auto 14px}
-  .public-top-premium .premium-row-slider{height:calc(((100vw - 40px)/4)*1.25 + 16px)!important;min-height:calc(((100vw - 40px)/4)*1.25 + 16px)!important;max-height:calc(((100vw - 40px)/4)*1.25 + 16px)!important;padding:8px!important}
-  .public-top-premium .premium-track{height:calc(((100vw - 40px)/4)*1.25)!important;gap:8px!important;animation:premiumMarquee 28s linear infinite!important}
-  .public-top-premium .public-top-premium-card{width:calc((100vw - 40px)/4)!important;min-width:calc((100vw - 40px)/4)!important;max-width:calc((100vw - 40px)/4)!important;height:calc(((100vw - 40px)/4)*1.25)!important;min-height:calc(((100vw - 40px)/4)*1.25)!important;max-height:calc(((100vw - 40px)/4)*1.25)!important;flex:0 0 calc((100vw - 40px)/4)!important;border-radius:12px!important}
-  .public-top-premium .public-top-premium-card .ad-card-meta{padding:6px!important}
-  .public-top-premium .public-top-premium-card .ad-card-meta em{height:16px!important;padding:0 5px!important;font-size:8px!important}
-  .public-top-premium .public-top-premium-card .ad-card-meta h3{font-size:10px!important;line-height:1.15!important}
+.public-ad-banner.premium-showcase{
+  margin-top:14px!important;
+  margin-bottom:28px!important;
 }
-@media(prefers-reduced-motion:reduce){.public-top-premium .premium-track{animation:none!important;transform:none!important}}
+.public-ad-banner.premium-showcase .showcase-title{display:none!important}
+@media(max-width:760px){
+  .public-ad-banner.premium-showcase{
+    margin-top:10px!important;
+    margin-bottom:22px!important;
+  }
+}

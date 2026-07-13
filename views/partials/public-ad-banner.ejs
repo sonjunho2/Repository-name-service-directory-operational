@@ -8,10 +8,26 @@
   const _publicAdLoop=[];
   for(let i=0;i<8;i++){_publicAdSource.forEach(function(ad){_publicAdLoop.push(ad);});}
 %>
-<section class="public-ad-banner public-top-premium" aria-label="광고 배너">
-  <div class="premium-row-slider unified-premium-slider public-top-premium-slider">
+<section class="premium-showcase public-ad-banner" aria-label="광고 배너">
+  <div class="premium-row-slider unified-premium-slider">
     <div class="premium-track">
-      <% _publicAdLoop.forEach(function(ad){ %><a class="card premium public-top-premium-card" href="<%=ad.href||'#'%>"><div class="thumb"><% if(ad.image_data){ %><img src="<%=ad.image_data%>" alt="" loading="lazy" decoding="async"><% }else{ %><div class="noimg">AD</div><% } %></div><div class="ad-card-meta"><em>PREMIUM</em><h3><%=ad.title||'광고 배너'%></h3><p><%=ad.subtitle||'광고 영역'%></p></div></a><% }); %>
+      <% _publicAdLoop.forEach(function(v){
+        const _isVendor=!!v.vendor_id||!!v.isVendor;
+        const _href=v.href||(_isVendor?('/vendor/'+v.vendor_id):'#');
+        const _vendorMatch=String(_href).match(/^\/vendor\/(\d+)/);
+        const _vendorId=v.vendor_id||(_vendorMatch?_vendorMatch[1]:'');
+      %>
+        <a class="card <%= _isVendor?'vendor-open premium':'premium banner-direct-open' %>" href="<%=_href%>" <%- _isVendor&&_vendorId?('data-vendor-id="'+_vendorId+'"'):'' %>>
+          <div class="thumb">
+            <% if(v.image_data){ %><img src="<%=v.image_data%>" alt="" loading="lazy" decoding="async"><% }else{ %><div class="noimg">IMAGE</div><% } %>
+          </div>
+          <div class="ad-card-meta">
+            <em>PREMIUM</em>
+            <h3><%=v.title||v.name||'광고 배너'%></h3>
+            <p><%=v.subtitle||v.region||'광고 영역'%></p>
+          </div>
+        </a>
+      <% }); %>
     </div>
   </div>
 </section>
