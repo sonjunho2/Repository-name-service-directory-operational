@@ -111,6 +111,15 @@ async function ensureSchema(){
     await q("CREATE INDEX IF NOT EXISTS idx_payment_logs_product_type ON payment_logs(product_type)");
     await q("CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC)");
     await q("CREATE INDEX IF NOT EXISTS idx_vendor_requests_status_created ON vendor_update_requests(status,created_at DESC)");
+    await q(`CREATE TABLE IF NOT EXISTS board_categories(id SERIAL PRIMARY KEY,title TEXT NOT NULL,slug TEXT UNIQUE NOT NULL,description TEXT DEFAULT '',type TEXT DEFAULT 'community',is_active BOOLEAN DEFAULT true,sort_order INTEGER DEFAULT 0,write_role TEXT DEFAULT 'member',comment_enabled BOOLEAN DEFAULT true,image_enabled BOOLEAN DEFAULT true,created_at TIMESTAMP DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS board_posts(id SERIAL PRIMARY KEY,board_id INTEGER REFERENCES board_categories(id) ON DELETE CASCADE,user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,title TEXT NOT NULL,content TEXT NOT NULL,image_data TEXT,status TEXT DEFAULT 'visible',views INTEGER DEFAULT 0,is_pinned BOOLEAN DEFAULT false,created_at TIMESTAMP DEFAULT now(),updated_at TIMESTAMP DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS board_comments(id SERIAL PRIMARY KEY,post_id INTEGER REFERENCES board_posts(id) ON DELETE CASCADE,user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,content TEXT NOT NULL,status TEXT DEFAULT 'visible',created_at TIMESTAMP DEFAULT now())`);
+    await q("CREATE INDEX IF NOT EXISTS idx_board_categories_active_sort ON board_categories(is_active,sort_order)");
+    await q("CREATE INDEX IF NOT EXISTS idx_board_posts_board_status_pinned_created ON board_posts(board_id,status,is_pinned,created_at DESC)");
+    await q("CREATE INDEX IF NOT EXISTS idx_board_comments_post_status_created ON board_comments(post_id,status,created_at)");
+    for(const board of [['공지사항','notice','notice','admin'],['자유게시판','free','community','member'],['이용후기','reviews','review','member'],['제보/신고','reports','report','member']]){
+      await q('INSERT INTO board_categories(title,slug,type,write_role) VALUES($1,$2,$3,$4) ON CONFLICT (slug) DO NOTHING',board);
+    }
 
   }
 app.set('trust proxy',1);
@@ -326,6 +335,23 @@ async function refreshSessionUser(req){
   if(!u||u.status!=='active')return null;
   req.session.user={id:u.id,username:u.username,nickname:u.nickname,role:u.role,is_vendor:u.is_vendor,vendor_id:u.vendor_id};
   return req.session.user;
+}
+
+async function getBoardCategories(){
+  const r=await q(`SELECT b.*,(SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id AND p.status='visible') post_count FROM board_categories b WHERE b.is_active=true ORDER BY b.sort_order,b.id`);
+  return r.rows||[];
+}
+function canWriteBoard(user,board){
+  if(!board)return false;
+  if(board.write_role==='admin')return !!user&&user.role==='admin';
+  if(board.write_role==='guest')return true;
+  return !!user;
+}
+function boardSlugSafe(slug,title=''){
+  const clean=String(slug||'').trim().toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80);
+  if(clean)return clean;
+  const fromTitle=String(title||'').trim().toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80);
+  return fromTitle||('board-'+Date.now());
 }
 
 
@@ -641,6 +667,68 @@ async function homeData(req){
 app.get('/healthz',async(req,res)=>{try{await q('SELECT 1');res.json({ok:true,db:true,time:new Date().toISOString()});}catch(e){res.status(500).json({ok:false,db:false,error:e.message,time:new Date().toISOString()});}});
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
 app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
+app.get('/boards',async(req,res)=>{
+  try{
+    const boards=await getBoardCategories();
+    const ids=boards.map(x=>x.id);
+    const recent=ids.length?await q(`SELECT p.id,p.board_id,p.title,p.created_at,u.nickname FROM board_posts p LEFT JOIN users u ON u.id=p.user_id WHERE p.status='visible' AND p.board_id=ANY($1::int[]) ORDER BY p.created_at DESC`,[ids]):{rows:[]};
+    const recentByBoard={};
+    for(const post of recent.rows||[]){const list=recentByBoard[post.board_id]||(recentByBoard[post.board_id]=[]);if(list.length<5)list.push(post);}
+    res.render('board-list',{mode:'categories',boards,board:null,posts:[],recentByBoard,page:1,totalPages:1,qText:'',canWrite:false,settings:await getSettings()});
+  }catch(e){console.error('boards list failed',e);res.status(500).send('게시판을 불러오지 못했습니다.');}
+});
+app.get('/boards/:slug',async(req,res)=>{
+  try{
+    const boardResult=await q('SELECT * FROM board_categories WHERE slug=$1 AND is_active=true',[String(req.params.slug||'').toLowerCase()]);
+    const board=boardResult.rows[0];if(!board)return res.status(404).send('게시판을 찾을 수 없습니다.');
+    const page=Math.max(1,parseInt(req.query.page||'1',10)||1),limit=20,offset=(page-1)*limit;
+    const qText=String(req.query.q||'').trim().slice(0,100),params=[board.id];
+    let search='';if(qText){params.push(`%${qText}%`);search=` AND (p.title ILIKE $2 OR p.content ILIKE $2)`;}
+    const count=await q(`SELECT COUNT(*)::int count FROM board_posts p WHERE p.board_id=$1 AND p.status='visible'${search}`,params);
+    const total=Number(count.rows[0]?.count||0),totalPages=Math.max(1,Math.ceil(total/limit));
+    const rows=await q(`SELECT p.id,p.title,p.views,p.is_pinned,p.created_at,u.nickname,u.username,(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id AND c.status='visible') comment_count FROM board_posts p LEFT JOIN users u ON u.id=p.user_id WHERE p.board_id=$1 AND p.status='visible'${search} ORDER BY p.is_pinned DESC,p.created_at DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    res.render('board-list',{mode:'posts',boards:await getBoardCategories(),board,posts:rows.rows,recentByBoard:{},page,totalPages,qText,canWrite:!!req.session.user&&canWriteBoard(req.session.user,board),settings:await getSettings()});
+  }catch(e){console.error('board posts failed',e);res.status(500).send('게시글을 불러오지 못했습니다.');}
+});
+app.get('/boards/:slug/write',async(req,res)=>{
+  const board=(await q('SELECT * FROM board_categories WHERE slug=$1 AND is_active=true',[String(req.params.slug||'').toLowerCase()])).rows[0];
+  if(!board)return res.status(404).send('게시판을 찾을 수 없습니다.');
+  if(!req.session.user)return res.redirect('/login');
+  if(!canWriteBoard(req.session.user,board))return res.status(403).send('글쓰기 권한이 없습니다.');
+  res.render('board-write',{board,settings:await getSettings(),error:null});
+});
+app.post('/boards/:slug/write',login,upload.single('image'),async(req,res)=>{
+  try{
+    const board=(await q('SELECT * FROM board_categories WHERE slug=$1 AND is_active=true',[String(req.params.slug||'').toLowerCase()])).rows[0];
+    if(!board)return res.status(404).send('게시판을 찾을 수 없습니다.');
+    if(!canWriteBoard(req.session.user,board))return res.status(403).send('글쓰기 권한이 없습니다.');
+    const title=String(req.body.title||'').trim().slice(0,100),content=String(req.body.content||'').trim().slice(0,5000);
+    if(title.length<2||content.length<2)return res.status(400).render('board-write',{board,settings:await getSettings(),error:'제목과 내용을 2자 이상 입력해주세요.'});
+    const imageData=board.image_enabled?img(req.file):null;
+    const saved=await q('INSERT INTO board_posts(board_id,user_id,title,content,image_data) VALUES($1,$2,$3,$4,$5) RETURNING id',[board.id,req.session.user.id,title,content,imageData]);
+    res.redirect(`/boards/${board.slug}/${saved.rows[0].id}`);
+  }catch(e){console.error('board write failed',e);res.status(500).send('게시글을 저장하지 못했습니다.');}
+});
+app.post('/boards/:slug/:id/comments',login,async(req,res)=>{
+  const id=parseInt(req.params.id||0,10),content=String(req.body.content||'').trim().slice(0,1000);
+  const found=await q(`SELECT p.id,b.slug,b.comment_enabled FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2 AND p.status='visible' AND b.is_active=true`,[id,String(req.params.slug||'').toLowerCase()]);
+  if(!found.rows[0])return res.status(404).send('게시글을 찾을 수 없습니다.');
+  if(!found.rows[0].comment_enabled)return res.status(403).send('댓글을 사용할 수 없습니다.');
+  if(!content)return res.status(400).send('댓글 내용을 입력해주세요.');
+  await q('INSERT INTO board_comments(post_id,user_id,content) VALUES($1,$2,$3)',[id,req.session.user.id,content]);
+  res.redirect(`/boards/${found.rows[0].slug}/${id}`);
+});
+app.get('/boards/:slug/:id',async(req,res)=>{
+  try{
+    const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('게시글을 찾을 수 없습니다.');
+    const updated=await q(`UPDATE board_posts p SET views=views+1 FROM board_categories b WHERE p.board_id=b.id AND p.id=$1 AND b.slug=$2 AND b.is_active=true AND p.status='visible' RETURNING p.*`,[id,String(req.params.slug||'').toLowerCase()]);
+    const post=updated.rows[0];if(!post)return res.status(404).send('게시글을 찾을 수 없습니다.');
+    const board=(await q('SELECT * FROM board_categories WHERE id=$1',[post.board_id])).rows[0];
+    const author=(await q('SELECT username,nickname FROM users WHERE id=$1',[post.user_id])).rows[0]||{};
+    const comments=await q(`SELECT c.*,u.username,u.nickname FROM board_comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 AND c.status='visible' ORDER BY c.created_at`,[id]);
+    res.render('board-post',{board,post:{...post,...author},comments:comments.rows,canWrite:!!req.session.user&&canWriteBoard(req.session.user,board),settings:await getSettings()});
+  }catch(e){console.error('board post failed',e);res.status(500).send('게시글을 불러오지 못했습니다.');}
+});
 app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
 app.post('/inquiry',upload.fields([{name:'main_image',maxCount:1},{name:'banner_image',maxCount:1}]),async(req,res)=>{try{const type=['apply','ad'].includes(req.body.type)?req.body.type:'ad'; const company=(req.body.company_name||'').trim().slice(0,100); const phone=(req.body.phone||'').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,2000); if(!company||!phone||content.length<5)return res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:false,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',settings:await getSettings()}); const f=req.files||{}; await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,banner_image_data,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[type,company,(req.body.name||'').trim().slice(0,50),phone,(req.body.kakao||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'').trim().slice(0,50),(req.body.region||'').trim().slice(0,50),content,img(f.main_image?.[0]),img(f.banner_image?.[0]),req.session.user?.id||null]); res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:true,error:null,settings:await getSettings()});}catch(e){res.render('inquiry',{type:req.body.type||'ad',title:req.body.type==='apply'?'입점신청':'광고문의',done:false,error:e.message||'신청 저장 실패',settings:await getSettings()});}});
 
@@ -1014,6 +1102,23 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
   return sendOk(req,res,'/admin#inquiries');
 });
 app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return sendFail(req,res,400,'banner_not_available','/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); return sendOk(req,res,'/admin#inquiries');});
+app.post('/admin/boards',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
+  const title=String(req.body.title||'').trim().slice(0,100);if(!title)throw new Error('게시판 제목을 입력해주세요.');
+  const slug=boardSlugSafe(req.body.slug,title),type=['notice','community','review','report','free'].includes(req.body.type)?req.body.type:'community';
+  const writeRole=['guest','member','admin'].includes(req.body.write_role)?req.body.write_role:'member';
+  await q(`INSERT INTO board_categories(title,slug,description,type,is_active,sort_order,write_role,comment_enabled,image_enabled) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[title,slug,String(req.body.description||'').trim().slice(0,500),type,!!req.body.is_active,parseInt(req.body.sort_order||0,10)||0,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled]);
+  await logAdmin(req,'게시판 생성','board_category',slug,title);
+}));
+app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
+  const id=parseInt(req.params.id||0,10),title=String(req.body.title||'').trim().slice(0,100);if(!id||!title)throw new Error('게시판 정보를 확인해주세요.');
+  const slug=boardSlugSafe(req.body.slug,title),type=['notice','community','review','report','free'].includes(req.body.type)?req.body.type:'community';
+  const writeRole=['guest','member','admin'].includes(req.body.write_role)?req.body.write_role:'member';
+  const r=await q(`UPDATE board_categories SET title=$1,slug=$2,description=$3,type=$4,is_active=$5,sort_order=$6,write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id`,[title,slug,String(req.body.description||'').trim().slice(0,500),type,!!req.body.is_active,parseInt(req.body.sort_order||0,10)||0,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled,id]);
+  if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 수정','board_category',id,title);
+}));
+app.post('/admin/boards/:id/delete',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
+  const r=await q('UPDATE board_categories SET is_active=false WHERE id=$1 RETURNING id,title',[parseInt(req.params.id||0,10)]);if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 비활성화','board_category',r.rows[0].id,r.rows[0].title);
+}));
 app.get('/admin',admin,async(req,res)=>{
   try{
 await expireAds(); await expirePendingPayments();
@@ -1037,6 +1142,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.id,r.user_id,r.vendor_id,r.title,r.subtitle,r.link_url,r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
   CASE WHEN r.image_data IS NOT NULL AND r.image_data<>'' THEN true ELSE false END has_image_data,
   u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
+  const adminBoards=(await q('SELECT * FROM board_categories ORDER BY sort_order,id')).rows;
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];
@@ -1219,7 +1325,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     adRequests:adRequestStats,bannerRequests:bannerRequestStats,
     adCenter:Object.fromEntries(requestKeys.map(key=>[key,adRequestStats[key]+bannerRequestStats[key]]))
   };
-  res.render('admin',{adminSummary,adminListStats,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
+  res.render('admin',{adminSummary,adminListStats,adminBoards,users:users.rows,vendors:vendors.rows,banners:banners.rows,reviews:reviews.rows,events:events.rows,notices:notices.rows,inquiries:inquiries.rows,flags:flags.rows,vendorRequests:vendorRequests.rows,bannerRequests:bannerRequests.rows,adRequests:adRequests.rows,adminLogs:adminLogs.rows,paymentLogs:paidRows,revenueStats,settings,dashboardStats});
   }catch(e){
     console.error('admin load failed',e);
     if(!res.headersSent)res.status(500).send('admin load failed: '+String(e.message||e));

@@ -279,3 +279,21 @@ document.body.appendChild(reviewPopupScript);
     });
   });
 })();
+
+(function(){
+  if(window.__boardUiV1)return;
+  window.__boardUiV1=true;
+  document.addEventListener('click',function(e){
+    var toggle=e.target&&e.target.closest&&e.target.closest('[data-board-menu-toggle]');
+    if(toggle){e.preventDefault();toggle.closest('.board-ui-group')?.classList.toggle('open');return;}
+    var row=e.target&&e.target.closest&&e.target.closest('tr[data-board-href]');
+    if(row&&!e.target.closest('a,button,input,select,textarea'))location.href=row.dataset.boardHref;
+  });
+  var file=document.querySelector('.board-form input[type="file"][name="image"]');
+  if(file)file.addEventListener('change',function(){
+    var preview=document.querySelector('.board-image-preview'),image=preview&&preview.querySelector('img'),selected=file.files&&file.files[0];
+    if(!preview||!image||!selected)return;
+    if(image.dataset.objectUrl)URL.revokeObjectURL(image.dataset.objectUrl);
+    image.dataset.objectUrl=URL.createObjectURL(selected);image.src=image.dataset.objectUrl;preview.style.display='block';
+  });
+})();

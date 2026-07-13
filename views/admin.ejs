@@ -391,6 +391,7 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
 
   <div class="admin-menu-group">
     <div class="admin-menu-title">게시판관리</div>
+    <a href="#boards" data-panel="boards">게시판 설정</a>
     <a href="#notices" data-panel="notices">공지관리</a>
     <a href="#reviews" data-panel="reviews">후기관리</a>
     <a href="#reports" data-panel="reports">신고관리</a>
@@ -1131,6 +1132,18 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
       <div class="settings-help">상품등급, 결제설정, 업체회원, 관리자 로그 기능이 적용되어 있습니다.</div>
     </div>
   </div>
+</section><section id="boards" class="panel admin-panel">
+  <h2>게시판 설정</h2>
+  <form method="post" action="/admin/boards" class="gridform" data-no-ajax>
+    <input name="title" placeholder="게시판 제목" required><input name="slug" placeholder="slug (영문/숫자/-/_)">
+    <select name="type"><option value="notice">notice</option><option value="community" selected>community</option><option value="review">review</option><option value="report">report</option><option value="free">free</option></select>
+    <select name="write_role"><option value="member">회원 작성</option><option value="admin">관리자만 작성</option></select>
+    <textarea name="description" placeholder="게시판 설명"></textarea><input type="number" name="sort_order" value="0" placeholder="정렬">
+    <label><input type="checkbox" name="comment_enabled" checked> 댓글 사용</label><label><input type="checkbox" name="image_enabled" checked> 이미지 사용</label><label><input type="checkbox" name="is_active" checked> 노출</label><button>게시판 생성</button>
+  </form>
+  <div class="table-wrap"><table><tr><th>ID</th><th>제목 / 설명</th><th>slug</th><th>타입</th><th>쓰기</th><th>댓글</th><th>이미지</th><th>노출</th><th>정렬</th><th>관리</th></tr>
+  <% (adminBoards||[]).forEach(b=>{ %><tr><td><%=b.id%></td><td><form id="boardForm<%=b.id%>" method="post" action="/admin/boards/<%=b.id%>/update" data-no-ajax></form><input form="boardForm<%=b.id%>" name="title" value="<%=b.title%>" required><textarea form="boardForm<%=b.id%>" name="description"><%=b.description||''%></textarea></td><td><input form="boardForm<%=b.id%>" name="slug" value="<%=b.slug%>" required></td><td><select form="boardForm<%=b.id%>" name="type"><% ['notice','community','review','report','free'].forEach(t=>{ %><option value="<%=t%>" <%=b.type===t?'selected':''%>><%=t%></option><% }) %></select></td><td><select form="boardForm<%=b.id%>" name="write_role"><option value="member" <%=b.write_role==='member'?'selected':''%>>회원</option><option value="admin" <%=b.write_role==='admin'?'selected':''%>>관리자</option><option value="guest" <%=b.write_role==='guest'?'selected':''%>>게스트</option></select></td><td><input form="boardForm<%=b.id%>" type="checkbox" name="comment_enabled" <%=b.comment_enabled?'checked':''%>></td><td><input form="boardForm<%=b.id%>" type="checkbox" name="image_enabled" <%=b.image_enabled?'checked':''%>></td><td><input form="boardForm<%=b.id%>" type="checkbox" name="is_active" <%=b.is_active?'checked':''%>></td><td><input form="boardForm<%=b.id%>" type="number" name="sort_order" value="<%=b.sort_order||0%>"></td><td><button form="boardForm<%=b.id%>">저장</button><form method="post" action="/admin/boards/<%=b.id%>/delete" data-no-ajax style="margin-top:6px"><button onclick="return confirm('게시판을 비활성화할까요?')">비활성화</button></form></td></tr><% }) %>
+  </table></div>
 </section></main></div>
 <div class="admin-image-modal" id="adminImagePreviewModal" aria-hidden="true">
   <div class="admin-image-modal-card">
