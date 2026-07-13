@@ -1149,9 +1149,29 @@ app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res
   const id=parseInt(req.params.id||0,10),title=String(req.body.title||'').trim().slice(0,100);if(!id||!title)throw new Error('게시판 정보를 확인해주세요.');
   const slug=boardSlugSafe(req.body.slug,title),type=['notice','community','review','report','free','qna','inquiry'].includes(req.body.type)?req.body.type:'community';
   const writeRole=['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member';
-  const r=await q(`UPDATE board_categories SET title=$1,slug=$2,description=$3,type=$4,is_active=$5,sort_order=$6,write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id`,[title,slug,String(req.body.description||'').trim().slice(0,500),type,!!req.body.is_active,parseInt(req.body.sort_order||0,10)||0,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled,id]);
+  const description=Object.prototype.hasOwnProperty.call(req.body,'description')?String(req.body.description||'').trim().slice(0,500):null;
+  const sortOrder=Object.prototype.hasOwnProperty.call(req.body,'sort_order')?(parseInt(req.body.sort_order||0,10)||0):null;
+  const r=await q(`UPDATE board_categories SET title=$1,slug=$2,description=COALESCE($3,description),type=$4,is_active=$5,sort_order=COALESCE($6,sort_order),write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id`,[title,slug,description,type,!!req.body.is_active,sortOrder,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled,id]);
   if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 수정','board_category',id,title);
 }));
+app.post('/admin/boards/reorder',admin,async(req,res)=>{
+  const ids=Array.isArray(req.body.ids)?req.body.ids.map(x=>parseInt(x,10)):[];
+  if(!ids.length||ids.length>500||ids.some(id=>!id)||new Set(ids).size!==ids.length)return sendFail(req,res,400,'게시판 순서가 올바르지 않습니다.','/admin#boards');
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    for(let i=0;i<ids.length;i++){
+      const updated=await client.query('UPDATE board_categories SET sort_order=$1 WHERE id=$2 RETURNING id',[i*10,ids[i]]);
+      if(!updated.rows[0])throw new Error('순서를 저장할 게시판을 찾을 수 없습니다.');
+    }
+    await client.query('COMMIT');
+    await logAdmin(req,'게시판 순서 저장','board_category','reorder',ids.join(','));
+    return sendOk(req,res,'/admin#boards');
+  }catch(e){
+    await client.query('ROLLBACK');
+    return sendFail(req,res,500,e.message||'게시판 순서를 저장하지 못했습니다.','/admin#boards');
+  }finally{client.release();}
+});
 app.post('/admin/boards/:id/delete',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
   const r=await q('UPDATE board_categories SET is_active=false WHERE id=$1 RETURNING id,title',[parseInt(req.params.id||0,10)]);if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 비활성화','board_category',r.rows[0].id,r.rows[0].title);
 }));
