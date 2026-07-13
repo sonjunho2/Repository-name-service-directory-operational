@@ -12,10 +12,10 @@
   <div class="premium-row-slider unified-premium-slider">
     <div class="premium-track">
       <% _publicAdLoop.forEach(function(v){
-        const _isVendor=!!v.vendor_id||!!v.isVendor;
-        const _href=v.href||(_isVendor?('/vendor/'+v.vendor_id):'#');
+        const _href=v.href||((v.vendor_id||v.id)?('/vendor/'+(v.vendor_id||v.id)):'#');
         const _vendorMatch=String(_href).match(/^\/vendor\/(\d+)/);
         const _vendorId=v.vendor_id||(_vendorMatch?_vendorMatch[1]:'');
+        const _isVendor=!!v.isVendor||!!v.vendor_id||!!_vendorId;
       %>
         <a class="card <%= _isVendor?'vendor-open premium':'premium banner-direct-open' %>" href="<%=_href%>" <%- _isVendor&&_vendorId?('data-vendor-id="'+_vendorId+'"'):'' %>>
           <div class="thumb">

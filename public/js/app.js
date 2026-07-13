@@ -108,6 +108,7 @@ async function toggleFav(id){
 }
 function openModal(){
   if(!modal) return;
+  modal.style.display='block';
   modal.classList.add('show');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
@@ -115,10 +116,15 @@ function openModal(){
 function closeModal(){
   if(!modal) return;
   modal.classList.remove('show');
+  modal.style.display='none';
   modal.setAttribute('aria-hidden','true');
   document.body.classList.remove('modal-open');
 }
 async function openVendor(id){
+  if(!modal || !modalContent){
+    location.href='/vendor/'+encodeURIComponent(id);
+    return;
+  }
   openModal();
   modalContent.innerHTML='<div class="modal-loading">불러오는 중...</div>';
   try{

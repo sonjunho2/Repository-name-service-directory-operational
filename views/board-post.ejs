@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><%=post.title%> - <%=board.title%></title><link rel="stylesheet" href="/public/css/style.css"><link rel="stylesheet" href="/public/css/home-card-layout-v48.css">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><%=post.title%> - <%=board.title%></title><link rel="stylesheet" href="/public/css/style.css"><link rel="stylesheet" href="/public/css/home-card-layout-v48.css"><link rel="stylesheet" href="/public/css/vendor-popup-layout-v50.css">
 </head>
 <body>
 <%- include('partials/public-mobile-menu') %>
@@ -13,6 +13,7 @@
   <section class="board-comments"><h2>댓글 <%=comments.length%></h2><div class="board-comment-list"><% comments.forEach(c=>{ %><article><b><%=c.nickname||c.username||'탈퇴회원'%></b><small><%=fmtDateTime(c.created_at)%></small><p><%=c.content%></p></article><% }) %><% if(!comments.length){ %><p class="board-empty">첫 댓글을 남겨보세요.</p><% } %></div><% if(board.comment_enabled&&me){ %><form class="board-comment-form" method="post" action="/boards/<%=board.slug%>/<%=post.id%>/comments"><textarea name="content" maxlength="1000" required placeholder="댓글을 입력하세요"></textarea><button>댓글 등록</button></form><% }else if(board.comment_enabled){ %><p><a href="/login">로그인 후 댓글을 작성할 수 있습니다.</a></p><% } %></section>
   <div class="board-actions"><a href="/boards/<%=board.slug%>">목록</a><% if(canWrite){ %><a class="board-write-btn" href="/boards/<%=board.slug%>/write">새 글</a><% } %></div>
 </main>
+<%- include('partials/vendor-modal') %>
 <script src="/public/js/app.js"></script>
 </body>
 </html>

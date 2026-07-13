@@ -192,14 +192,7 @@
   </aside>
 </main>
 
-<div id="vendorModal" aria-hidden="true" style="display:none;position:fixed;left:0;right:0;top:0;bottom:0;z-index:100;">
-  <div data-close="1" style="position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(0,0,0,.78);"></div>
-  <div style="position:relative;width:min(950px,calc(100% - 32px));max-height:86vh;margin:5vh auto;background:#101525;border:1px solid #29324f;border-radius:22px;box-shadow:0 30px 100px #000;overflow:auto;color:#f5f7ff;">
-    <button type="button" data-close="1" style="float:right;margin:14px;width:42px;height:42px;border-radius:50%;font-size:28px;background:#090d18;color:#fff;border:1px solid #29324f;cursor:pointer;">×</button>
-    <div id="vendorModalContent" style="padding:30px;clear:both;">불러오는 중...</div>
-  </div>
-</div>
-
+<%- include('partials/vendor-modal') %>
 <script src="/public/js/app.js"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@
   <title><%=mode==='posts'?board.title:'커뮤니티 게시판'%> - <%=brand.name%></title>
   <link rel="stylesheet" href="/public/css/style.css">
   <link rel="stylesheet" href="/public/css/home-card-layout-v48.css">
+  <link rel="stylesheet" href="/public/css/vendor-popup-layout-v50.css">
 </head>
 <body>
 <%- include('partials/public-mobile-menu') %>
@@ -49,6 +50,7 @@
     <div class="board-actions"><a href="/boards">게시판 목록</a><% if(canWrite){ %><a class="board-write-btn" href="/boards/<%=board.slug%>/write">새 글 작성</a><% } %></div>
   <% } %>
 </main>
+<%- include('partials/vendor-modal') %>
 <script src="/public/js/app.js"></script>
 </body>
 </html>
