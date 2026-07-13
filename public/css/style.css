@@ -1065,22 +1065,24 @@ body>header:not(.top)>.site-brand-center span{
 }
 
 /* Shared advertising strip for public content pages */
-.public-ad-banner{width:min(1180px,100%);margin:18px auto 22px;overflow:hidden}
-.public-ad-banner-slider{width:100%;overflow:hidden;padding:0 12px}
-.public-ad-banner-track{display:flex;width:max-content;gap:12px;align-items:stretch;animation:publicAdSlide 38s linear infinite;will-change:transform}
-.public-ad-banner-slider:hover .public-ad-banner-track{animation-play-state:paused}
-.public-ad-banner-card{position:relative;flex:0 0 180px;width:180px;height:225px;border:1px solid rgba(255,220,77,.8);border-radius:18px;overflow:hidden;background:#080d18;color:#fff;text-decoration:none}
+.public-ad-banner{width:100%;margin:18px auto 22px;overflow:hidden;position:relative}
+.public-ad-banner-slider{width:100%;overflow:hidden;padding:0 12px;position:relative}
+.public-ad-banner-slider:before,.public-ad-banner-slider:after{content:'';position:absolute;top:0;width:64px;height:100%;z-index:3;pointer-events:none}.public-ad-banner-slider:before{left:0;background:linear-gradient(90deg,#070a12,transparent)}.public-ad-banner-slider:after{right:0;background:linear-gradient(270deg,#070a12,transparent)}
+.public-ad-banner-track{display:flex!important;align-items:stretch!important;gap:12px!important;width:max-content!important;min-width:max-content!important;animation:publicAdMarquee 30s linear infinite!important;will-change:transform}
+.public-ad-banner-slider:hover .public-ad-banner-track{animation-play-state:paused!important}
+.public-ad-banner-card{position:relative;display:block;flex:0 0 180px!important;width:180px!important;height:225px!important;border:1px solid rgba(255,220,77,.8);border-radius:18px;overflow:hidden;background:#080d18;color:#fff;text-decoration:none}
 .public-ad-banner-thumb,.public-ad-banner-thumb img{width:100%;height:100%}.public-ad-banner-thumb img{display:block;object-fit:cover;object-position:center}
 .public-ad-banner-placeholder{display:flex;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:7px;padding:12px;background:linear-gradient(145deg,#2f1839,#102442);text-align:center}.public-ad-banner-placeholder b{font-size:17px}.public-ad-banner-placeholder span{color:#c8d0e8;font-size:12px}
-.public-ad-banner-card:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.75));pointer-events:none}
+.public-ad-banner-card:after{content:'';position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.75));pointer-events:none}
 .public-ad-banner-meta{position:absolute;inset:0;z-index:2;display:grid;grid-template-rows:auto 1fr auto;padding:10px;pointer-events:none}.public-ad-banner-meta em{justify-self:start;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:#ffdc4d;color:#111;font-size:11px;font-weight:1000;font-style:normal}.public-ad-banner-meta strong{align-self:end;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;font-weight:1000;text-shadow:0 2px 10px #000}
 .public-ad-banner+.board-wrap,.public-ad-banner+.wrap{margin-top:0}
-@keyframes publicAdSlide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes publicAdMarquee{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-50%,0,0)}}
 @media(max-width:560px){
   .public-ad-banner{margin:12px auto 16px}
   .public-ad-banner-slider{padding:0 8px}
-  .public-ad-banner-track{gap:8px}
-  .public-ad-banner-card{flex-basis:calc((100vw - 40px)/4);width:calc((100vw - 40px)/4);height:calc(((100vw - 40px)/4)*1.25);border-radius:12px}
+  .public-ad-banner-track{gap:8px!important;animation-duration:24s!important}
+  .public-ad-banner-card{flex-basis:calc((100vw - 40px)/4)!important;width:calc((100vw - 40px)/4)!important;height:calc(((100vw - 40px)/4)*1.25)!important;border-radius:12px}
   .public-ad-banner-meta{padding:6px}.public-ad-banner-meta em{height:16px;padding:0 5px;font-size:7px}.public-ad-banner-meta strong{font-size:10px;line-height:1.15}.public-ad-banner-placeholder{gap:3px;padding:5px}.public-ad-banner-placeholder b{font-size:9px}.public-ad-banner-placeholder span{display:none}
+  .public-ad-banner-slider:before,.public-ad-banner-slider:after{width:22px}
 }
-@media(prefers-reduced-motion:reduce){.public-ad-banner-track{animation:none}}
+@media(prefers-reduced-motion:reduce){.public-ad-banner-track{animation:none!important;transform:none!important}}
