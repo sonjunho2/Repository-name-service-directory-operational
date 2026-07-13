@@ -297,3 +297,52 @@ document.body.appendChild(reviewPopupScript);
     image.dataset.objectUrl=URL.createObjectURL(selected);image.src=image.dataset.objectUrl;preview.style.display='block';
   });
 })();
+
+(function(){
+  if(window.__publicMenuFallbackButtonV1)return;
+  window.__publicMenuFallbackButtonV1=true;
+  function ensurePublicMenuButton(){
+    var menu=document.getElementById('publicSideMenu');
+    if(!menu||document.querySelector('.public-menu-toggle'))return;
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='public-menu-toggle';
+    btn.setAttribute('data-public-menu-open','');
+    btn.setAttribute('aria-label','메뉴 열기');
+    btn.setAttribute('aria-controls','publicSideMenu');
+    btn.setAttribute('aria-expanded','false');
+    btn.innerHTML='<span></span><span></span><span></span>';
+    document.body.insertBefore(btn,document.body.firstChild);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ensurePublicMenuButton);
+  else ensurePublicMenuButton();
+})();
+
+(function(){
+  if(window.__publicSideMenuV1)return;
+  window.__publicSideMenuV1=true;
+  function qs(s,root){return (root||document).querySelector(s);}
+  function qsa(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s));}
+  var menu=qs('#publicSideMenu'),overlay=qs('.public-menu-overlay'),openButton=qs('[data-public-menu-open]');
+  if(!menu)return;
+  function openMenu(){menu.classList.add('open');menu.setAttribute('aria-hidden','false');if(overlay)overlay.classList.add('open');if(openButton)openButton.setAttribute('aria-expanded','true');document.body.classList.add('public-menu-open');}
+  function closeMenu(){menu.classList.remove('open');menu.setAttribute('aria-hidden','true');if(overlay)overlay.classList.remove('open');if(openButton)openButton.setAttribute('aria-expanded','false');document.body.classList.remove('public-menu-open');}
+  document.addEventListener('click',function(e){
+    if(e.target.closest('[data-public-menu-open]')){e.preventDefault();openMenu();return;}
+    if(e.target.closest('[data-public-menu-close]')){e.preventDefault();closeMenu();return;}
+    var groupButton=e.target.closest('[data-public-submenu-toggle]');
+    if(groupButton){e.preventDefault();var group=groupButton.closest('.public-menu-group');if(group){group.classList.toggle('open');groupButton.setAttribute('aria-expanded',group.classList.contains('open')?'true':'false');}return;}
+    if(e.target.closest('.public-side-menu a'))closeMenu();
+  });
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();});
+  var path=location.pathname.replace(/\/$/,'')||'/';
+  if(path.indexOf('/boards')===0){var community=qs('[data-public-menu-community]');if(community)community.classList.add('open');}
+  var best=null,bestLength=-1;
+  qsa('.public-side-menu a').forEach(function(a){
+    var linkPath=a.pathname.replace(/\/$/,'')||'/';
+    var exact=linkPath===path;
+    var boardParent=linkPath.indexOf('/boards/')===0&&path.indexOf(linkPath+'/')===0;
+    if((exact||boardParent)&&linkPath.length>bestLength){best=a;bestLength=linkPath.length;}
+  });
+  if(best){best.classList.add('active');best.setAttribute('aria-current','page');var parent=best.closest('.public-menu-group');if(parent)parent.classList.add('open');}
+})();
