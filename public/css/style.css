@@ -1064,34 +1064,23 @@ body>header:not(.top)>.site-brand-center span{
   }
 }
 
-/* Shared banner for public content pages */
-.public-page-banner,
-.board-top-banner{
-  width:min(1180px,calc(100% - 32px));
-  margin:28px auto 24px;
-  border:1px solid #29324f;
-  border-radius:22px;
-  background:linear-gradient(135deg,rgba(255,63,180,.14),rgba(16,217,255,.18));
-  overflow:hidden;
+/* Shared advertising strip for public content pages */
+.public-ad-banner{width:min(1180px,100%);margin:18px auto 22px;overflow:hidden}
+.public-ad-banner-slider{width:100%;overflow:hidden;padding:0 12px}
+.public-ad-banner-track{display:flex;width:max-content;gap:12px;align-items:stretch;animation:publicAdSlide 38s linear infinite;will-change:transform}
+.public-ad-banner-slider:hover .public-ad-banner-track{animation-play-state:paused}
+.public-ad-banner-card{position:relative;flex:0 0 180px;width:180px;height:225px;border:1px solid rgba(255,220,77,.8);border-radius:18px;overflow:hidden;background:#080d18;color:#fff;text-decoration:none}
+.public-ad-banner-thumb,.public-ad-banner-thumb img{width:100%;height:100%}.public-ad-banner-thumb img{display:block;object-fit:cover;object-position:center}
+.public-ad-banner-placeholder{display:flex;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:7px;padding:12px;background:linear-gradient(145deg,#2f1839,#102442);text-align:center}.public-ad-banner-placeholder b{font-size:17px}.public-ad-banner-placeholder span{color:#c8d0e8;font-size:12px}
+.public-ad-banner-card:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.75));pointer-events:none}
+.public-ad-banner-meta{position:absolute;inset:0;z-index:2;display:grid;grid-template-rows:auto 1fr auto;padding:10px;pointer-events:none}.public-ad-banner-meta em{justify-self:start;display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:#ffdc4d;color:#111;font-size:11px;font-weight:1000;font-style:normal}.public-ad-banner-meta strong{align-self:end;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;font-weight:1000;text-shadow:0 2px 10px #000}
+.public-ad-banner+.board-wrap,.public-ad-banner+.wrap{margin-top:0}
+@keyframes publicAdSlide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(max-width:560px){
+  .public-ad-banner{margin:12px auto 16px}
+  .public-ad-banner-slider{padding:0 8px}
+  .public-ad-banner-track{gap:8px}
+  .public-ad-banner-card{flex-basis:calc((100vw - 40px)/4);width:calc((100vw - 40px)/4);height:calc(((100vw - 40px)/4)*1.25);border-radius:12px}
+  .public-ad-banner-meta{padding:6px}.public-ad-banner-meta em{height:16px;padding:0 5px;font-size:7px}.public-ad-banner-meta strong{font-size:10px;line-height:1.15}.public-ad-banner-placeholder{gap:3px;padding:5px}.public-ad-banner-placeholder b{font-size:9px}.public-ad-banner-placeholder span{display:none}
 }
-.public-page-banner-inner{
-  min-height:112px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:18px;
-  padding:26px 34px;
-}
-.public-page-banner b,
-.board-top-banner b{display:block;color:#fff;font-size:clamp(26px,3.2vw,38px);font-weight:1000;line-height:1.1}
-.public-page-banner span,
-.board-top-banner span{display:block;margin-top:8px;color:#c8d0e8;font-size:15px;font-weight:700}
-.public-page-banner a,
-.board-top-banner a{display:inline-flex;align-items:center;justify-content:center;min-width:128px;height:44px;padding:0 18px;border:1px solid rgba(255,255,255,.78);border-radius:999px;color:#fff;text-decoration:none;font-weight:900}
-.public-page-banner+.board-wrap,.public-page-banner+.wrap{margin-top:0}
-@media(max-width:700px){
-  .public-page-banner,.board-top-banner{width:calc(100% - 24px);margin:18px auto;border-radius:18px}
-  .public-page-banner-inner{min-height:82px;padding:18px 20px;align-items:flex-start;flex-direction:column;gap:12px}
-  .public-page-banner b,.board-top-banner b{font-size:26px}
-  .public-page-banner span,.board-top-banner span{font-size:13px}
-}
+@media(prefers-reduced-motion:reduce){.public-ad-banner-track{animation:none}}

@@ -7,7 +7,7 @@
 <body>
 <%- include('partials/public-mobile-menu') %>
 <header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=brand.link||'/'%>"><% if(brand.showLogo&&brand.logo){ %><img src="<%=brand.logo%>" alt=""><% } %><% if(brand.showName){ %><span><%=brand.name%></span><% } %></a><nav><a href="/boards">게시판</a><% if(me){ %><a href="/logout">로그아웃</a><% }else{ %><a href="/login">로그인</a><% } %></nav></header>
-<%- include('partials/public-page-banner',{pageTitle:board.title,pageDesc:'게시글 내용과 댓글을 확인하세요.'}) %>
+<%- include('partials/public-ad-banner') %>
 <main class="board-wrap">
   <article class="board-post-view"><a class="board-kicker" href="/boards/<%=board.slug%>"><%=board.title%></a><h1><%=post.title%></h1><div class="board-post-meta"><span><%=post.nickname||post.username||'탈퇴회원'%></span><span><%=fmtDateTime(post.created_at)%></span><span>조회 <%=post.views||0%></span></div><% if(post.image_data){ %><img class="board-post-image" src="<%=post.image_data%>" alt="첨부 이미지"><% } %><div class="board-post-content"><%=post.content%></div></article>
   <section class="board-comments"><h2>댓글 <%=comments.length%></h2><div class="board-comment-list"><% comments.forEach(c=>{ %><article><b><%=c.nickname||c.username||'탈퇴회원'%></b><small><%=fmtDateTime(c.created_at)%></small><p><%=c.content%></p></article><% }) %><% if(!comments.length){ %><p class="board-empty">첫 댓글을 남겨보세요.</p><% } %></div><% if(board.comment_enabled&&me){ %><form class="board-comment-form" method="post" action="/boards/<%=board.slug%>/<%=post.id%>/comments"><textarea name="content" maxlength="1000" required placeholder="댓글을 입력하세요"></textarea><button>댓글 등록</button></form><% }else if(board.comment_enabled){ %><p><a href="/login">로그인 후 댓글을 작성할 수 있습니다.</a></p><% } %></section>

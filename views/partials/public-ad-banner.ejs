@@ -1,0 +1,17 @@
+<%
+  const _publicAds=Array.isArray(typeof publicAdBanners!=='undefined'?publicAdBanners:[])?publicAdBanners:[];
+  const _publicAdFallback=[
+    {id:'ad-fallback-1',title:'프리미엄 배너',subtitle:'상단 배너 광고 영역',image_data:null,href:'/boards/ad-inquiry'},
+    {id:'ad-fallback-2',title:'광고문의',subtitle:'배너 광고를 신청해 보세요',image_data:null,href:'/boards/ad-inquiry'}
+  ];
+  const _publicAdSource=_publicAds.length?_publicAds:_publicAdFallback;
+  const _publicAdLoop=[];
+  for(let i=0;i<4;i++){_publicAdSource.forEach(function(ad){_publicAdLoop.push(ad);});}
+%>
+<section class="public-ad-banner" aria-label="광고 배너">
+  <div class="public-ad-banner-slider">
+    <div class="public-ad-banner-track">
+      <% _publicAdLoop.forEach(function(ad){ %><a class="public-ad-banner-card" href="<%=ad.href||'#'%>"><div class="public-ad-banner-thumb"><% if(ad.image_data){ %><img src="<%=ad.image_data%>" alt="" loading="lazy" decoding="async"><% }else{ %><div class="public-ad-banner-placeholder"><b><%=ad.title||'광고 배너'%></b><span><%=ad.subtitle||'광고 영역'%></span></div><% } %></div><div class="public-ad-banner-meta"><em>PREMIUM</em><strong><%=ad.title||'광고 배너'%></strong></div></a><% }); %>
+    </div>
+  </div>
+</section>

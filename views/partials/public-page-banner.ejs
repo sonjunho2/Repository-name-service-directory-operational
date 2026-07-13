@@ -1,7 +1,1 @@
-<% const _publicPageTitle=typeof pageTitle!=='undefined'&&pageTitle?pageTitle:(typeof board!=='undefined'&&board&&board.title?board.title:'서비스 안내'); const _publicPageDesc=typeof pageDesc!=='undefined'&&pageDesc?pageDesc:'필요한 정보를 빠르게 확인하세요.'; %>
-<section class="public-page-banner">
-  <div class="public-page-banner-inner">
-    <div><b><%=_publicPageTitle%></b><span><%=_publicPageDesc%></span></div>
-    <% if(typeof pageActionText!=='undefined'&&pageActionText&&typeof pageActionUrl!=='undefined'&&pageActionUrl){ %><a href="<%=pageActionUrl%>"><%=pageActionText%></a><% } %>
-  </div>
-</section>
+<%- include('public-ad-banner') %>

@@ -272,6 +272,18 @@ app.use((req,res,next)=>{
   res.locals.fmtDateTime=formatKstDateTime;
   next();
 });
+app.use(async function publicAdBanners(req,res,next){
+  if(req.method!=='GET')return next();
+  const skipPaths=['/','/public','/api','/admin','/vendor-dashboard','/healthz','/favicon.ico'];
+  if(skipPaths.some(path=>req.path===path||path!=='/'&&req.path.startsWith(path+'/')))return next();
+  try{
+    res.locals.publicAdBanners=(await loadPublicAdBanners()).map(x=>({id:x.id,title:x.title,subtitle:x.subtitle,image_data:x.image_data,href:x.link_url||'#',isVendor:!!x.vendor_id}));
+  }catch(e){
+    console.error('public ad banner load failed',e.message);
+    res.locals.publicAdBanners=[];
+  }
+  next();
+});
 app.use(async function publicMenuBoards(req,res,next){
   if(req.method!=='GET')return next();
   const skipPaths=['/public','/api','/admin','/healthz','/favicon.ico'];
@@ -626,6 +638,31 @@ app.post('/api/notifications/:id/read',login,async(req,res)=>{
   }catch(e){res.status(500).json({ok:false,error:'읽음 처리 실패'});}
 });
 
+async function loadPublicAdBanners(){
+  const result=await q(`SELECT x.* FROM (
+    SELECT b.id,b.title,b.subtitle,b.link_url,b.position,b.sort_order,b.is_active,b.image_data,NULL::int vendor_id,b.created_at,'direct'::text source
+    FROM banners b
+    WHERE b.is_active=true AND b.vendor_id IS NULL
+    UNION ALL
+    SELECT COALESCE(linked.id,-v.id) id,v.name title,
+      COALESCE(NULLIF(linked.subtitle,''),NULLIF(v.category,''),NULLIF(v.region,''),NULLIF(v.description,''),'') subtitle,
+      COALESCE(NULLIF(linked.link_url,''),'/vendor/'||v.id) link_url,
+      COALESCE(linked.position,'premium') position,COALESCE(linked.sort_order,0) sort_order,true is_active,
+      COALESCE(NULLIF(linked.image_data,''),NULLIF(v.image_data,'')) image_data,v.id vendor_id,
+      COALESCE(linked.created_at,v.created_at) created_at,'vendor'::text source
+    FROM vendors v
+    LEFT JOIN LATERAL (
+      SELECT b.id,b.subtitle,b.link_url,b.position,b.sort_order,b.image_data,b.created_at
+      FROM banners b WHERE b.vendor_id=v.id ORDER BY b.id DESC LIMIT 1
+    ) linked ON true
+    WHERE ${PUBLIC_VENDOR_SQL}
+      AND COALESCE(v.banner_active,false)=true
+      AND v.banner_until IS NOT NULL AND v.banner_until>=CURRENT_DATE
+      AND COALESCE(NULLIF(linked.image_data,''),NULLIF(v.image_data,'')) IS NOT NULL
+  ) x ORDER BY x.sort_order,x.created_at DESC,x.id DESC`);
+  return result.rows||[];
+}
+
 async function homeData(req){
   await expireAds();
   const search=(req.query.search||'').trim().slice(0,80), region=(req.query.region||'').trim().slice(0,50), category=(req.query.category||'').trim().slice(0,50), sort=(req.query.sort||'default').trim();
@@ -654,27 +691,7 @@ async function homeData(req){
   };
   const order=orderMap[sort]||orderMap.default;
   const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 120`,params);
-  const banners=await q(`SELECT x.* FROM (
-    SELECT b.id,b.title,b.subtitle,b.link_url,b.position,b.sort_order,b.is_active,b.image_data,NULL::int vendor_id,b.created_at,'direct'::text source
-    FROM banners b
-    WHERE b.is_active=true AND b.vendor_id IS NULL
-    UNION ALL
-    SELECT COALESCE(linked.id,-v.id) id,v.name title,
-      COALESCE(NULLIF(linked.subtitle,''),NULLIF(v.category,''),NULLIF(v.region,''),NULLIF(v.description,''),'') subtitle,
-      COALESCE(NULLIF(linked.link_url,''),'/vendor/'||v.id) link_url,
-      COALESCE(linked.position,'premium') position,COALESCE(linked.sort_order,0) sort_order,true is_active,
-      COALESCE(NULLIF(linked.image_data,''),NULLIF(v.image_data,'')) image_data,v.id vendor_id,
-      COALESCE(linked.created_at,v.created_at) created_at,'vendor'::text source
-    FROM vendors v
-    LEFT JOIN LATERAL (
-      SELECT b.id,b.subtitle,b.link_url,b.position,b.sort_order,b.image_data,b.created_at
-      FROM banners b WHERE b.vendor_id=v.id ORDER BY b.id DESC LIMIT 1
-    ) linked ON true
-    WHERE ${PUBLIC_VENDOR_SQL}
-      AND COALESCE(v.banner_active,false)=true
-      AND v.banner_until IS NOT NULL AND v.banner_until>=CURRENT_DATE
-      AND COALESCE(NULLIF(linked.image_data,''),NULLIF(v.image_data,'')) IS NOT NULL
-  ) x ORDER BY x.sort_order,x.created_at DESC,x.id DESC`);
+  const banners={rows:await loadPublicAdBanners()};
   const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL} ORDER BY r.id DESC LIMIT 8`);
   const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
   const settings=await getSettings();
