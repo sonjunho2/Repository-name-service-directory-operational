@@ -336,7 +336,7 @@ document.body.appendChild(reviewPopupScript);
   });
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();});
   var path=location.pathname.replace(/\/$/,'')||'/';
-  if(path.indexOf('/boards')===0){var community=qs('[data-public-menu-community]');if(community)community.classList.add('open');}
+  if(path.indexOf('/boards')===0){var community=qs('[data-public-menu-community]');if(community){community.classList.add('open');var communityButton=qs('[data-public-submenu-toggle]',community);if(communityButton)communityButton.setAttribute('aria-expanded','true');}}
   var best=null,bestLength=-1;
   qsa('.public-side-menu a').forEach(function(a){
     var linkPath=a.pathname.replace(/\/$/,'')||'/';
@@ -344,5 +344,5 @@ document.body.appendChild(reviewPopupScript);
     var boardParent=linkPath.indexOf('/boards/')===0&&path.indexOf(linkPath+'/')===0;
     if((exact||boardParent)&&linkPath.length>bestLength){best=a;bestLength=linkPath.length;}
   });
-  if(best){best.classList.add('active');best.setAttribute('aria-current','page');var parent=best.closest('.public-menu-group');if(parent)parent.classList.add('open');}
+  if(best){best.classList.add('active');best.setAttribute('aria-current','page');var parent=best.closest('.public-menu-group');if(parent){parent.classList.add('open');var parentButton=qs('[data-public-submenu-toggle]',parent);if(parentButton)parentButton.setAttribute('aria-expanded','true');}}
 })();
