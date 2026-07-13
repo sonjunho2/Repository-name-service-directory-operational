@@ -392,6 +392,8 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
   <div class="admin-menu-group">
     <div class="admin-menu-title">게시판관리</div>
     <a href="#boards" data-panel="boards">게시판 설정</a>
+    <a href="#boardPosts" data-panel="boardPosts">게시글 관리</a>
+    <a href="#boardComments" data-panel="boardComments">댓글 관리</a>
     <a href="#notices" data-panel="notices">공지관리</a>
     <a href="#reviews" data-panel="reviews">후기관리</a>
     <a href="#reports" data-panel="reports">신고관리</a>
@@ -1144,6 +1146,28 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
   <div class="table-wrap"><table><tr><th>ID</th><th>제목 / 설명</th><th>slug</th><th>타입</th><th>쓰기</th><th>댓글</th><th>이미지</th><th>노출</th><th>정렬</th><th>관리</th></tr>
   <% (adminBoards||[]).forEach(b=>{ %><tr><td><%=b.id%></td><td><form id="boardForm<%=b.id%>" method="post" action="/admin/boards/<%=b.id%>/update" data-no-ajax></form><input form="boardForm<%=b.id%>" name="title" value="<%=b.title%>" required><textarea form="boardForm<%=b.id%>" name="description"><%=b.description||''%></textarea></td><td><input form="boardForm<%=b.id%>" name="slug" value="<%=b.slug%>" required></td><td><select form="boardForm<%=b.id%>" name="type"><% ['notice','community','review','report','free'].forEach(t=>{ %><option value="<%=t%>" <%=b.type===t?'selected':''%>><%=t%></option><% }) %></select></td><td><select form="boardForm<%=b.id%>" name="write_role"><option value="member" <%=b.write_role==='member'?'selected':''%>>회원</option><option value="admin" <%=b.write_role==='admin'?'selected':''%>>관리자</option><option value="guest" <%=b.write_role==='guest'?'selected':''%>>게스트</option></select></td><td><input form="boardForm<%=b.id%>" type="checkbox" name="comment_enabled" <%=b.comment_enabled?'checked':''%>></td><td><input form="boardForm<%=b.id%>" type="checkbox" name="image_enabled" <%=b.image_enabled?'checked':''%>></td><td><input form="boardForm<%=b.id%>" type="checkbox" name="is_active" <%=b.is_active?'checked':''%>></td><td><input form="boardForm<%=b.id%>" type="number" name="sort_order" value="<%=b.sort_order||0%>"></td><td><button form="boardForm<%=b.id%>">저장</button><form method="post" action="/admin/boards/<%=b.id%>/delete" data-no-ajax style="margin-top:6px"><button onclick="return confirm('게시판을 비활성화할까요?')">비활성화</button></form></td></tr><% }) %>
   </table></div>
+</section>
+<section id="boardPosts" class="panel admin-panel">
+  <style>.board-admin-filterbar{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.board-admin-filterbar select{min-width:150px;height:42px}.board-admin-status{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:900}.board-admin-title{display:block;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.board-admin-muted{color:#8f9ab8;font-size:12px}.board-admin-actions{display:flex;gap:5px;flex-wrap:wrap}.board-admin-actions a,.board-admin-actions button{display:inline-flex;align-items:center;min-height:30px!important;height:30px!important;padding:0 9px!important;font-size:12px!important;white-space:nowrap}.board-admin-content{display:block;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@media(max-width:900px){.board-admin-filterbar select{width:100%}}</style>
+  <h2>게시글 관리</h2>
+  <div class="board-admin-filterbar">
+    <select id="boardPostBoardFilter"><option value="all">전체 게시판</option><% (adminBoards||[]).forEach(b=>{ %><option value="<%=b.id%>"><%=b.title%></option><% }) %></select>
+    <select id="boardPostStatusFilter"><option value="all">전체 상태</option><option value="visible">공개</option><option value="hidden">숨김</option><option value="deleted">삭제됨</option></select>
+    <select id="boardPostPinnedFilter"><option value="all">전체 글</option><option value="pinned">고정글</option><option value="normal">일반글</option></select>
+    <select id="boardPostSort"><option value="latest">최신순</option><option value="views">조회수순</option><option value="comments">댓글순</option></select>
+  </div>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>게시판</th><th>제목</th><th>작성자</th><th>상태</th><th>고정</th><th>조회수</th><th>댓글수</th><th>작성일</th><th>관리</th></tr></thead><tbody id="boardPostAdminRows"><tr><td colspan="10">게시글을 불러오는 중입니다.</td></tr></tbody></table></div>
+  <div id="boardPostAdminPager" class="server-pager"></div>
+</section>
+<section id="boardComments" class="panel admin-panel">
+  <h2>댓글 관리</h2>
+  <div class="board-admin-filterbar">
+    <select id="boardCommentBoardFilter"><option value="all">전체 게시판</option><% (adminBoards||[]).forEach(b=>{ %><option value="<%=b.id%>"><%=b.title%></option><% }) %></select>
+    <select id="boardCommentStatusFilter"><option value="all">전체 상태</option><option value="visible">공개</option><option value="hidden">숨김</option><option value="deleted">삭제됨</option></select>
+    <select id="boardCommentSort"><option value="latest">최신순</option></select>
+  </div>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>게시판</th><th>게시글</th><th>작성자</th><th>댓글 내용</th><th>상태</th><th>작성일</th><th>관리</th></tr></thead><tbody id="boardCommentAdminRows"><tr><td colspan="8">댓글을 불러오는 중입니다.</td></tr></tbody></table></div>
+  <div id="boardCommentAdminPager" class="server-pager"></div>
 </section></main></div>
 <div class="admin-image-modal" id="adminImagePreviewModal" aria-hidden="true">
   <div class="admin-image-modal-card">
@@ -1625,6 +1649,8 @@ document.addEventListener('DOMContentLoaded',function(){
     else if(key==='adminLogs')Object.assign(patch,{q:value('adminLogSearch'),action:value('adminLogActionFilter','all'),target_type:value('adminLogTargetFilter','all')});
     else if(key==='vendorRequests')Object.assign(patch,{q:value('vendorRequestSearch'),status:value('vendorRequestStatus','all')});
     else if(key==='adCenter')Object.assign(patch,{q:value('adCenterSearch'),status:document.querySelector('[data-ad-center-filter].on')?.dataset.adCenterFilter||'all',payment_status:value('adCenterPayment','all'),request_type:value('adCenterType','all'),source:value('adCenterSource','all')});
+    else if(key==='boardPosts')Object.assign(patch,{board_id:value('boardPostBoardFilter','all'),status:value('boardPostStatusFilter','all'),pinned:value('boardPostPinnedFilter','all'),sort:value('boardPostSort','latest')});
+    else if(key==='boardComments')Object.assign(patch,{board_id:value('boardCommentBoardFilter','all'),status:value('boardCommentStatusFilter','all'),sort:value('boardCommentSort','latest')});
     return window.setAdminListState(key,patch);
   };
   window.restoreAdminListControls=function(key){var s=window.getAdminListState(key);var set=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null)el.value=v;};
@@ -1638,10 +1664,12 @@ document.addEventListener('DOMContentLoaded',function(){
     else if(key==='adminLogs'){set('adminLogSearch',s.q);set('adminLogTargetFilter',s.target_type);}
     else if(key==='vendorRequests'){set('vendorRequestSearch',s.q);set('vendorRequestStatus',s.status);}
     else if(key==='adCenter'){set('adCenterSearch',s.q);set('adCenterPayment',s.payment_status);set('adCenterType',s.request_type);set('adCenterSource',s.source);document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',(s.status||'all')===b.dataset.adCenterFilter);});}
+    else if(key==='boardPosts'){set('boardPostBoardFilter',s.board_id);set('boardPostStatusFilter',s.status);set('boardPostPinnedFilter',s.pinned);set('boardPostSort',s.sort);}
+    else if(key==='boardComments'){set('boardCommentBoardFilter',s.board_id);set('boardCommentStatusFilter',s.status);set('boardCommentSort',s.sort);}
     return s;
   };
   window.normalizeAdminListPage=function(key,data,reload){var pages=Math.max(1,Number(data?.totalPages||1)),page=Math.max(1,Number(data?.page||1));if(page>pages){window.setAdminListState(key,{page:pages});setTimeout(function(){reload(pages);},0);return true;}return false;};
-  window.reloadAdminPanelList=function(key){var map={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',payments:'loadAdminPayments'};var fn=window[map[key]];if(typeof fn==='function')return fn(window.getAdminListState(key).page||1);};
+  window.reloadAdminPanelList=function(key){var map={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',payments:'loadAdminPayments',boardPosts:'loadAdminBoardPosts',boardComments:'loadAdminBoardComments'};var fn=window[map[key]];if(typeof fn==='function')return fn(window.getAdminListState(key).page||1);};
   ['vendors','users','inquiries','reports'].forEach(window.restoreAdminListControls);
   document.addEventListener('submit',function(e){var form=e.target;if(!form||!form.closest('.admin-content'))return;var action=String(form.getAttribute('action')||'');if(action.includes('/settings/')||action.includes('/restore-json')||action.includes('/backup')||action.includes('/logout'))return;var key=window.getPanelKeyFromActivePanel();window.saveActiveAdminListState(key,window.getAdminListState(key).page||1);try{sessionStorage.setItem('adminReturnPanel',key);}catch(err){}},true);
 })();
@@ -3672,10 +3700,41 @@ document.addEventListener('DOMContentLoaded',function(){
 
 <script>
 (function(){
+  if(window.__adminBoardContentV1)return;
+  window.__adminBoardContentV1=true;
+  var loading={boardPosts:false,boardComments:false},limit=20;
+  function esc(v){return String(v??'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function date(v){if(!v)return '-';var d=new Date(v);return Number.isNaN(d.getTime())?'-':d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
+  function status(v){var cls=v==='visible'?'status-on':v==='hidden'?'status-pending':'rejected';var label=v==='visible'?'공개':v==='hidden'?'숨김':'삭제됨';return '<span class="board-admin-status '+cls+'">'+label+'</span>';}
+  function pager(id,data,loader){var el=document.getElementById(id);if(!el)return;var page=Math.max(1,Number(data.page||1)),pages=Math.max(1,Number(data.totalPages||1));var html='<span class="server-vendor-info">전체 '+Number(data.total||0)+'건 · '+page+'/'+pages+' 페이지</span>';var start=Math.max(1,page-2),end=Math.min(pages,page+2);if(page>1)html+='<button type="button" data-page="'+(page-1)+'">이전</button>';for(var n=start;n<=end;n++)html+='<button type="button" class="'+(n===page?'on':'')+'" data-page="'+n+'">'+n+'</button>';if(page<pages)html+='<button type="button" data-page="'+(page+1)+'">다음</button>';el.innerHTML=html;el.querySelectorAll('[data-page]').forEach(function(btn){btn.addEventListener('click',function(){loader(Number(btn.dataset.page||1));});});}
+  function actionButton(kind,id,action,label){return '<button type="button" data-board-admin-action="'+action+'" data-board-admin-kind="'+kind+'" data-id="'+id+'">'+label+'</button>';}
+  function postRow(x){var actions='<a href="/boards/'+encodeURIComponent(x.board_slug)+'/'+x.id+'" target="_blank" rel="noopener">보기</a>';
+    actions+=actionButton('post',x.id,x.is_pinned?'unpin':'pin',x.is_pinned?'고정해제':'고정');
+    if(x.status==='visible')actions+=actionButton('post',x.id,'hide','숨김')+actionButton('post',x.id,'delete','삭제상태');
+    else if(x.status==='hidden')actions+=actionButton('post',x.id,'restore','복구')+actionButton('post',x.id,'delete','삭제상태');
+    else actions+=actionButton('post',x.id,'restore','복구');
+    return '<tr><td>'+x.id+'</td><td>'+esc(x.board_title)+'</td><td><span class="board-admin-title" title="'+esc(x.title)+'">'+esc(x.title)+'</span></td><td>'+esc(x.nickname||x.username||'탈퇴회원')+'</td><td>'+status(x.status)+'</td><td>'+(x.is_pinned?'고정':'일반')+'</td><td>'+Number(x.views||0)+'</td><td>'+Number(x.comment_count||0)+'</td><td><span class="board-admin-muted">'+date(x.created_at)+'</span></td><td><div class="board-admin-actions">'+actions+'</div></td></tr>';}
+  function commentRow(x){var actions='<a href="/boards/'+encodeURIComponent(x.board_slug)+'/'+x.post_id+'" target="_blank" rel="noopener">게시글 보기</a>';
+    if(x.status==='visible')actions+=actionButton('comment',x.id,'hide','숨김')+actionButton('comment',x.id,'delete','삭제상태');
+    else if(x.status==='hidden')actions+=actionButton('comment',x.id,'restore','복구')+actionButton('comment',x.id,'delete','삭제상태');
+    else actions+=actionButton('comment',x.id,'restore','복구');
+    return '<tr><td>'+x.id+'</td><td>'+esc(x.board_title)+'</td><td><span class="board-admin-title" title="'+esc(x.post_title)+'">'+esc(x.post_title)+'</span></td><td>'+esc(x.nickname||x.username||'탈퇴회원')+'</td><td><span class="board-admin-content" title="'+esc(x.content)+'">'+esc(x.content)+'</span></td><td>'+status(x.status)+'</td><td><span class="board-admin-muted">'+date(x.created_at)+'</span></td><td><div class="board-admin-actions">'+actions+'</div></td></tr>';}
+  async function load(kind,page){var isPosts=kind==='boardPosts',body=document.getElementById(isPosts?'boardPostAdminRows':'boardCommentAdminRows');if(!body||loading[kind])return false;page=Math.max(1,Number(page||window.getAdminListState?.(kind).page||1));loading[kind]=true;body.innerHTML='<tr><td colspan="'+(isPosts?10:8)+'">목록을 불러오는 중입니다.</td></tr>';
+    var params=new URLSearchParams({page:String(page),limit:String(limit),sort:(document.getElementById(isPosts?'boardPostSort':'boardCommentSort')?.value||'latest')});var board=document.getElementById(isPosts?'boardPostBoardFilter':'boardCommentBoardFilter')?.value||'all',state=document.getElementById(isPosts?'boardPostStatusFilter':'boardCommentStatusFilter')?.value||'all';if(board!=='all')params.set('board_id',board);if(state!=='all')params.set('status',state);if(isPosts){var pinned=document.getElementById('boardPostPinnedFilter')?.value||'all';if(pinned!=='all')params.set('pinned',pinned);}
+    window.saveActiveAdminListState?.(kind,page);
+    try{var res=await fetch('/admin/api/'+(isPosts?'board-posts':'board-comments')+'?'+params.toString(),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});var data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(page>Math.max(1,Number(data.totalPages||1))){loading[kind]=false;return load(kind,Math.max(1,Number(data.totalPages||1)));}body.innerHTML=(data.rows||[]).map(isPosts?postRow:commentRow).join('')||'<tr><td colspan="'+(isPosts?10:8)+'">조건에 맞는 '+(isPosts?'게시글':'댓글')+'이 없습니다.</td></tr>';pager(isPosts?'boardPostAdminPager':'boardCommentAdminPager',data,isPosts?window.loadAdminBoardPosts:window.loadAdminBoardComments);return true;}catch(e){body.innerHTML='<tr><td colspan="'+(isPosts?10:8)+'">'+(isPosts?'게시글을 불러오지 못했습니다.':'댓글을 불러오지 못했습니다.')+'</td></tr>';return false;}finally{loading[kind]=false;}}
+  window.loadAdminBoardPosts=function(page){return load('boardPosts',page);};window.loadAdminBoardComments=function(page){return load('boardComments',page);};
+  window.restoreAdminListControls?.('boardPosts');window.restoreAdminListControls?.('boardComments');
+  document.addEventListener('click',async function(e){var btn=e.target&&e.target.closest&&e.target.closest('[data-board-admin-action]');if(!btn||btn.disabled)return;var kind=btn.dataset.boardAdminKind,action=btn.dataset.boardAdminAction,id=Number(btn.dataset.id||0);if(!id)return;if(action==='delete'&&!confirm('삭제 상태로 변경하시겠습니까?'))return;btn.disabled=true;try{var base=kind==='post'?'board-posts':'board-comments';var res=await fetch('/admin/'+base+'/'+id+'/'+action,{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json'}});var data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'action_failed');if(typeof toast==='function')toast('처리되었습니다.','ok');await (kind==='post'?window.loadAdminBoardPosts:window.loadAdminBoardComments)(window.getAdminListState?.(kind==='post'?'boardPosts':'boardComments').page||1);}catch(err){if(typeof toast==='function')toast(err.message||'처리하지 못했습니다.','error');else alert(err.message||'처리하지 못했습니다.');}finally{btn.disabled=false;}});
+})();
+</script>
+
+<script>
+(function(){
   if(window.__adminPanelDispatcherV1)return;
   window.__adminPanelDispatcherV1=true;
-  var apiPanels=new Set(['vendors','users','inquiries','reports','payments','banners','notices','reviews','adminLogs','vendorRequests','adCenter']);
-  var loadMap={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',payments:'loadAdminPayments',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter'};
+  var apiPanels=new Set(['vendors','users','inquiries','reports','payments','banners','notices','reviews','adminLogs','vendorRequests','adCenter','boardPosts','boardComments']);
+  var loadMap={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',payments:'loadAdminPayments',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',boardPosts:'loadAdminBoardPosts',boardComments:'loadAdminBoardComments'};
   var panelTimer=null,searchTimers={};
   window.isAdminApiPanel=function(key){return apiPanels.has(key);};
   window.getActiveAdminPanelKey=function(){var id=document.querySelector('.admin-panel.active')?.id||String(location.hash||'').replace('#','');return id==='revenue'?'payments':id;};
@@ -3688,7 +3747,9 @@ document.addEventListener('DOMContentLoaded',function(){
     inquirySort:'inquiries',reportSort:'reports',
     bannerSearch:'banners',bannerSourceFilter:'banners',bannerStatusFilter:'banners',bannerSortFilter:'banners',
     noticeSearch:'notices',noticePinnedFilter:'notices',noticeSortFilter:'notices',
-    reviewSearch:'reviews',reviewRatingFilter:'reviews',reviewSortFilter:'reviews'
+    reviewSearch:'reviews',reviewRatingFilter:'reviews',reviewSortFilter:'reviews',
+    boardPostBoardFilter:'boardPosts',boardPostStatusFilter:'boardPosts',boardPostPinnedFilter:'boardPosts',boardPostSort:'boardPosts',
+    boardCommentBoardFilter:'boardComments',boardCommentStatusFilter:'boardComments',boardCommentSort:'boardComments'
   };
   var searchIds=new Set(['vendorSearch','userSearch','bannerSearch','noticeSearch','reviewSearch']);
   function loadFiltered(key,delay){window.setAdminListState?.(key,{page:1});clearTimeout(searchTimers[key]);searchTimers[key]=setTimeout(function(){var fn=window[loadMap[key]];if(typeof fn==='function')fn(1);},delay);}

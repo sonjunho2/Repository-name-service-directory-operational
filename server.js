@@ -269,6 +269,14 @@ app.use((req,res,next)=>{
   res.locals.fmtDateTime=formatKstDateTime;
   next();
 });
+app.use(async function publicMenuBoards(req,res,next){
+  if(req.method!=='GET')return next();
+  const skipPaths=['/public','/api','/admin','/healthz','/favicon.ico'];
+  if(skipPaths.some(path=>req.path===path||req.path.startsWith(path+'/')))return next();
+  try{res.locals.publicBoardCategories=await getBoardCategories();}
+  catch(e){console.error('public board menu load failed',e.message);res.locals.publicBoardCategories=[];}
+  next();
+});
 async function admin(req,res,next){
   try{
     const user=await refreshSessionUser(req);
@@ -966,6 +974,30 @@ app.get('/admin/api/reviews',admin,async(req,res)=>{
   const fromSql=' FROM reviews r LEFT JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id';
   return adminPagedJson(req,res,`SELECT r.id,r.vendor_id,r.user_id,r.title,r.content,r.rating,r.status,r.created_at,v.name vendor_name,u.username,u.nickname${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
+app.get('/admin/api/board-posts',admin,async(req,res)=>{
+  const params=[];const where=[];
+  const boardId=parseInt(req.query.board_id||0,10);
+  const status=String(req.query.status||'').trim();
+  const pinned=String(req.query.pinned||'').trim();
+  const orderBy={latest:'p.created_at DESC,p.id DESC',views:'p.views DESC,p.id DESC',comments:'comment_count DESC,p.id DESC'}[String(req.query.sort||'latest')]||'p.created_at DESC,p.id DESC';
+  if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}
+  if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`p.status=$${params.length}`);}
+  if(pinned==='pinned'){params.push(true);where.push(`p.is_pinned=$${params.length}`);}
+  else if(pinned==='normal'){params.push(false);where.push(`p.is_pinned=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const fromSql=' FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id';
+  return adminPagedJson(req,res,`SELECT p.id,p.board_id,b.title board_title,b.slug board_slug,p.title,u.username,u.nickname,p.status,p.is_pinned,p.views,p.created_at,p.updated_at,(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id) comment_count${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+});
+app.get('/admin/api/board-comments',admin,async(req,res)=>{
+  const params=[];const where=[];
+  const boardId=parseInt(req.query.board_id||0,10);
+  const status=String(req.query.status||'').trim();
+  if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}
+  if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`c.status=$${params.length}`);}
+  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const fromSql=' FROM board_comments c JOIN board_posts p ON p.id=c.post_id JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=c.user_id';
+  return adminPagedJson(req,res,`SELECT c.id,c.post_id,p.board_id,b.title board_title,b.slug board_slug,p.title post_title,u.username,u.nickname,c.content,c.status,c.created_at${fromSql}${whereSql} ORDER BY c.created_at DESC,c.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+});
 app.get('/admin/api/logs',admin,async(req,res)=>{
   const params=[];const where=[];
   const qText=String(req.query.q||'').trim().slice(0,100);
@@ -1119,6 +1151,32 @@ app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res
 app.post('/admin/boards/:id/delete',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
   const r=await q('UPDATE board_categories SET is_active=false WHERE id=$1 RETURNING id,title',[parseInt(req.params.id||0,10)]);if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 비활성화','board_category',r.rows[0].id,r.rows[0].title);
 }));
+function registerBoardPostAction(path,field,value,action){
+  app.post(`/admin/board-posts/:id/${path}`,admin,async(req,res)=>{
+    const id=parseInt(req.params.id||0,10);if(!id)return sendFail(req,res,400,'잘못된 게시글 ID입니다.','/admin#boardPosts');
+    const sql=field==='is_pinned'?'UPDATE board_posts SET is_pinned=$1,updated_at=now() WHERE id=$2 RETURNING id,title':'UPDATE board_posts SET status=$1,updated_at=now() WHERE id=$2 RETURNING id,title';
+    const r=await q(sql,[value,id]);if(!r.rows[0])return sendFail(req,res,404,'게시글을 찾을 수 없습니다.','/admin#boardPosts');
+    await logAdmin(req,action,'board_post',id,r.rows[0].title||'');
+    return sendOk(req,res,'/admin#boardPosts');
+  });
+}
+registerBoardPostAction('pin','is_pinned',true,'게시글 고정');
+registerBoardPostAction('unpin','is_pinned',false,'게시글 고정해제');
+registerBoardPostAction('hide','status','hidden','게시글 숨김');
+registerBoardPostAction('restore','status','visible','게시글 복구');
+registerBoardPostAction('delete','status','deleted','게시글 삭제상태');
+function registerBoardCommentAction(path,status,action){
+  app.post(`/admin/board-comments/:id/${path}`,admin,async(req,res)=>{
+    const id=parseInt(req.params.id||0,10);if(!id)return sendFail(req,res,400,'잘못된 댓글 ID입니다.','/admin#boardComments');
+    const r=await q('UPDATE board_comments SET status=$1 WHERE id=$2 RETURNING id,content',[status,id]);
+    if(!r.rows[0])return sendFail(req,res,404,'댓글을 찾을 수 없습니다.','/admin#boardComments');
+    await logAdmin(req,action,'board_comment',id,String(r.rows[0].content||'').slice(0,200));
+    return sendOk(req,res,'/admin#boardComments');
+  });
+}
+registerBoardCommentAction('hide','hidden','댓글 숨김');
+registerBoardCommentAction('restore','visible','댓글 복구');
+registerBoardCommentAction('delete','deleted','댓글 삭제상태');
 app.get('/admin',admin,async(req,res)=>{
   try{
 await expireAds(); await expirePendingPayments();
