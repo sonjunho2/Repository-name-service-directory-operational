@@ -1140,15 +1140,15 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
 app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]); const x=r.rows[0]; if(!x||!x.banner_image_data||x.banner_status==='approved')return sendFail(req,res,400,'banner_not_available','/admin#inquiries'); await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data) VALUES($1,$2,$3,$4,$5,$6,$7)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,x.banner_image_data]); await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]); await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||''); return sendOk(req,res,'/admin#inquiries');});
 app.post('/admin/boards',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
   const title=String(req.body.title||'').trim().slice(0,100);if(!title)throw new Error('게시판 제목을 입력해주세요.');
-  const slug=boardSlugSafe(req.body.slug,title),type=['notice','community','review','report','free'].includes(req.body.type)?req.body.type:'community';
-  const writeRole=['guest','member','admin'].includes(req.body.write_role)?req.body.write_role:'member';
+  const slug=boardSlugSafe(req.body.slug,title),type=['notice','community','review','report','free','qna','inquiry'].includes(req.body.type)?req.body.type:'community';
+  const writeRole=['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member';
   await q(`INSERT INTO board_categories(title,slug,description,type,is_active,sort_order,write_role,comment_enabled,image_enabled) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[title,slug,String(req.body.description||'').trim().slice(0,500),type,!!req.body.is_active,parseInt(req.body.sort_order||0,10)||0,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled]);
   await logAdmin(req,'게시판 생성','board_category',slug,title);
 }));
 app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
   const id=parseInt(req.params.id||0,10),title=String(req.body.title||'').trim().slice(0,100);if(!id||!title)throw new Error('게시판 정보를 확인해주세요.');
-  const slug=boardSlugSafe(req.body.slug,title),type=['notice','community','review','report','free'].includes(req.body.type)?req.body.type:'community';
-  const writeRole=['guest','member','admin'].includes(req.body.write_role)?req.body.write_role:'member';
+  const slug=boardSlugSafe(req.body.slug,title),type=['notice','community','review','report','free','qna','inquiry'].includes(req.body.type)?req.body.type:'community';
+  const writeRole=['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member';
   const r=await q(`UPDATE board_categories SET title=$1,slug=$2,description=$3,type=$4,is_active=$5,sort_order=$6,write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id`,[title,slug,String(req.body.description||'').trim().slice(0,500),type,!!req.body.is_active,parseInt(req.body.sort_order||0,10)||0,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled,id]);
   if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 수정','board_category',id,title);
 }));
