@@ -191,12 +191,15 @@ async function openVendor(id){
   }
 }
 
-document.querySelectorAll('.vendor-open').forEach((el)=>{
-  el.addEventListener('click',(e)=>{
-    e.preventDefault();
-    const id=el.dataset.vendorId;
-    if(id) openVendor(id);
-  });
+document.addEventListener('click',(e)=>{
+  const el=e.target&&e.target.closest?e.target.closest('.vendor-open'):null;
+  if(!el)return;
+  const href=String(el.getAttribute('href')||'');
+  const hrefMatch=href.match(/^\/vendor\/(\d+)/);
+  const id=el.dataset.vendorId||(hrefMatch?hrefMatch[1]:'');
+  if(!id)return;
+  e.preventDefault();
+  openVendor(id);
 });
 
 function buildSortUrl(sort){

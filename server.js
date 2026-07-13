@@ -277,7 +277,21 @@ app.use(async function publicAdBanners(req,res,next){
   const skipPaths=['/','/public','/api','/admin','/vendor-dashboard','/healthz','/favicon.ico'];
   if(skipPaths.some(path=>req.path===path||path!=='/'&&req.path.startsWith(path+'/')))return next();
   try{
-    res.locals.publicAdBanners=(await loadPublicAdBanners()).map(x=>({id:x.id,title:x.title,subtitle:x.subtitle,image_data:x.image_data,href:x.link_url||'#',isVendor:!!x.vendor_id}));
+    const rows=await loadPublicAdBanners();
+    res.locals.publicAdBanners=rows.map(x=>{
+      const vendorId=x.vendor_id?Number(x.vendor_id):null;
+      return {
+        id:x.id,
+        vendor_id:vendorId,
+        title:x.title,
+        subtitle:x.subtitle,
+        image_data:x.image_data,
+        href:vendorId?('/vendor/'+vendorId):(x.link_url||'#'),
+        link_url:x.link_url||'',
+        isVendor:!!vendorId,
+        source:x.source||''
+      };
+    });
   }catch(e){
     console.error('public ad banner load failed',e.message);
     res.locals.publicAdBanners=[];
