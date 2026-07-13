@@ -976,10 +976,12 @@ app.get('/admin/api/reviews',admin,async(req,res)=>{
 });
 app.get('/admin/api/board-posts',admin,async(req,res)=>{
   const params=[];const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
   const boardId=parseInt(req.query.board_id||0,10);
   const status=String(req.query.status||'').trim();
   const pinned=String(req.query.pinned||'').trim();
   const orderBy={latest:'p.created_at DESC,p.id DESC',views:'p.views DESC,p.id DESC',comments:'comment_count DESC,p.id DESC'}[String(req.query.sort||'latest')]||'p.created_at DESC,p.id DESC';
+  if(qText){params.push(`%${qText}%`);where.push(`(p.title ILIKE $${params.length} OR p.content ILIKE $${params.length} OR b.title ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
   if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}
   if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`p.status=$${params.length}`);}
   if(pinned==='pinned'){params.push(true);where.push(`p.is_pinned=$${params.length}`);}
@@ -990,8 +992,10 @@ app.get('/admin/api/board-posts',admin,async(req,res)=>{
 });
 app.get('/admin/api/board-comments',admin,async(req,res)=>{
   const params=[];const where=[];
+  const qText=String(req.query.q||'').trim().slice(0,100);
   const boardId=parseInt(req.query.board_id||0,10);
   const status=String(req.query.status||'').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(c.content ILIKE $${params.length} OR p.title ILIKE $${params.length} OR b.title ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
   if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}
   if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`c.status=$${params.length}`);}
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
