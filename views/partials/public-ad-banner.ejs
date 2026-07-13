@@ -8,10 +8,10 @@
   const _publicAdLoop=[];
   for(let i=0;i<8;i++){_publicAdSource.forEach(function(ad){_publicAdLoop.push(ad);});}
 %>
-<section class="public-ad-banner" aria-label="광고 배너">
-  <div class="public-ad-banner-slider">
-    <div class="public-ad-banner-track">
-      <% _publicAdLoop.forEach(function(ad){ %><a class="public-ad-banner-card" href="<%=ad.href||'#'%>"><div class="public-ad-banner-thumb"><% if(ad.image_data){ %><img src="<%=ad.image_data%>" alt="" loading="lazy" decoding="async"><% }else{ %><div class="public-ad-banner-placeholder"><b><%=ad.title||'광고 배너'%></b><span><%=ad.subtitle||'광고 영역'%></span></div><% } %></div><div class="public-ad-banner-meta"><em>PREMIUM</em><strong><%=ad.title||'광고 배너'%></strong></div></a><% }); %>
+<section class="public-ad-banner public-top-premium" aria-label="광고 배너">
+  <div class="premium-row-slider unified-premium-slider public-top-premium-slider">
+    <div class="premium-track">
+      <% _publicAdLoop.forEach(function(ad){ %><a class="card premium public-top-premium-card" href="<%=ad.href||'#'%>"><div class="thumb"><% if(ad.image_data){ %><img src="<%=ad.image_data%>" alt="" loading="lazy" decoding="async"><% }else{ %><div class="noimg">AD</div><% } %></div><div class="ad-card-meta"><em>PREMIUM</em><h3><%=ad.title||'광고 배너'%></h3><p><%=ad.subtitle||'광고 영역'%></p></div></a><% }); %>
     </div>
   </div>
 </section>
