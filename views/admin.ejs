@@ -3689,6 +3689,86 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>
 
 <script>
+(function(){
+  if(window.__vendorFormDirectSaveV6)return;
+  window.__vendorFormDirectSaveV6=true;
+
+  async function submitVendorFormDirect(form){
+    if(!form||form.dataset.vendorSubmitting==='1')return;
+    if(typeof form.reportValidity==='function'&&!form.reportValidity())return;
+    var submit=document.getElementById('vendorSubmitBtn');
+    var oldText=submit?submit.textContent:'업체 수정 저장';
+    form.dataset.vendorSubmitting='1';
+    if(submit){submit.disabled=true;submit.classList.add('ajax-loading');submit.textContent='저장중...';}
+    var success=false;
+    try{
+      var banner=form.elements.banner_active;
+      var adType=form.elements.ad_type;
+      if(banner&&banner.checked&&adType)adType.value='recommended';
+      var res=await fetch('/admin/vendor',{
+        method:'POST',body:new FormData(form),credentials:'same-origin',
+        headers:{'X-Requested-With':'fetch','Accept':'application/json'}
+      });
+      var data=null;
+      try{data=await res.json();}catch(parseErr){throw new Error('JSON 응답을 해석하지 못했습니다.');}
+      if(!res.ok||!data||data.ok===false)throw new Error((data&&data.error)||('HTTP '+res.status));
+      success=true;
+      try{if(typeof toast==='function')toast('업체 정보가 저장되었습니다.','ok');}catch(_toastErr){}
+      try{
+        if(typeof window.forceCloseVendorModal==='function')window.forceCloseVendorModal();
+        else{
+          var modal=document.getElementById('vendorModal');
+          if(modal){
+            if(document.activeElement&&modal.contains(document.activeElement)){try{document.activeElement.blur();}catch(_blurErr){}}
+            modal.classList.remove('active','open','show','visible');modal.style.display='none';modal.setAttribute('aria-hidden','true');
+          }
+          document.body.style.overflow='';
+        }
+      }catch(_closeErr){}
+      var page=1;
+      try{
+        var state=window.getAdminListState?window.getAdminListState('vendors'):{};
+        page=Number(state.page||1)||1;
+        if(window.saveActiveAdminListState)window.saveActiveAdminListState('vendors',page);
+        if(window.setAdminListState)window.setAdminListState('vendors',{page:page});
+      }catch(_stateErr){}
+      var refreshed=false;
+      try{if(typeof window.loadAdminVendors==='function'){var ok=await window.loadAdminVendors(page);refreshed=ok!==false;}}catch(_loadErr){}
+      try{if(!refreshed&&typeof window.reloadAdminPanelList==='function'){var ok2=await window.reloadAdminPanelList('vendors');refreshed=ok2!==false;}}catch(_reloadErr){}
+      if(!refreshed){
+        try{sessionStorage.setItem('adminReturnPanel','vendors');}catch(_e){}
+        location.href='/admin#vendors';
+        location.reload();
+      }
+    }catch(err){
+      try{
+        if(typeof toast==='function')toast('업체 정보를 저장하지 못했습니다.','bad',err&&err.message?err.message:'잠시 후 다시 시도해주세요.');
+        else alert(err&&err.message?err.message:'업체 정보를 저장하지 못했습니다.');
+      }catch(_toastErr2){alert(err&&err.message?err.message:'업체 정보를 저장하지 못했습니다.');}
+    }finally{
+      form.dataset.vendorSubmitting='0';
+      if(!success&&submit){submit.disabled=false;submit.classList.remove('ajax-loading');submit.textContent=oldText||'업체 수정 저장';}
+    }
+  }
+
+  document.addEventListener('click',function(e){
+    var btn=e.target&&e.target.closest&&e.target.closest('#vendorSubmitBtn');
+    if(!btn)return;
+    var form=document.getElementById('vendorForm');
+    if(!form)return;
+    e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    submitVendorFormDirect(form);
+  },true);
+
+  var form=document.getElementById('vendorForm');
+  if(form)form.addEventListener('submit',function(e){
+    e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    submitVendorFormDirect(form);
+  },true);
+})();
+</script>
+
+<script>
 document.addEventListener('DOMContentLoaded',function(){
   const stats=<%- JSON.stringify(typeof adminListStats==='object'&&adminListStats?adminListStats:{}).replace(/</g,'\\u003c') %>;
   const setCards=function(selector,values){const cards=document.querySelectorAll(selector);values.forEach(function(value,index){if(cards[index]&&value!=null)cards[index].textContent=String(value);});};
