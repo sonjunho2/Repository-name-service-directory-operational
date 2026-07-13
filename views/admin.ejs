@@ -1461,7 +1461,7 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
     var cancelButton=document.getElementById('cancelVendorEdit');
     if(cancelButton)cancelButton.style.display='none';
     var preview=document.getElementById('vendorImagePreview');
-    if(preview){preview.classList.remove('active','has-image','show');preview.style.display='none';var image=preview.querySelector('img');if(image)image.removeAttribute('src');}
+    if(preview){preview.classList.remove('active','has-image','show');preview.style.display='';var image=preview.querySelector('img');if(image)image.removeAttribute('src');}
   };
 
   if(openBtn){
@@ -2455,6 +2455,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function shouldSkip(form){
     if(!form||String(form.method||'').toLowerCase()!=='post')return true;
+    if(form.id==='vendorForm')return true;
     var action=String(form.getAttribute('action')||'');
     if(!action)return true;
     if(form.hasAttribute('data-no-ajax'))return true;
@@ -2491,25 +2492,11 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
 
-  async function refreshVendorsAfterSave(){
-    var state=window.getAdminListState?window.getAdminListState('vendors'):{};
-    var page=Number(state.page||1)||1;
-    if(typeof window.setAdminListState==='function')window.setAdminListState('vendors',{page:page});
-    if(typeof window.loadAdminVendors==='function'){
-      try{var ok=await window.loadAdminVendors(page);if(ok!==false)return true;}catch(e){}
-    }
-    if(typeof window.reloadAdminPanelList==='function'){
-      try{var ok2=await window.reloadAdminPanelList('vendors');if(ok2!==false)return true;}catch(e){}
-    }
-    return false;
-  }
-
   async function submitAjax(form,submitter){
     var action=form.getAttribute('action');
     var btn=submitter || form.querySelector('button[type="submit"],button:not([type])');
     var oldText=btn?btn.textContent:'';
     var meta=actionText(action,oldText);
-    var vendorSaveSucceeded=false;
     var panelKey=window.getActiveAdminPanelKey?.() || window.getPanelKeyFromActivePanel?.() || (location.hash||'').replace('#','');
     if(panelKey)window.saveActiveAdminListState?.(panelKey,window.getAdminListState?.(panelKey).page||1);
 
@@ -2534,19 +2521,6 @@ document.addEventListener('DOMContentLoaded',function(){
       var data=null;
       try{data=await res.clone().json();}catch(parseErr){throw new Error('관리자 API JSON 응답을 해석하지 못했습니다.');}
       if(!res.ok || !data || data.ok===false)throw new Error((data&&data.error)||('HTTP '+res.status));
-
-      if(form.id==='vendorForm'){
-        vendorSaveSucceeded=true;
-        toast('업체 정보가 저장되었습니다.','ok');
-        if(typeof window.forceCloseVendorModal==='function')window.forceCloseVendorModal();
-        var refreshed=await refreshVendorsAfterSave();
-        if(!refreshed){
-          try{sessionStorage.setItem('adminReturnPanel','vendors');}catch(e){}
-          location.hash='vendors';
-          location.reload();
-        }
-        return;
-      }
 
       toast(meta.done,meta.type);
       updateRowAfter(form,meta);
@@ -2604,7 +2578,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }catch(err){
       toast('처리하지 못했습니다.','bad',err&&err.message?err.message:'잠시 후 다시 시도해주세요.');
     }finally{
-      if(!vendorSaveSucceeded&&btn&&!meta.remove&&!meta.doneRow&&!meta.reload){
+      if(btn&&!meta.remove&&!meta.doneRow&&!meta.reload){
         btn.classList.remove('ajax-loading');
         btn.disabled=false;
         btn.textContent=oldText;
@@ -3658,6 +3632,67 @@ document.addEventListener('DOMContentLoaded',function(){
   document.addEventListener('DOMContentLoaded',window.scheduleAdminPanelLoad);
   window.addEventListener('hashchange',window.scheduleAdminPanelLoad);
   document.addEventListener('click',function(e){if(e.target&&e.target.closest('[data-panel],.admin-sidebar a'))window.scheduleAdminPanelLoad();});
+})();
+</script>
+
+<script>
+(function(){
+  if(window.__vendorFormDirectSubmitBound)return;
+  var form=document.getElementById('vendorForm');
+  if(!form)return;
+  window.__vendorFormDirectSubmitBound=true;
+
+  async function refreshVendors(){
+    var state=window.getAdminListState?window.getAdminListState('vendors'):{};
+    var page=Number(state.page||1)||1;
+    if(typeof window.setAdminListState==='function')window.setAdminListState('vendors',{page:page});
+    if(typeof window.saveActiveAdminListState==='function')window.saveActiveAdminListState('vendors',page);
+    if(typeof window.loadAdminVendors==='function'){
+      try{var ok=await window.loadAdminVendors(page);if(ok!==false)return true;}catch(e){}
+    }
+    if(typeof window.reloadAdminPanelList==='function'){
+      try{var ok2=await window.reloadAdminPanelList('vendors');if(ok2!==false)return true;}catch(e){}
+    }
+    return false;
+  }
+
+  form.addEventListener('submit',async function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    if(form.dataset.vendorSubmitting==='1')return;
+    form.dataset.vendorSubmitting='1';
+    var button=document.getElementById('vendorSubmitBtn')||form.querySelector('button[type="submit"],button:not([type])');
+    var oldText=button?button.textContent:'';
+    var succeeded=false;
+    if(button){button.disabled=true;button.classList.add('ajax-loading');button.textContent='저장중...';}
+    try{
+      var banner=form.elements.banner_active;
+      var adType=form.elements.ad_type;
+      if(banner&&banner.checked&&adType)adType.value='recommended';
+      var response=await fetch('/admin/vendor',{
+        method:'POST',body:new FormData(form),credentials:'same-origin',
+        headers:{'X-Requested-With':'fetch','Accept':'application/json'}
+      });
+      var data=null;
+      try{data=await response.json();}catch(parseError){throw new Error('업체 저장 응답을 확인하지 못했습니다.');}
+      if(!response.ok||!data||data.ok!==true)throw new Error((data&&data.error)||('HTTP '+response.status));
+      succeeded=true;
+      if(typeof toast==='function')toast('업체 정보가 저장되었습니다.','ok');
+      if(typeof window.forceCloseVendorModal==='function')window.forceCloseVendorModal();
+      var refreshed=await refreshVendors();
+      if(!refreshed){
+        try{sessionStorage.setItem('adminReturnPanel','vendors');}catch(storageError){}
+        location.href='/admin#vendors';
+        location.reload();
+      }
+    }catch(error){
+      var message=error&&error.message?error.message:'업체 정보를 저장하지 못했습니다.';
+      if(typeof toast==='function')toast('업체 저장 실패','bad',message);else alert(message);
+    }finally{
+      form.dataset.vendorSubmitting='0';
+      if(!succeeded&&button){button.disabled=false;button.classList.remove('ajax-loading');button.textContent=oldText;}
+    }
+  });
 })();
 </script>
 
