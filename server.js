@@ -612,7 +612,27 @@ async function homeData(req){
   };
   const order=orderMap[sort]||orderMap.default;
   const vendors=await q(`SELECT v.*, (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating, (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count, (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count FROM vendors v WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 120`,params);
-  const banners=await q(`SELECT b.* FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.is_active=true AND (b.vendor_id IS NULL OR (${PUBLIC_VENDOR_SQL} AND v.banner_active=true AND v.banner_until IS NOT NULL AND v.banner_until>=CURRENT_DATE)) ORDER BY b.sort_order, b.id DESC`);
+  const banners=await q(`SELECT x.* FROM (
+    SELECT b.id,b.title,b.subtitle,b.link_url,b.position,b.sort_order,b.is_active,b.image_data,NULL::int vendor_id,b.created_at,'direct'::text source
+    FROM banners b
+    WHERE b.is_active=true AND b.vendor_id IS NULL
+    UNION ALL
+    SELECT COALESCE(linked.id,-v.id) id,v.name title,
+      COALESCE(NULLIF(linked.subtitle,''),NULLIF(v.category,''),NULLIF(v.region,''),NULLIF(v.description,''),'') subtitle,
+      COALESCE(NULLIF(linked.link_url,''),'/vendor/'||v.id) link_url,
+      COALESCE(linked.position,'premium') position,COALESCE(linked.sort_order,0) sort_order,true is_active,
+      COALESCE(NULLIF(linked.image_data,''),NULLIF(v.image_data,'')) image_data,v.id vendor_id,
+      COALESCE(linked.created_at,v.created_at) created_at,'vendor'::text source
+    FROM vendors v
+    LEFT JOIN LATERAL (
+      SELECT b.id,b.subtitle,b.link_url,b.position,b.sort_order,b.image_data,b.created_at
+      FROM banners b WHERE b.vendor_id=v.id ORDER BY b.id DESC LIMIT 1
+    ) linked ON true
+    WHERE ${PUBLIC_VENDOR_SQL}
+      AND COALESCE(v.banner_active,false)=true
+      AND v.banner_until IS NOT NULL AND v.banner_until>=CURRENT_DATE
+      AND COALESCE(NULLIF(linked.image_data,''),NULLIF(v.image_data,'')) IS NOT NULL
+  ) x ORDER BY x.sort_order,x.created_at DESC,x.id DESC`);
   const reviews=await q(`SELECT r.*,v.name vendor_name,u.nickname FROM reviews r JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL} ORDER BY r.id DESC LIMIT 8`);
   const notices=await q(`SELECT * FROM notices ORDER BY is_pinned DESC,id DESC LIMIT 5`);
   const settings=await getSettings();
@@ -687,6 +707,7 @@ function adminPageParams(req){
 }
 async function adminPagedJson(req,res,sql,countSql,params=[]){
   try{
+    res.setHeader('Cache-Control','no-store');
     const {page,limit,offset}=adminPageParams(req);
     const rows=await q(sql+` LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
     const cnt=await q(countSql,params);

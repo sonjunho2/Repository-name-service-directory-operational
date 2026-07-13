@@ -1956,11 +1956,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var data=null;
       try{data=await res.json();}catch(e){}
       if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
-      if(data&&data.user){
-        row.outerHTML=userRow(data.user);
-      }else{
-        await loadUsers(userServerPage);
-      }
+      await loadUsers(userServerPage);
       toast('회원 정보가 저장되었습니다.','ok');
     }catch(e){
       toast('저장 실패: '+(e.message||'오류'),'bad');
@@ -2443,6 +2439,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!action)return true;
     if(form.hasAttribute('data-no-ajax'))return true;
     if(action.includes('/admin/backup'))return true;
+    if(action==='/admin/link-user-vendor')return true;
     return false;
   }
 
@@ -2479,6 +2476,8 @@ document.addEventListener('DOMContentLoaded',function(){
     var btn=submitter || form.querySelector('button[type="submit"],button:not([type])');
     var oldText=btn?btn.textContent:'';
     var meta=actionText(action,oldText);
+    var panelKey=window.getActiveAdminPanelKey?.() || window.getPanelKeyFromActivePanel?.() || (location.hash||'').replace('#','');
+    if(panelKey)window.saveActiveAdminListState?.(panelKey,window.getAdminListState?.(panelKey).page||1);
 
     if(btn){
       btn.classList.add('ajax-loading');
@@ -2522,7 +2521,6 @@ document.addEventListener('DOMContentLoaded',function(){
         !!form.closest('#reviews') ||
         !!form.closest('#inquiries') ||
         !!form.closest('#reports') ||
-        !!form.closest('#settings') ||
         (
           !!form.closest('#vendors') &&
           (actionPath.includes('/admin/vendor') || actionPath.includes('/admin/delete/vendors/'))
@@ -2544,19 +2542,16 @@ document.addEventListener('DOMContentLoaded',function(){
       );
       if(needsListRefresh){
         closeAdminEditorIfNeeded();
-        var activePanel=document.querySelector('.admin-panel.active');
-        var panel=activePanel ? activePanel.id : (location.hash||'').replace('#','');
-        if(panel){try{sessionStorage.setItem('adminReturnPanel',panel);}catch(e){}}
-        setTimeout(function(){
-          if(panel && location.hash !== '#'+panel){
-            location.hash=panel;
-          }
+        if(typeof window.reloadAdminPanelList==='function'&&panelKey){
+          await window.reloadAdminPanelList(panelKey);
+        }else{
+          if(panelKey){try{sessionStorage.setItem('adminReturnPanel',panelKey);}catch(e){}}
           location.reload();
-        },520);
+        }
         return;
       }
 
-      if(meta.reload){
+      if(meta.reload||form.closest('#settings')){
         setTimeout(function(){location.reload();},700);
       }
     }catch(err){
@@ -2873,7 +2868,9 @@ document.addEventListener('DOMContentLoaded',function(){
       try{data=await res.json();}catch(e){}
       if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
       toast('업체회원으로 연결되었습니다.','ok');
-      setTimeout(function(){location.reload();},700);
+      window.saveActiveAdminListState?.('users',window.getAdminListState?.('users').page||1);
+      if(typeof window.reloadAdminPanelList==='function')await window.reloadAdminPanelList('users');
+      else setTimeout(function(){location.reload();},700);
     }catch(e){
       toast('업체회원 연결 실패: '+(e.message||'오류'),'bad');
     }finally{
