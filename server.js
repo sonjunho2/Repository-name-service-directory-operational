@@ -761,17 +761,39 @@ app.post('/boards/:slug/write',login,upload.single('image'),async(req,res)=>{
     if(title.length<2||content.length<2)return res.status(400).render('board-write',{board,settings:await getSettings(),error:'제목과 내용을 2자 이상 입력해주세요.'});
     const imageData=board.image_enabled?img(req.file):null;
     const saved=await q('INSERT INTO board_posts(board_id,user_id,title,content,image_data) VALUES($1,$2,$3,$4,$5) RETURNING id',[board.id,req.session.user.id,title,content,imageData]);
-    res.redirect(`/boards/${board.slug}/${saved.rows[0].id}`);
+    const postId=saved.rows[0].id;
+    if(board.slug==='ad-inquiry'){
+      try{
+        const authorName=String(req.session.user.nickname||req.session.user.username||'회원').slice(0,40);
+        const safeTitle=String(title||'').slice(0,80);
+        await adminNotify('ad_inquiry_new','새 광고문의가 등록되었습니다',`${authorName}님이 광고문의를 등록했습니다: ${safeTitle}`,`/boards/ad-inquiry/${postId}`);
+      }catch(e){console.error('ad inquiry notification failed',e.message);}
+    }
+    res.redirect(`/boards/${board.slug}/${postId}`);
   }catch(e){console.error('board write failed',e);res.status(500).send('게시글을 저장하지 못했습니다.');}
 });
 app.post('/boards/:slug/:id/comments',login,async(req,res)=>{
   const id=parseInt(req.params.id||0,10),content=String(req.body.content||'').trim().slice(0,1000);
-  const found=await q(`SELECT p.id,p.user_id,b.slug,b.comment_enabled,b.layout_type FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2 AND p.status='visible' AND b.is_active=true`,[id,String(req.params.slug||'').toLowerCase()]);
+  const found=await q(`SELECT p.id,p.title,p.user_id,b.slug,b.comment_enabled,b.layout_type FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2 AND p.status='visible' AND b.is_active=true`,[id,String(req.params.slug||'').toLowerCase()]);
   if(!found.rows[0])return res.status(404).send('게시글을 찾을 수 없습니다.');
   if(boardLayoutType(found.rows[0].layout_type)==='private'&&!canReadPrivateBoardPost(req.session.user,found.rows[0]))return res.status(403).send('본인의 문의만 확인할 수 있습니다.');
   if(!found.rows[0].comment_enabled)return res.status(403).send('댓글을 사용할 수 없습니다.');
   if(!content)return res.status(400).send('댓글 내용을 입력해주세요.');
   await q('INSERT INTO board_comments(post_id,user_id,content) VALUES($1,$2,$3)',[id,req.session.user.id,content]);
+  if(found.rows[0].slug==='ad-inquiry'){
+    try{
+      if(req.session.user.role==='admin'){
+        const targetUserId=Number(found.rows[0].user_id||0);
+        if(targetUserId&&targetUserId!==Number(req.session.user.id||0)){
+          const safeTitle=String(found.rows[0].title||'광고문의').slice(0,80);
+          await userNotify(targetUserId,'ad_inquiry_answered','광고문의에 답변이 등록되었습니다',`${safeTitle}에 관리자 답변이 등록되었습니다.`,`/boards/ad-inquiry/${id}`);
+        }
+      }else{
+        const authorName=String(req.session.user.nickname||req.session.user.username||'회원').slice(0,40);
+        await adminNotify('ad_inquiry_reply','광고문의에 추가 댓글이 등록되었습니다',`${authorName}님이 광고문의에 댓글을 남겼습니다.`,`/boards/ad-inquiry/${id}`);
+      }
+    }catch(e){console.error('ad inquiry comment notification failed',e.message);}
+  }
   res.redirect(`/boards/${found.rows[0].slug}/${id}`);
 });
 app.get('/boards/:slug/:id',async(req,res)=>{
