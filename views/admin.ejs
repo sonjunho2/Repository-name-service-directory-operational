@@ -935,7 +935,10 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
       </tr>
     <%})%>
   </table>
-</section><section id="adminLogs" class="panel admin-panel"><h2>관리자 로그</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 로그</b><strong><%=(adminLogs||[]).length%></strong></div><div class="integrated-card"><b>최근 작업자</b><strong><%=(adminLogs&&adminLogs[0])?adminLogs[0].admin_username:'-'%></strong></div><div class="integrated-card"><b>최근 작업</b><strong><%=(adminLogs&&adminLogs[0])?adminLogs[0].action:'-'%></strong></div><div class="integrated-card"><b>표시 범위</b><strong>200</strong></div></div><table><tr><th>ID</th><th>관리자</th><th>작업</th><th>대상</th><th>메모</th><th>시간</th></tr><% (adminLogs||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.admin_username||'-'%></td><td><b><%=x.action%></b></td><td><%=x.target_type%> #<%=x.target_id%></td><td class="memo"><%=x.memo||'-'%></td><td><%=x.created_at?fmtDateTime(x.created_at):'-'%></td></tr><%})%></table></section><section id="settings" class="panel admin-panel">
+</section><section id="adminLogs" class="panel admin-panel"><h2>관리자 로그</h2>
+<div id="adminLogSummaryGrid" class="admin-log-summary-grid"><button type="button" data-admin-log-card="all"><b>전체 로그</b><strong data-admin-log-summary="total">0</strong></button><button type="button" data-admin-log-card="today"><b>오늘 작업</b><strong data-admin-log-summary="today">0</strong></button><button type="button" data-admin-log-card="week"><b>최근 7일</b><strong data-admin-log-summary="last7Days">0</strong></button><button type="button" data-admin-log-card="vendor"><b>업체 관련</b><strong data-admin-log-summary="vendorActions">0</strong></button><button type="button" data-admin-log-card="user"><b>회원 관련</b><strong data-admin-log-summary="userActions">0</strong></button><button type="button" data-admin-log-card="finance"><b>결제·광고 관련</b><strong data-admin-log-summary="paymentAdActions">0</strong></button></div>
+<div class="admin-log-filter"><input id="adminLogSearch" placeholder="로그 ID / 관리자 / 작업 / 대상 / 메모 검색"><select id="adminLogAdminFilter"><option value="all">전체 관리자</option></select><select id="adminLogActionFilter"><option value="all">전체 작업</option></select><select id="adminLogTargetFilter"><option value="all">전체 대상</option></select><input id="adminLogDateFrom" type="date" aria-label="시작일"><input id="adminLogDateTo" type="date" aria-label="종료일"><select id="adminLogSort"><option value="latest">최신 작업순</option><option value="oldest">오래된 작업순</option><option value="admin">관리자순</option><option value="action">작업명순</option><option value="target">대상 유형순</option></select><button type="button" id="adminLogFilterReset">초기화</button></div>
+<div class="admin-log-table-wrap"><table id="adminLogManagementTable"><colgroup><col style="width:85px"><col style="width:175px"><col style="width:150px"><col style="width:210px"><col style="width:190px"><col style="width:430px"><col style="width:90px"></colgroup><thead><tr><th>로그 ID</th><th>작업시간</th><th>관리자</th><th>작업</th><th>대상</th><th>메모</th><th>상세</th></tr></thead><tbody id="adminLogTableBody"><tr class="loading-row"><td colspan="7">관리자 로그를 불러오는 중입니다.</td></tr></tbody></table></div><div id="adminLogPager" class="server-admin-log-pager"></div></section><section id="settings" class="panel admin-panel">
   <h2>환경설정</h2>
 
   <div class="settings-tabs">
@@ -1281,7 +1284,7 @@ showAdminPanel((location.hash||'#dashboard').replace('#',''));updateReportAlert(
   if(window.__adminClientPagerV2)return;
   window.__adminClientPagerV2=true;
 
-  var apiPanels={users:1,vendors:1,inquiries:1,revenue:1,reports:1};
+  var apiPanels={users:1,vendors:1,inquiries:1,revenue:1,reports:1,adminLogs:1};
   var configs={};
   var pageState={};
   var limit=20;
@@ -1674,7 +1677,7 @@ document.addEventListener('DOMContentLoaded',function(){
     else if(key==='banners')Object.assign(patch,{q:value('bannerSearch'),type:value('bannerTypeFilter','all'),status:value('bannerStatusFilter','all'),image:value('bannerImageFilter','all'),sort:value('bannerSortFilter','default')});
     else if(key==='notices')Object.assign(patch,{q:value('noticeSearch'),pinned:value('noticePinnedFilter','all'),sort:value('noticeSortFilter','latest')});
     else if(key==='reviews')Object.assign(patch,{q:value('reviewSearch'),status:value('reviewStatusFilter','all'),rating:value('reviewRatingFilter','all'),report:value('reviewReportFilter','all'),sort:value('reviewSortFilter','latest')});
-    else if(key==='adminLogs')Object.assign(patch,{q:value('adminLogSearch'),action:value('adminLogActionFilter','all'),target_type:value('adminLogTargetFilter','all')});
+    else if(key==='adminLogs')Object.assign(patch,{q:value('adminLogSearch'),admin:value('adminLogAdminFilter','all'),action:value('adminLogActionFilter','all'),target:value('adminLogTargetFilter','all'),dateFrom:value('adminLogDateFrom'),dateTo:value('adminLogDateTo'),sort:value('adminLogSort','latest')});
     else if(key==='vendorRequests')Object.assign(patch,{q:value('vendorRequestSearch'),status:value('vendorRequestStatus','all')});
     else if(key==='adCenter')Object.assign(patch,{q:value('adCenterSearch'),status:document.querySelector('[data-ad-center-filter].on')?.dataset.adCenterFilter||'all',payment_status:value('adCenterPayment','all'),request_type:value('adCenterType','all'),source:value('adCenterSource','all')});
     else if(key==='boardPosts')Object.assign(patch,{q:value('boardPostSearch'),board_id:value('boardPostBoardFilter','all'),status:value('boardPostStatusFilter','all'),pinned:value('boardPostPinnedFilter','all'),sort:value('boardPostSort','latest')});
@@ -1690,7 +1693,7 @@ document.addEventListener('DOMContentLoaded',function(){
     else if(key==='banners'){set('bannerSearch',s.q);set('bannerTypeFilter',s.type);set('bannerStatusFilter',s.status);set('bannerImageFilter',s.image);set('bannerSortFilter',s.sort);}
     else if(key==='notices'){set(s.q);set('noticePinnedFilter',s.pinned);set('noticeSortFilter',s.sort);}
     else if(key==='reviews'){set('reviewSearch',s.q);set('reviewStatusFilter',s.status);set('reviewRatingFilter',s.rating);set('reviewReportFilter',s.report);set('reviewSortFilter',s.sort);}
-    else if(key==='adminLogs'){set('adminLogSearch',s.q);set('adminLogTargetFilter',s.target_type);}
+    else if(key==='adminLogs'){set('adminLogSearch',s.q);set('adminLogAdminFilter',s.admin);set('adminLogActionFilter',s.action);set('adminLogTargetFilter',s.target||s.target_type);set('adminLogDateFrom',s.dateFrom);set('adminLogDateTo',s.dateTo);set('adminLogSort',s.sort);}
     else if(key==='vendorRequests'){set('vendorRequestSearch',s.q);set('vendorRequestStatus',s.status);}
     else if(key==='adCenter'){set('adCenterSearch',s.q);set('adCenterPayment',s.payment_status);set('adCenterType',s.request_type);set('adCenterSource',s.source);document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',(s.status||'all')===b.dataset.adCenterFilter);});}
     else if(key==='boardPosts'){set('boardPostSearch',s.q);set('boardPostBoardFilter',s.board_id);set('boardPostStatusFilter',s.status);set('boardPostPinnedFilter',s.pinned);set('boardPostSort',s.sort);}
@@ -3571,81 +3574,31 @@ document.addEventListener('DOMContentLoaded',function(){
 
 
 
-<script>
+<style>
+#adminLogs .admin-log-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin:0 0 16px}#adminLogs .admin-log-summary-grid>button{appearance:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;width:100%;height:auto!important;min-height:82px;padding:12px 14px!important;box-sizing:border-box;border:1px solid #29324f!important;border-radius:14px!important;background:#070b15!important;box-shadow:none!important;color:#dfe9ff!important;text-align:left}#adminLogs .admin-log-summary-grid>button b{color:#9ca8c8;font-size:13px}#adminLogs .admin-log-summary-grid>button strong{color:#10d9ff;font-size:25px}#adminLogs .admin-log-summary-grid>button.active{background:#111a2d!important;border-color:#10d9ff!important}#adminLogs .admin-log-filter{display:grid;grid-template-columns:minmax(260px,1.8fr) minmax(140px,.9fr) minmax(160px,1fr) minmax(140px,.9fr) 145px 145px minmax(145px,.9fr) 90px;gap:8px;margin-bottom:14px;align-items:center}.admin-log-table-wrap{width:100%;overflow-x:auto;border:1px solid #29324f;border-radius:14px}#adminLogManagementTable{min-width:1350px;table-layout:fixed;margin:0}#adminLogManagementTable th,#adminLogManagementTable td{white-space:normal;vertical-align:top;overflow-wrap:anywhere}#adminLogManagementTable small{display:block;margin-top:5px;color:#9ca8c8}.admin-log-action-badge{display:inline-flex;padding:5px 8px;border:1px solid #33405f;border-radius:8px;background:#17233b;font-size:12px;font-weight:900}.admin-log-action-badge.vendor{border-color:#1fe087}.admin-log-action-badge.user{border-color:#10d9ff}.admin-log-action-badge.finance{border-color:#ffdc4d}.admin-log-memo-clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;line-height:1.5}.admin-log-detail-row[hidden]{display:none!important}.admin-log-detail-row>td{padding:0!important}.admin-log-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;background:#0b1221}.admin-log-detail-grid p{line-height:1.6}.admin-log-detail-grid pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font:inherit;color:#dfe9ff}.server-admin-log-pager{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:14px}@media(max-width:1200px){#adminLogs .admin-log-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}#adminLogs .admin-log-filter{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:760px){#adminLogs .admin-log-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminLogs .admin-log-filter,.admin-log-detail-grid{grid-template-columns:1fr}}@media(max-width:480px){#adminLogs .admin-log-summary-grid{grid-template-columns:1fr}}
+</style><script>
 (function(){
-  if(window.__adminDisplayListsApiV1)return;
-  window.__adminDisplayListsApiV1=true;
-  var state={adminLogs:Number(window.getAdminListState?.('adminLogs').page||1)};
-  var loading={};
-  var timers={};
-  var limit=20;
-
-  function dateText(value){
-    if(!value)return '-';
-    var d=new Date(value);if(isNaN(d.getTime()))return '-';
-    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-  }
-  function tableFor(id){return document.querySelector('#'+id+' table');}
-  function message(table,text,cls){
-    var head=table&&table.querySelector('tr');var cols=head?head.children.length:1;
-    if(!table)return;table.innerHTML='';if(head)table.appendChild(head);
-    table.insertAdjacentHTML('beforeend','<tr class="'+(cls||'loading-row')+'"><td colspan="'+cols+'">'+esc(text)+'</td></tr>');
-  }
-  function pagerFor(id,table,kind){
-    var panel=document.getElementById(id);if(!panel||!table)return null;
-    panel.querySelectorAll('.admin-pager').forEach(function(x){x.remove();});
-    panel.querySelectorAll('.server-'+kind+'-pager').forEach(function(x,i){if(i)x.remove();});
-    var pager=panel.querySelector('.server-'+kind+'-pager');
-    if(!pager){pager=document.createElement('div');pager.className='server-'+kind+'-pager server-vendor-pager';table.insertAdjacentElement('afterend',pager);}
-    return pager;
-  }
-  function pageButton(textValue,disabled,active,fn){
-    var b=document.createElement('button');b.type='button';b.textContent=textValue;b.disabled=!!disabled;if(active)b.classList.add('active');b.onclick=fn;return b;
-  }
-  function renderPager(pager,data,loader){
-    pager.innerHTML='';var page=data.page||1,pages=data.totalPages||1,total=data.total||0;
-    var from=total?((page-1)*data.limit+1):0,to=Math.min(page*data.limit,total);
-    pager.appendChild(pageButton('처음',page<=1,false,function(){loader(1);}));
-    pager.appendChild(pageButton('이전',page<=1,false,function(){loader(page-1);}));
-    var start=Math.max(1,page-2),end=Math.min(pages,start+4);start=Math.max(1,end-4);
-    for(var n=start;n<=end;n++){(function(p){pager.appendChild(pageButton(String(p),false,p===page,function(){loader(p);}));})(n);}
-    pager.appendChild(pageButton('다음',page>=pages,false,function(){loader(page+1);}));
-    pager.appendChild(pageButton('마지막',page>=pages,false,function(){loader(pages);}));
-    var info=document.createElement('span');info.className='server-vendor-info';info.textContent='총 '+total+'건 · 현재 '+from+'-'+to+'건 표시';pager.appendChild(info);
-  }
-  function params(page,q){var p=new URLSearchParams();p.set('page',String(page));p.set('limit',String(limit));if(q)p.set('q',q);return p;}
-  async function fetchRows(id,kind,page,url,query,row){
-    if(loading[id]){clearTimeout(timers[id]);timers[id]=setTimeout(function(){fetchRows(id,kind,page,url,query,row);},100);return;}
-    var table=tableFor(id);if(!table)return;page=page||Number(window.getAdminListState?.(id).page||1);var pager=pagerFor(id,table,kind);state[id]=Math.max(1,page||1);window.saveActiveAdminListState?.(id,state[id]);loading[id]=true;
-    message(table,'목록을 불러오는 중입니다.');if(pager)pager.innerHTML='<span class="server-vendor-info">목록을 불러오는 중입니다.</span>';
-    try{
-      var response=await fetch(url+'?'+query(state[id]).toString(),{credentials:'same-origin',headers:{Accept:'application/json'}});
-      var data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'load_failed');if(state[id]>Math.max(1,Number(data.totalPages||1))){loading[id]=false;if(window.normalizeAdminListPage?.(id,data,function(next){fetchRows(id,kind,next,url,query,row);}))return;}
-      var head=table.querySelector('tr');table.innerHTML='';if(head)table.appendChild(head);
-      (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',row(x));});
-      if(!(data.rows||[]).length)message(table,'조건에 맞는 항목이 없습니다.','empty-row');
-      if(pager)renderPager(pager,data,function(next){fetchRows(id,kind,next,url,query,row);});
-    }catch(e){message(table,'목록을 불러오지 못했습니다.','loading-row');if(pager)pager.innerHTML='<span class="server-vendor-info">서버 데이터를 불러오지 못했습니다.</span>';}
-    finally{loading[id]=false;}
-  }
-
-  var logPanel=document.getElementById('adminLogs');var logSearch=document.getElementById('adminLogSearch');
-  if(logPanel&&!logSearch){var tools=document.createElement('div');tools.className='admin-searchbar';tools.innerHTML='<input id="adminLogSearch" placeholder="작업 / 대상 / 메모 / 관리자 검색"><select id="adminLogTargetFilter"><option value="all">전체 대상</option></select><button type="button" id="adminLogReset">초기화</button>';logPanel.querySelector('table')?.insertAdjacentElement('beforebegin',tools);logSearch=document.getElementById('adminLogSearch');}
-  function logQuery(page){var p=params(page,(logSearch?.value||'').trim());var target=document.getElementById('adminLogTargetFilter')?.value||'all';if(target!=='all')p.set('target_type',target);return p;}
-  function logRow(l){return '<tr class="admin-log-row"><td>'+esc(l.id)+'</td><td>'+esc(l.admin_username||l.admin_nickname||'-')+'</td><td><b>'+esc(l.action||'-')+'</b></td><td>'+esc(l.target_type||'-')+' #'+esc(l.target_id||'-')+'</td><td class="memo">'+esc(l.memo||'-')+'</td><td>'+esc(dateText(l.created_at))+'</td></tr>';}
-  function loadAdminLogs(page){return fetchRows('adminLogs','log',page,'/admin/api/logs',logQuery,logRow);}
-
-  window.loadAdminLogs=loadAdminLogs;
-  ['adminLogs'].forEach(function(key){window.restoreAdminListControls?.(key);});
-
-  function debounce(id,fn){clearTimeout(timers[id]);timers[id]=setTimeout(function(){fn(1);},300);}
-
-
-
-  logSearch?.addEventListener('input',function(){debounce('adminLogs',loadAdminLogs);});document.getElementById('adminLogReset')?.addEventListener('click',function(){if(logSearch)logSearch.value='';loadAdminLogs(1);});
+  if(window.__adminLogManagementV1)return;
+  window.__adminLogManagementV1=true;
+  var page=Number(window.getAdminListState?.('adminLogs').page||1),busy=false,timer=null,group=window.getAdminListState?.('adminLogs').group||'';
+  function e(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function value(id,f){return document.getElementById(id)?.value||f||'';}
+  function dt(v,full){if(!v)return '-';var d=new Date(v);if(isNaN(d.getTime()))return '-';return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+(full?':'+String(d.getSeconds()).padStart(2,'0'):'');}
+  function day(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function query(p){var saved=window.getAdminListState?.('adminLogs')||{},x=new URLSearchParams({page:String(p),limit:'20',sort:value('adminLogSort',saved.sort||'latest')}),q=value('adminLogSearch').trim(),admin=value('adminLogAdminFilter',saved.admin||'all'),action=value('adminLogActionFilter',saved.action||'all'),target=value('adminLogTargetFilter',saved.target||saved.target_type||'all'),from=value('adminLogDateFrom'),to=value('adminLogDateTo');if(q)x.set('q',q);if(admin!=='all')x.set('admin',admin);if(action!=='all')x.set('action',action);if(target!=='all')x.set('target',target);if(group)x.set('group',group);if(from)x.set('date_from',from);if(to)x.set('date_to',to);return x;}
+  function row(l){var admin=l.admin_username||l.admin_nickname||'알 수 없는 관리자',nav=l.can_navigate?'<button type="button" data-admin-log-navigate="'+e(l.destination_panel)+'" data-target-id="'+e(l.target_id)+'">관련 화면</button>':'<span class="admin-log-no-link">이동 없음</span>';return '<tr class="admin-log-row"><td>'+e(l.id)+'</td><td>'+e(dt(l.created_at,false))+'</td><td><b>'+e(admin)+'</b>'+(l.admin_id?'<small>ID '+e(l.admin_id)+'</small>':'')+'</td><td><span class="admin-log-action-badge '+e(l.log_group||'other')+'">'+e(l.action||'-')+'</span></td><td>'+e(l.target_type||'-')+(l.target_id?'<small>#'+e(l.target_id)+'</small>':'')+'</td><td><div class="admin-log-memo-clamp">'+e(l.memo||'-')+'</div></td><td><button type="button" data-admin-log-detail="'+e(l.id)+'">상세</button></td></tr><tr class="admin-log-detail-row" data-detail-for="'+e(l.id)+'" hidden><td colspan="7"><div class="admin-log-detail-grid"><div><b>로그 정보</b><p>로그 ID '+e(l.id)+'<br>작업시간 '+e(dt(l.created_at,true))+'<br>관리자 ID '+e(l.admin_id||'-')+'<br>관리자 '+e(admin)+'</p></div><div><b>작업 대상</b><p>작업 '+e(l.action||'-')+'<br>대상 유형 '+e(l.target_type||'-')+'<br>대상 ID '+e(l.target_id||'-')+'<br>존재 여부 '+e(l.target_exists==null?'확인하지 않음':l.target_exists?'존재':'없음')+'</p>'+nav+'</div><div><b>메모 원문</b><pre>'+e(l.memo||'-')+'</pre></div></div></td></tr>';}
+  function summary(s){Object.keys(s||{}).forEach(function(k){var x=document.querySelector('#adminLogs [data-admin-log-summary="'+k+'"]');if(x)x.textContent=Number(s[k]||0).toLocaleString('ko-KR');});}
+  function syncOptions(id,items,first){var select=document.getElementById(id);if(!select)return;var stateKey={adminLogAdminFilter:'admin',adminLogActionFilter:'action',adminLogTargetFilter:'target'}[id],saved=window.getAdminListState?.('adminLogs')?.[stateKey],current=select.value&&select.value!=='all'?select.value:saved,values=new Set(items||[]);select.replaceChildren();var base=document.createElement('option');base.value='all';base.textContent=first;select.appendChild(base);(items||[]).forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;select.appendChild(o);});select.value=values.has(current)?current:'all';}
+  function pager(data){var root=document.getElementById('adminLogPager');if(!root)return;root.innerHTML='';var cur=Number(data.page||1),pages=Math.max(1,Number(data.totalPages||1));function add(t,p,d,a){var b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=d;if(a)b.className='active';b.onclick=function(){load(p);};root.appendChild(b);}add('이전',cur-1,cur<=1);for(var n=Math.max(1,cur-2);n<=Math.min(pages,cur+2);n++)add(String(n),n,false,n===cur);add('다음',cur+1,cur>=pages);var i=document.createElement('span');i.className='server-admin-log-info';i.textContent='전체 '+Number(data.total||0).toLocaleString('ko-KR')+'건 · '+cur+' / '+pages+' 페이지';root.appendChild(i);}
+  async function load(next){if(busy){clearTimeout(timer);timer=setTimeout(function(){load(next);},100);return false;}var body=document.getElementById('adminLogTableBody');if(!body)return false;var from=value('adminLogDateFrom'),to=value('adminLogDateTo');if(from&&to&&from>to){if(typeof toast==='function')toast('시작일은 종료일보다 늦을 수 없습니다.','bad');return false;}page=Math.max(1,Number(next||window.getAdminListState?.('adminLogs').page||1));busy=true;body.innerHTML='<tr class="loading-row"><td colspan="7">관리자 로그를 불러오는 중입니다.</td></tr>';try{var res=await fetch('/admin/api/logs?'+query(page),{headers:{Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(page>Math.max(1,Number(data.totalPages||1))){busy=false;return load(data.totalPages);}body.innerHTML=(data.rows||[]).length?data.rows.map(row).join(''):'<tr><td colspan="7">검색 결과가 없습니다.</td></tr>';summary(data.summary);syncOptions('adminLogAdminFilter',data.filterOptions?.admins,'전체 관리자');syncOptions('adminLogActionFilter',data.filterOptions?.actions,'전체 작업');syncOptions('adminLogTargetFilter',data.filterOptions?.targetTypes,'전체 대상');pager(data);window.setAdminListState?.('adminLogs',{page:page,q:value('adminLogSearch'),admin:value('adminLogAdminFilter','all'),action:value('adminLogActionFilter','all'),target:value('adminLogTargetFilter','all'),group:group,dateFrom:from,dateTo:to,sort:value('adminLogSort','latest')});busy=false;return true;}catch(err){body.innerHTML='<tr><td colspan="7">관리자 로그를 불러오지 못했습니다.</td></tr>';if(typeof toast==='function')toast('관리자 로그를 불러오지 못했습니다.','bad');busy=false;return false;}}
+  window.loadAdminLogs=load;window.restoreAdminListControls?.('adminLogs');
+  document.getElementById('adminLogSearch')?.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(function(){load(1);},300);});['adminLogAdminFilter','adminLogActionFilter','adminLogTargetFilter','adminLogDateFrom','adminLogDateTo','adminLogSort'].forEach(function(id){document.getElementById(id)?.addEventListener('change',function(){group='';load(1);});});
+  document.getElementById('adminLogFilterReset')?.addEventListener('click',function(){['adminLogSearch','adminLogDateFrom','adminLogDateTo'].forEach(function(id){document.getElementById(id).value='';});['adminLogAdminFilter','adminLogActionFilter','adminLogTargetFilter'].forEach(function(id){document.getElementById(id).value='all';});document.getElementById('adminLogSort').value='latest';group='';document.querySelectorAll('#adminLogSummaryGrid button').forEach(function(x){x.classList.remove('active');});load(1);});
+  document.getElementById('adminLogSummaryGrid')?.addEventListener('click',function(ev){var b=ev.target.closest('[data-admin-log-card]');if(!b)return;var key=b.dataset.adminLogCard,today=new Date();group='';adminLogActionFilter.value='all';adminLogTargetFilter.value='all';if(key==='all'){adminLogSearch.value='';adminLogAdminFilter.value='all';adminLogDateFrom.value='';adminLogDateTo.value='';}else if(key==='today'){adminLogDateFrom.value=day(today);adminLogDateTo.value=day(today);}else if(key==='week'){var first=new Date(today);first.setDate(first.getDate()-6);adminLogDateFrom.value=day(first);adminLogDateTo.value=day(today);}else{adminLogDateFrom.value='';adminLogDateTo.value='';if(['vendor','user','finance'].includes(key))group=key;}this.querySelectorAll('button').forEach(function(x){x.classList.toggle('active',x===b);});load(1);});
+  document.getElementById('adminLogTableBody')?.addEventListener('click',function(ev){var d=ev.target.closest('[data-admin-log-detail]');if(d){var target=d.closest('tr').nextElementSibling,opening=target?.hidden;document.querySelectorAll('#adminLogTableBody .admin-log-detail-row').forEach(function(x){x.hidden=true;});if(target)target.hidden=!opening;return;}var nav=ev.target.closest('[data-admin-log-navigate]');if(!nav)return;var panel=nav.dataset.adminLogNavigate,id=nav.dataset.targetId,map={vendors:['vendorSearch','loadAdminVendors'],users:['userSearch','loadAdminUsers'],reviews:['reviewSearch','loadAdminReviews'],reports:['reportSearch','loadAdminReports'],notices:['noticeSearch','loadAdminNotices'],banners:['bannerSearch','loadAdminBanners'],inquiries:['inquirySearch','loadAdminInquiries'],vendorRequests:['vendorRequestSearch','loadAdminVendorRequests'],adCenter:['adCenterSearch','loadAdminAdCenter'],boardPosts:['boardPostSearch','loadAdminBoardPosts'],boardComments:['boardCommentSearch','loadAdminBoardComments'],adInquiries:['adInquirySearch','loadAdminAdInquiries']},cfg=map[panel];if(!cfg||!document.getElementById(panel))return;window.saveActiveAdminListState?.('adminLogs',page);showAdminPanel(panel);history.replaceState(null,'','#'+panel);var search=document.getElementById(cfg[0]);if(search)search.value=id;window.setAdminListState?.(panel,{page:1,q:id});if(typeof window[cfg[1]]==='function')window[cfg[1]](1);});
+  if(document.getElementById('adminLogs')?.classList.contains('active'))load(page);
 })();
 </script>
-
 <script>
 (function(){
   if(window.__adminBannerManagementV1)return;window.__adminBannerManagementV1=true;
@@ -4048,7 +4001,7 @@ document.addEventListener('DOMContentLoaded',function(){
   setCards('#adRequests .integrated-tools:first-of-type .integrated-card strong',[stats.adRequests?.total,stats.adRequests?.new,stats.adRequests?.approved,stats.adRequests?.rejected]);
   const setButton=function(selector,label,value){const button=document.querySelector(selector);if(button&&value!=null)button.textContent=label+' '+value;};
   setButton('#inquiries [data-filter="all"]','전체',stats.inquiries?.total);setButton('#inquiries [data-filter="new"]','대기',stats.inquiries?.new);setButton('#inquiries [data-filter="approved"]','승인',stats.inquiries?.approved);setButton('#inquiries [data-filter="rejected"]','반려',stats.inquiries?.rejected);setButton('#inquiries [data-filter="apply"]','입점신청',stats.inquiries?.apply);setButton('#inquiries [data-filter="ad"]','광고문의',stats.inquiries?.ad);
-  const logTotal=document.querySelector('#adminLogs .integrated-tools .integrated-card strong');
+  const logTotal=document.querySelector('#adminLogs [data-admin-log-summary="total"]');
   if(logTotal&&stats.adminLogs?.total!=null)logTotal.textContent=String(stats.adminLogs.total);
 });
 </script>

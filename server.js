@@ -1170,16 +1170,30 @@ app.get('/admin/api/board-comments',admin,async(req,res)=>{
   return adminPagedJson(req,res,`SELECT c.id,c.post_id,p.board_id,b.title board_title,b.slug board_slug,p.title post_title,u.username,u.nickname,c.content,c.status,c.created_at${fromSql}${whereSql} ORDER BY c.created_at DESC,c.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
 app.get('/admin/api/logs',admin,async(req,res)=>{
-  const params=[];const where=[];
-  const qText=String(req.query.q||'').trim().slice(0,100);
-  const action=String(req.query.action||'').trim().slice(0,100);
-  const targetType=String(req.query.target_type||'').trim().slice(0,100);
-  if(qText){params.push(`%${qText}%`);where.push(`(l.action ILIKE $${params.length} OR l.target_type ILIKE $${params.length} OR l.target_id ILIKE $${params.length} OR l.memo ILIKE $${params.length} OR l.admin_username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
-  if(action){params.push(action);where.push(`l.action=$${params.length}`);}
-  if(targetType){params.push(targetType);where.push(`l.target_type=$${params.length}`);}
-  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
-  const fromSql=' FROM admin_logs l LEFT JOIN users u ON u.id=l.admin_id';
-  return adminPagedJson(req,res,`SELECT l.id,l.admin_id,l.admin_username,l.action,l.target_type,l.target_id,l.memo,l.created_at,u.nickname admin_nickname${fromSql}${whereSql} ORDER BY l.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+  try{
+    res.setHeader('Cache-Control','no-store');
+    const {page,limit,offset}=adminPageParams(req),params=[],where=[];
+    const qText=String(req.query.q||'').trim().slice(0,100),adminName=String(req.query.admin||'').trim().slice(0,100),action=String(req.query.action||'').trim().slice(0,100),targetType=String(req.query.target||req.query.target_type||'').trim().slice(0,100),group=String(req.query.group||'').trim(),dateFrom=String(req.query.date_from||'').trim(),dateTo=String(req.query.date_to||'').trim();
+    const dateOk=v=>!v||/^\d{4}-\d{2}-\d{2}$/.test(v);
+    if(!dateOk(dateFrom)||!dateOk(dateTo)||dateFrom&&dateTo&&dateFrom>dateTo)return res.status(400).json({ok:false,error:'invalid_date_range'});
+    const groupCase=`CASE WHEN l.target_type IN ('payment','ad_request','banner_request','revenue') OR l.action ~* '(결제|입금|광고|배너|매출)' THEN 'finance' WHEN l.target_type IN ('user','member') OR l.action ~* '(회원|사용자)' THEN 'user' WHEN l.target_type IN ('vendor','vendors','vendor_update','vendor_update_request','vendor_request') OR l.action ~* '(업체|입점)' THEN 'vendor' ELSE 'other' END`;
+    if(qText){params.push(`%${qText}%`);where.push(`(l.id::text ILIKE $${params.length} OR l.action ILIKE $${params.length} OR l.target_type ILIKE $${params.length} OR COALESCE(l.target_id,'') ILIKE $${params.length} OR COALESCE(l.memo,'') ILIKE $${params.length} OR COALESCE(l.admin_username,'') ILIKE $${params.length} OR COALESCE(u.nickname,'') ILIKE $${params.length})`);}
+    if(adminName&&adminName!=='all'){params.push(adminName);where.push(`l.admin_username=$${params.length}`);}
+    if(action&&action!=='all'){params.push(action);where.push(`l.action=$${params.length}`);}
+    if(targetType&&targetType!=='all'){params.push(targetType);where.push(`l.target_type=$${params.length}`);}
+    if(['vendor','user','finance'].includes(group)){params.push(group);where.push(`${groupCase}=$${params.length}`);}
+    if(dateFrom){params.push(dateFrom);where.push(`l.created_at >= $${params.length}::date`);}
+    if(dateTo){params.push(dateTo);where.push(`l.created_at < ($${params.length}::date+INTERVAL '1 day')`);}
+    const whereSql=where.length?' WHERE '+where.join(' AND '):'',fromSql=' FROM admin_logs l LEFT JOIN users u ON u.id=l.admin_id';
+    const orderBy={latest:'l.created_at DESC,l.id DESC',oldest:'l.created_at ASC,l.id ASC',admin:'COALESCE(l.admin_username,\'\') ASC,l.id DESC',action:'l.action ASC,l.id DESC',target:'l.target_type ASC,l.id DESC'}[String(req.query.sort||'latest')]||'l.created_at DESC,l.id DESC';
+    const rows=await q(`SELECT l.id,l.admin_id,l.admin_username,l.action,l.target_type,l.target_id,l.memo,l.created_at,u.nickname admin_nickname,${groupCase} log_group${fromSql}${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const count=await q(`SELECT COUNT(*)${fromSql}${whereSql}`,params),total=Number(count.rows[0]?.count||0);
+    const summary=(await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE created_at>=CURRENT_DATE)::int today,COUNT(*) FILTER(WHERE created_at>=CURRENT_DATE-INTERVAL '6 days')::int "last7Days",COUNT(*) FILTER(WHERE log_group='vendor')::int "vendorActions",COUNT(*) FILTER(WHERE log_group='user')::int "userActions",COUNT(*) FILTER(WHERE log_group='finance')::int "paymentAdActions" FROM (SELECT l.created_at,${groupCase} log_group FROM admin_logs l) z`)).rows[0]||{};
+    const options=await Promise.all([q("SELECT DISTINCT admin_username value FROM admin_logs WHERE COALESCE(admin_username,'')<>'' ORDER BY admin_username"),q("SELECT DISTINCT action value FROM admin_logs WHERE COALESCE(action,'')<>'' ORDER BY action"),q("SELECT DISTINCT target_type value FROM admin_logs WHERE COALESCE(target_type,'')<>'' ORDER BY target_type")]);
+    const destinations={vendor:'vendors',vendors:'vendors',user:'users',member:'users',review:'reviews',report:'reports',flag:'reports',notice:'notices',banner:'banners',inquiry:'inquiries',apply:'inquiries',vendor_update:'vendorRequests',vendor_update_request:'vendorRequests',vendor_request:'vendorRequests',payment:'adCenter',ad_request:'adCenter',banner_request:'adCenter',board_post:'boardPosts',board_comment:'boardComments',ad_inquiry:'adInquiries'};
+    const apiRows=rows.rows.map(x=>{const destinationPanel=destinations[x.target_type]||null;return {...x,target_label:x.target_type+(x.target_id?` #${x.target_id}`:''),target_exists:null,destination_panel:destinationPanel,can_navigate:!!(destinationPanel&&x.target_id)};});
+    return res.json({ok:true,rows:apiRows,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),summary:{total:Number(summary.total||0),today:Number(summary.today||0),last7Days:Number(summary.last7Days||0),vendorActions:Number(summary.vendorActions||0),userActions:Number(summary.userActions||0),paymentAdActions:Number(summary.paymentAdActions||0)},filterOptions:{admins:options[0].rows.map(x=>x.value),actions:options[1].rows.map(x=>x.value),targetTypes:options[2].rows.map(x=>x.value)}});
+  }catch(e){console.error('admin logs api failed',e);return res.status(500).json({ok:false,error:e.message||'admin_logs_load_failed'});}
 });
 app.get('/admin/api/vendor-update-requests',admin,async(req,res)=>{
   const params=[];const where=[];
