@@ -411,14 +411,14 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
 <section class="admin-dashboard-summary" aria-labelledby="dashboardSummaryTitle">
   <h3 id="dashboardSummaryTitle">오늘 처리할 운영 항목</h3>
   <div class="admin-dashboard-grid" id="adminDashboardGrid">
-    <a class="admin-dashboard-card" href="#adInquiries" data-panel="adInquiries" data-summary-key="adInquiryWaiting"><b>광고문의 답변대기</b><strong>-</strong><span>답변이 필요한 광고문의입니다.</span><em>바로가기</em></a>
-    <a class="admin-dashboard-card" href="#inquiries" data-panel="inquiries" data-summary-key="applyWaiting"><b>입점신청 대기</b><strong>-</strong><span>검토할 입점신청입니다.</span><em>바로가기</em></a>
-    <a class="admin-dashboard-card" href="#adCenter" data-panel="adCenter" data-summary-key="paymentWaiting"><b>결제확인 대기</b><strong>-</strong><span>입금확인이 필요한 요청입니다.</span><em>바로가기</em></a>
-    <a class="admin-dashboard-card" href="#vendorRequests" data-panel="vendorRequests" data-summary-key="vendorUpdateWaiting"><b>업체수정 요청</b><strong>-</strong><span>승인할 업체정보 변경입니다.</span><em>바로가기</em></a>
-    <a class="admin-dashboard-card" href="#reports" data-panel="reports" data-summary-key="reportWaiting"><b>신고 대기</b><strong>-</strong><span>처리가 필요한 신고입니다.</span><em>바로가기</em></a>
-    <a class="admin-dashboard-card" href="#vendors" data-panel="vendors" data-summary-key="expiringVendors"><b>7일 내 만료예정</b><strong>-</strong><span>곧 만료되는 활성 업체입니다.</span><em>바로가기</em></a>
-    <a class="admin-dashboard-card" href="#revenue" data-panel="revenue" data-summary-key="todayRevenue" data-money="true"><b>오늘 매출</b><strong>-</strong><span>KST 기준 입금확인 매출입니다.</span><em>바로가기</em></a>
-    <button class="admin-dashboard-card" type="button" data-summary-key="unreadNotifications" data-open-notifications="true"><b>안읽은 알림</b><strong>-</strong><span>아직 확인하지 않은 관리자 알림입니다.</span><em>알림 열기</em></button>
+    <a class="admin-dashboard-card" href="#adInquiries" data-summary-key="adInquiryWaiting" data-dashboard-action="ad-inquiry-waiting"><b>광고문의 답변대기</b><strong>-</strong><span>답변이 필요한 광고문의입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#inquiries" data-summary-key="applyWaiting" data-dashboard-action="apply-waiting"><b>입점신청 대기</b><strong>-</strong><span>검토할 입점신청입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#adCenter" data-summary-key="paymentWaiting" data-dashboard-action="payment-waiting"><b>결제확인 대기</b><strong>-</strong><span>입금확인이 필요한 요청입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#vendorRequests" data-summary-key="vendorUpdateWaiting" data-dashboard-action="vendor-update-waiting"><b>업체수정 요청</b><strong>-</strong><span>승인할 업체정보 변경입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#reports" data-summary-key="reportWaiting" data-dashboard-action="report-waiting"><b>신고 대기</b><strong>-</strong><span>처리가 필요한 신고입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#vendors" data-summary-key="expiringVendors" data-dashboard-action="vendors-expiring"><b>7일 내 만료예정</b><strong>-</strong><span>곧 만료되는 활성 업체입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#revenue" data-summary-key="todayRevenue" data-money="true" data-dashboard-action="today-revenue"><b>오늘 매출</b><strong>-</strong><span>KST 기준 입금확인 매출입니다.</span><em>바로가기</em></a>
+    <button class="admin-dashboard-card" type="button" data-summary-key="unreadNotifications" data-dashboard-action="notifications-unread"><b>안읽은 알림</b><strong>-</strong><span>아직 확인하지 않은 관리자 알림입니다.</span><em>알림 열기</em></button>
   </div>
   <div class="admin-dashboard-recent"><h3>최근 알림</h3><div id="adminDashboardRecent"><div class="admin-dashboard-empty">알림을 불러오는 중입니다.</div></div></div>
 </section>
@@ -1685,7 +1685,7 @@ document.addEventListener('DOMContentLoaded',function(){
   window.saveActiveAdminListState=function(key,page){key=key||window.getPanelKeyFromActivePanel();var patch={page:Math.max(1,Number(page||window.getAdminListState(key).page||1))};
     if(key==='vendors')Object.assign(patch,{q:value('vendorSearch'),status:value('vendorStatusFilter','all'),ad_type:value('vendorTypeFilter','all'),sort:value('vendorSortFilter','default')});
     else if(key==='users')Object.assign(patch,{q:value('userSearch'),role:value('userRoleFilter','all'),status:value('userStatusFilter','all'),sort:value('userSortFilter','default')});
-    else if(key==='inquiries'){var inquiryFilter=typeof currentInquiryFilter!=='undefined'?currentInquiryFilter:'all';Object.assign(patch,{q:value('inquirySearch'),filter:inquiryFilter,type:(inquiryFilter==='apply'||inquiryFilter==='ad')?inquiryFilter:'all',status:(inquiryFilter!=='all'&&inquiryFilter!=='apply'&&inquiryFilter!=='ad')?inquiryFilter:'all',sort:value('inquirySort','latest')});}
+    else if(key==='inquiries'){var inquiryFilter=typeof currentInquiryFilter!=='undefined'?currentInquiryFilter:'all';Object.assign(patch,{q:value('inquirySearch'),filter:inquiryFilter,type:inquiryFilter==='apply-new'?'apply':(inquiryFilter==='apply'||inquiryFilter==='ad')?inquiryFilter:'all',status:inquiryFilter==='apply-new'?'new':(inquiryFilter!=='all'&&inquiryFilter!=='apply'&&inquiryFilter!=='ad')?inquiryFilter:'all',sort:value('inquirySort','latest')});}
     else if(key==='reports'){var reportFilter=typeof currentReportFilter!=='undefined'?currentReportFilter:'all';Object.assign(patch,{q:value('reportSearch'),filter:reportFilter,type:(reportFilter==='vendor'||reportFilter==='review')?reportFilter:'all',status:(reportFilter!=='all'&&reportFilter!=='vendor'&&reportFilter!=='review')?reportFilter:'all',sort:value('reportSort','latest')});}
     else if(key==='banners')Object.assign(patch,{q:value('bannerSearch'),source:value('bannerSourceFilter','all'),status:value('bannerStatusFilter','all'),sort:value('bannerSortFilter','default')});
     else if(key==='notices')Object.assign(patch,{q:value('noticeSearch'),pinned:value('noticePinnedFilter','all'),sort:value('noticeSortFilter','default')});
@@ -1701,7 +1701,7 @@ document.addEventListener('DOMContentLoaded',function(){
   window.restoreAdminListControls=function(key){var s=window.getAdminListState(key);var set=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null)el.value=v;};
     if(key==='vendors'){set('vendorSearch',s.q);set('vendorStatusFilter',s.status);set('vendorTypeFilter',s.ad_type);set('vendorSortFilter',s.sort);}
     else if(key==='users'){set('userSearch',s.q);set('userRoleFilter',s.role);set('userStatusFilter',s.status);set('userSortFilter',s.sort);}
-    else if(key==='inquiries'){set('inquirySearch',s.q);set('inquirySort',s.sort);var inquiryRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentInquiryFilter!=='undefined'){currentInquiryFilter=inquiryRestore;document.querySelectorAll('.inquiry-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===inquiryRestore);});}}
+    else if(key==='inquiries'){set('inquirySearch',s.q);set('inquirySort',s.sort);var inquiryRestore=s.filter||(s.type==='apply'&&s.status==='new'?'apply-new':(s.type&&s.type!=='all'?s.type:s.status))||'all';if(typeof currentInquiryFilter!=='undefined'){currentInquiryFilter=inquiryRestore;document.querySelectorAll('.inquiry-filterbar button').forEach(function(b){b.classList.toggle('on',inquiryRestore==='apply-new'?(b.dataset.filter==='apply'||b.dataset.filter==='new'):b.dataset.filter===inquiryRestore);});}}
     else if(key==='reports'){set('reportSearch',s.q);set('reportSort',s.sort);var reportRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentReportFilter!=='undefined'){currentReportFilter=reportRestore;document.querySelectorAll('.report-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===reportRestore);});}}
     else if(key==='banners'){set('bannerSearch',s.q);set('bannerSourceFilter',s.source);set('bannerStatusFilter',s.status);set('bannerSortFilter',s.sort);}
     else if(key==='notices'){set('noticeSearch',s.q);set('noticePinnedFilter',s.pinned);set('noticeSortFilter',s.sort);}
@@ -2175,7 +2175,8 @@ document.addEventListener('DOMContentLoaded',function(){
     var search=(document.getElementById('inquirySearch')?.value||'').trim();
     var sort=document.getElementById('inquirySort')?.value||'latest';
     if(search)params.set('q',search);
-    if(currentInquiryFilter==='apply'||currentInquiryFilter==='ad')params.set('type',currentInquiryFilter);
+    if(currentInquiryFilter==='apply-new'){params.set('type','apply');params.set('status','new');}
+    else if(currentInquiryFilter==='apply'||currentInquiryFilter==='ad')params.set('type',currentInquiryFilter);
     else if(currentInquiryFilter!=='all')params.set('status',currentInquiryFilter);
     params.set('sort',sort);
     return params;
@@ -3736,6 +3737,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function loadAdCenter(page){return load('adCenter','server-ad-center-pager',page,'/admin/api/ad-center',adQuery,adRow,loadAdCenter);}
 
   window.loadAdminVendorRequests=loadVendorUpdateRequests;window.loadAdminAdCenter=loadAdCenter;
+  window.setAdminAdCenterDashboardFilter=function(paymentStatus){adStatus='all';var payment=document.getElementById('adCenterPayment');if(payment)payment.value=paymentStatus||'all';document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',b.dataset.adCenterFilter==='all');});};
   window.restoreAdminListControls?.('vendorRequests');window.restoreAdminListControls?.('adCenter');adStatus=window.getAdminListState?.('adCenter').status||'all';
   function debounce(id,fn){clearTimeout(timers[id]);timers[id]=setTimeout(function(){fn(1);},300);}
   vendorSearch?.addEventListener('input',function(){debounce('vendorRequests',loadVendorUpdateRequests);});vendorStatus?.addEventListener('change',function(){loadVendorUpdateRequests(1);});document.getElementById('vendorRequestReset')?.addEventListener('click',function(){if(vendorSearch)vendorSearch.value='';if(vendorStatus)vendorStatus.value='all';loadVendorUpdateRequests(1);});
@@ -4062,7 +4064,46 @@ document.addEventListener('DOMContentLoaded',function(){
     try{var response=await fetch('/admin/api/dashboard-summary',{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'});var data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'summary_failed');render(data);}catch(e){console.error('dashboard summary load failed',e);}
   }
   window.loadDashboardSummary=loadDashboardSummary;
-  root.addEventListener('click',function(e){var card=e.target.closest('[data-open-notifications]');if(!card)return;e.preventDefault();var center=document.getElementById('adminNotificationCenter');if(center&&!center.classList.contains('open'))document.getElementById('adminNotifyBtn')?.click();});
+  function setValue(id,value){var el=document.getElementById(id);if(el)el.value=value;}
+  function goAdminSection(hash){
+    if(!hash)return;
+    var id=String(hash).replace(/^#/,'');
+    if(typeof showAdminPanel==='function')showAdminPanel(id);
+    history.replaceState(null,'','#'+id);
+    setTimeout(function(){document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});},0);
+  }
+  function selectFilter(selector,filter){document.querySelectorAll(selector).forEach(function(button){button.classList.toggle('on',button.dataset.filter===filter);});}
+  function handleDashboardAction(action){
+    var load;
+    if(action==='ad-inquiry-waiting'){
+      setValue('adInquirySearch','');setValue('adInquiryStatus','waiting');
+      window.setAdminListState?.('adInquiries',{page:1,q:'',status:'waiting'});goAdminSection('#adInquiries');load=window.loadAdminAdInquiries;
+    }else if(action==='apply-waiting'){
+      setValue('inquirySearch','');currentInquiryFilter='apply-new';selectFilter('.inquiry-filterbar button','__none__');document.querySelectorAll('.inquiry-filterbar button').forEach(function(button){button.classList.toggle('on',button.dataset.filter==='apply'||button.dataset.filter==='new');});
+      window.setAdminListState?.('inquiries',{page:1,q:'',filter:'apply-new',type:'apply',status:'new'});goAdminSection('#inquiries');load=window.loadAdminInquiries;
+    }else if(action==='payment-waiting'){
+      setValue('adCenterSearch','');window.setAdminAdCenterDashboardFilter?.('waiting');
+      window.setAdminListState?.('adCenter',{page:1,q:'',status:'all',payment_status:'waiting'});goAdminSection('#adCenter');load=window.loadAdminAdCenter;
+    }else if(action==='vendor-update-waiting'){
+      setValue('vendorRequestSearch','');setValue('vendorRequestStatus','new');
+      window.setAdminListState?.('vendorRequests',{page:1,q:'',status:'new'});goAdminSection('#vendorRequests');load=window.loadAdminVendorRequests;
+    }else if(action==='report-waiting'){
+      setValue('reportSearch','');currentReportFilter='new';selectFilter('.report-filterbar button','new');
+      window.setAdminListState?.('reports',{page:1,q:'',filter:'new',type:'all',status:'new'});goAdminSection('#reports');load=window.loadAdminReports;
+    }else if(action==='vendors-expiring'){
+      setValue('vendorSearch','');setValue('vendorTypeFilter','expiring');
+      window.setAdminListState?.('vendors',{page:1,q:'',ad_type:'expiring'});goAdminSection('#vendors');load=window.loadAdminVendors;
+    }else if(action==='today-revenue'){
+      goAdminSection('#revenue');
+    }else if(action==='notifications-unread'){
+      var unread=document.querySelector('#adminNotifyFilters [data-filter="unread"]');if(unread)unread.click();
+      var center=document.getElementById('adminNotificationCenter');if(center&&!center.classList.contains('open'))document.getElementById('adminNotifyBtn')?.click();
+    }
+    if(typeof load==='function')load(1);
+  }
+  window.goAdminSection=goAdminSection;
+  window.handleDashboardAction=handleDashboardAction;
+  root.addEventListener('click',function(e){var card=e.target.closest('[data-dashboard-action]');if(!card)return;e.preventDefault();handleDashboardAction(card.dataset.dashboardAction);});
   document.addEventListener('DOMContentLoaded',loadDashboardSummary);
   window.addEventListener('hashchange',function(){if(location.hash==='#dashboard'||!location.hash)loadDashboardSummary();});
   document.addEventListener('click',function(e){if(e.target.closest('[data-panel="dashboard"]'))setTimeout(loadDashboardSummary,0);});
