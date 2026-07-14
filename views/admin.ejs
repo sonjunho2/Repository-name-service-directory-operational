@@ -408,6 +408,21 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
 </aside><main class="admin-content"><section id="dashboard" class="panel admin-panel active">
 <h2>대시보드</h2>
 
+<section class="admin-dashboard-summary" aria-labelledby="dashboardSummaryTitle">
+  <h3 id="dashboardSummaryTitle">오늘 처리할 운영 항목</h3>
+  <div class="admin-dashboard-grid" id="adminDashboardGrid">
+    <a class="admin-dashboard-card" href="#adInquiries" data-panel="adInquiries" data-summary-key="adInquiryWaiting"><b>광고문의 답변대기</b><strong>-</strong><span>답변이 필요한 광고문의입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#inquiries" data-panel="inquiries" data-summary-key="applyWaiting"><b>입점신청 대기</b><strong>-</strong><span>검토할 입점신청입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#adCenter" data-panel="adCenter" data-summary-key="paymentWaiting"><b>결제확인 대기</b><strong>-</strong><span>입금확인이 필요한 요청입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#vendorRequests" data-panel="vendorRequests" data-summary-key="vendorUpdateWaiting"><b>업체수정 요청</b><strong>-</strong><span>승인할 업체정보 변경입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#reports" data-panel="reports" data-summary-key="reportWaiting"><b>신고 대기</b><strong>-</strong><span>처리가 필요한 신고입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#vendors" data-panel="vendors" data-summary-key="expiringVendors"><b>7일 내 만료예정</b><strong>-</strong><span>곧 만료되는 활성 업체입니다.</span><em>바로가기</em></a>
+    <a class="admin-dashboard-card" href="#revenue" data-panel="revenue" data-summary-key="todayRevenue" data-money="true"><b>오늘 매출</b><strong>-</strong><span>KST 기준 입금확인 매출입니다.</span><em>바로가기</em></a>
+    <button class="admin-dashboard-card" type="button" data-summary-key="unreadNotifications" data-open-notifications="true"><b>안읽은 알림</b><strong>-</strong><span>아직 확인하지 않은 관리자 알림입니다.</span><em>알림 열기</em></button>
+  </div>
+  <div class="admin-dashboard-recent"><h3>최근 알림</h3><div id="adminDashboardRecent"><div class="admin-dashboard-empty">알림을 불러오는 중입니다.</div></div></div>
+</section>
+
 <div id="stage33Panel" class="stage33-panel">
   <h3>실시간 운영 차트</h3>
   <div class="stage33-grid">
@@ -4029,6 +4044,29 @@ document.addEventListener('DOMContentLoaded',function(){
   const logTotal=document.querySelector('#adminLogs .integrated-tools .integrated-card strong');
   if(logTotal&&stats.adminLogs?.total!=null)logTotal.textContent=String(stats.adminLogs.total);
 });
+</script>
+<script>
+(function(){
+  if(window.__adminDashboardSummaryV1)return;
+  window.__adminDashboardSummaryV1=true;
+  var root=document.getElementById('adminDashboardGrid'),recent=document.getElementById('adminDashboardRecent');
+  if(!root||!recent)return;
+  function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function render(data){
+    var cards=data&&data.cards||{};
+    root.querySelectorAll('[data-summary-key]').forEach(function(card){var value=Number(cards[card.dataset.summaryKey]||0);card.querySelector('strong').textContent=card.dataset.money==='true'?value.toLocaleString('ko-KR')+'원':value.toLocaleString('ko-KR')+'건';});
+    var items=data&&data.recent||[];
+    recent.innerHTML=items.length?items.map(function(x){return '<a class="admin-dashboard-recent-item" href="'+esc(x.link_url||'#')+'"><b>'+esc(x.title||'알림')+'</b><span>'+esc(x.message||'')+' · '+esc(new Date(x.created_at).toLocaleString('ko-KR',{hour12:false}))+'</span></a>';}).join(''):'<div class="admin-dashboard-empty">최근 알림이 없습니다.</div>';
+  }
+  async function loadDashboardSummary(){
+    try{var response=await fetch('/admin/api/dashboard-summary',{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'});var data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'summary_failed');render(data);}catch(e){console.error('dashboard summary load failed',e);}
+  }
+  window.loadDashboardSummary=loadDashboardSummary;
+  root.addEventListener('click',function(e){var card=e.target.closest('[data-open-notifications]');if(!card)return;e.preventDefault();var center=document.getElementById('adminNotificationCenter');if(center&&!center.classList.contains('open'))document.getElementById('adminNotifyBtn')?.click();});
+  document.addEventListener('DOMContentLoaded',loadDashboardSummary);
+  window.addEventListener('hashchange',function(){if(location.hash==='#dashboard'||!location.hash)loadDashboardSummary();});
+  document.addEventListener('click',function(e){if(e.target.closest('[data-panel="dashboard"]'))setTimeout(loadDashboardSummary,0);});
+})();
 </script>
 </body></html>
 

@@ -1197,6 +1197,25 @@ app.get('/admin/api/live-summary',admin,async(req,res)=>{
   res.json({ok:true,time:new Date().toISOString(),counts,ops,recent,charts,alertTotal});
 });
 
+app.get('/admin/api/dashboard-summary',admin,async(req,res)=>{
+  res.setHeader('Cache-Control','no-store');
+  const safeScalar=async(sql,params=[])=>{try{return Number((await q(sql,params)).rows[0]?.v||0);}catch(e){console.error('dashboard summary scalar failed',e.message);return 0;}};
+  const safeRows=async(sql,params=[])=>{try{return (await q(sql,params)).rows||[];}catch(e){console.error('dashboard summary rows failed',e.message);return [];}};
+  const target=notificationTargetSql(req);
+  const [adInquiryWaiting,applyWaiting,paymentWaiting,vendorUpdateWaiting,reportWaiting,expiringVendors,todayRevenue,unreadNotifications,recent]=await Promise.all([
+    safeScalar(`SELECT COUNT(*) v FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE b.slug=$1 AND p.status=$2 AND NOT EXISTS(SELECT 1 FROM board_comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=p.id AND c.status=$3 AND u.role=$4)`,['ad-inquiry','visible','visible','admin']),
+    safeScalar('SELECT COUNT(*) v FROM inquiries WHERE type=$1 AND status=$2',['apply','new']),
+    safeScalar(`SELECT COUNT(*) v FROM (SELECT payment_status FROM vendor_ad_requests UNION ALL SELECT payment_status FROM vendor_banner_requests) x WHERE payment_status=$1`,['waiting']),
+    safeScalar('SELECT COUNT(*) v FROM vendor_update_requests WHERE status=$1',['new']),
+    safeScalar('SELECT COUNT(*) v FROM flags WHERE status=$1',['new']),
+    safeScalar(`SELECT COUNT(*) v FROM vendors WHERE status=$1 AND expire_at IS NOT NULL AND expire_at BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days'`,['active']),
+    safeScalar(`SELECT COALESCE(SUM(krw_price),0) v FROM payment_logs WHERE status=$1 AND (paid_at+INTERVAL '9 hours')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date`,['paid']),
+    safeScalar(`SELECT COUNT(*) v FROM notifications WHERE ${target.where} AND is_read=false`,target.params),
+    safeRows(`SELECT id,type,title,message,link_url,is_read,created_at FROM notifications WHERE ${target.where} AND is_read=false ORDER BY id DESC LIMIT 5`,target.params)
+  ]);
+  res.json({ok:true,cards:{adInquiryWaiting,applyWaiting,paymentWaiting,vendorUpdateWaiting,reportWaiting,expiringVendors,todayRevenue,unreadNotifications},recent});
+});
+
 
 
 // 통합 관리자 화면 사용: 개별 신청/신고 페이지는 관리자 메인 탭으로 이동
