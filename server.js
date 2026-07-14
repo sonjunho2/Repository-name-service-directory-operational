@@ -3,6 +3,7 @@ const express=require('express'), session=require('express-session'), bcrypt=req
 const fs=require('fs'), path=require('path');
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
 const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg|webp)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF, WEBP만 가능합니다.'))}});
+app.get('/favicon.ico',(req,res)=>res.status(204).end());
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
 const q=(s,p=[])=>pool.query(s,p);
 function validImageBuffer(file){
@@ -971,7 +972,7 @@ app.get('/admin/api/users',admin,async(req,res)=>{
     const where=[],params=[];
     const qText=String(req.query.q||'').trim().slice(0,100),role=String(req.query.role||'').trim(),status=String(req.query.status||'').trim(),link=String(req.query.vendor_link||'').trim();
     const orderBy={default:'u.id DESC',latest:'u.id DESC',oldest:'u.id ASC',admin:"CASE WHEN u.role='admin' THEN 0 ELSE 1 END,u.id DESC",vendor:"CASE WHEN u.role<>'admin' AND (COALESCE(u.is_vendor,false) OR u.vendor_id IS NOT NULL) THEN 0 ELSE 1 END,u.id DESC",blocked:"CASE WHEN u.status<>'active' THEN 0 ELSE 1 END,u.id DESC",activity:'activity_total DESC,u.id DESC'}[String(req.query.sort||'default')]||'u.id DESC';
-    if(qText){params.push(`%${qText}%`);where.push(`(u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length} OR v.name ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.category ILIKE $${params.length})`);}
+    if(qText){params.push(`%${qText}%`);where.push(`(u.id::text ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length} OR v.name ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.category ILIKE $${params.length})`);}
     if(['active','blocked','suspended','inactive'].includes(status)){params.push(status);where.push(`u.status=$${params.length}`);}
     if(role==='admin')where.push("u.role='admin'");
     else if(role==='vendor')where.push("u.role<>'admin' AND (COALESCE(u.is_vendor,false)=true OR u.vendor_id IS NOT NULL)");
@@ -1251,7 +1252,7 @@ app.get('/admin/api/ad-center',admin,async(req,res)=>{
   const paymentStatus=String(req.query.payment_status||'').trim();
   const requestType=String(req.query.type||req.query.request_type||'').trim().slice(0,100);
   const source=String(req.query.source||'').trim();
-  if(qText){params.push(`%${qText}%`);where.push(`(x.vendor_name ILIKE $${params.length} OR x.username ILIKE $${params.length} OR x.nickname ILIKE $${params.length} OR x.product_name ILIKE $${params.length} OR x.request_type ILIKE $${params.length} OR x.admin_memo ILIKE $${params.length} OR x.payment_txid ILIKE $${params.length} OR x.vendor_phone ILIKE $${params.length})`);}
+  if(qText){params.push(`%${qText}%`);where.push(`(x.id::text ILIKE $${params.length} OR x.vendor_name ILIKE $${params.length} OR x.username ILIKE $${params.length} OR x.nickname ILIKE $${params.length} OR x.product_name ILIKE $${params.length} OR x.request_type ILIKE $${params.length} OR x.admin_memo ILIKE $${params.length} OR x.payment_txid ILIKE $${params.length} OR x.vendor_phone ILIKE $${params.length})`);}
   if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`x.status=$${params.length}`);}
   if(['unpaid','waiting','paid','rejected'].includes(paymentStatus)){params.push(paymentStatus);where.push(`COALESCE(x.payment_status,'unpaid')=$${params.length}`);}
   else if(paymentStatus==='expired'){where.push(`COALESCE(x.payment_status,'unpaid')='cancelled' AND COALESCE(x.admin_memo,'') ILIKE '%만료%'`);}
