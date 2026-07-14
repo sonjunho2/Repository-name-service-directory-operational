@@ -918,19 +918,37 @@ app.get('/admin/api/vendors',admin,async(req,res)=>{
   const adType=String(req.query.ad_type||'').trim();
   const orderBy={default:'v.id DESC',views:'v.views DESC NULLS LAST,v.id DESC',reviews:'review_count DESC,v.id DESC',rating:'avg_rating DESC NULLS LAST,v.id DESC',latest:'v.id DESC'}[String(req.query.sort||'default')]||'v.id DESC';
   if(qText){params.push(`%${qText}%`);where.push(`(v.name ILIKE $${params.length} OR v.category ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.phone ILIKE $${params.length} OR v.tags ILIKE $${params.length} OR v.description ILIKE $${params.length} OR v.business_hours ILIKE $${params.length})`);}
-  if(['pending','active','hidden','expired','inactive'].includes(status)){params.push(status);where.push(`v.status=$${params.length}`);}
+  if(['pending','active','hidden','blocked','expired','inactive'].includes(status)){params.push(status);where.push(`v.status=$${params.length}`);}
   if(adType==='noad'||adType==='none')where.push("COALESCE(v.ad_type,'none')='none'");
-  else if(adType==='banner')where.push('COALESCE(v.banner_active,false)=true');
-  else if(adType==='expiring')where.push("v.expire_at>=CURRENT_DATE AND v.expire_at<=CURRENT_DATE+INTERVAL '7 days'");
+  else if(adType==='active')where.push("v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE");
+  else if(adType==='banner')where.push("v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE");
+  else if(adType==='expiring')where.push("v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE AND v.expire_at<=CURRENT_DATE+INTERVAL '7 days'");
+  else if(adType==='expired')where.push("(v.status<>'active' OR COALESCE(v.ad_type,'none')='none' OR v.expire_at IS NULL OR v.expire_at<CURRENT_DATE)");
+  else if(adType==='update')where.push("EXISTS(SELECT 1 FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new')");
   else if(['general','recommended'].includes(adType)){params.push(adType);where.push(`v.ad_type=$${params.length}`);}
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
-  return adminPagedJson(req,res,`SELECT v.*,
-    (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
-    (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
-    (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
-    (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
-    (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count
-    FROM vendors v${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*) FROM vendors v${whereSql}`,params);
+  try{
+    res.setHeader('Cache-Control','no-store');
+    const {page,limit,offset}=adminPageParams(req);
+    const rows=await q(`SELECT v.*,
+      (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
+      (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
+      (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
+      (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
+      (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count,
+      (SELECT COUNT(*)::int FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new') update_request_count,
+      CASE WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days' THEN 'expiring' WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE THEN 'active' ELSE 'expired' END ad_status,
+      CASE WHEN v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days' THEN 'expiring' WHEN v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE THEN 'active' WHEN COALESCE(v.banner_active,false)=true AND v.banner_until<CURRENT_DATE THEN 'expired' ELSE 'inactive' END banner_status
+      FROM vendors v${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const count=await q(`SELECT COUNT(*) FROM vendors v${whereSql}`,params);
+    const summary=(await q(`SELECT COUNT(*)::int total,
+      COUNT(*) FILTER (WHERE status='active' AND COALESCE(ad_type,'none')<>'none' AND expire_at>=CURRENT_DATE)::int active,
+      COUNT(*) FILTER (WHERE status='active' AND COALESCE(ad_type,'none')<>'none' AND expire_at BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days')::int expiring,
+      COUNT(*) FILTER (WHERE status='active' AND COALESCE(banner_active,false)=true AND banner_until>=CURRENT_DATE)::int "bannerActive",
+      (SELECT COUNT(*)::int FROM vendor_update_requests WHERE status='new') "updateRequests" FROM vendors`)).rows[0]||{};
+    const total=Number(count.rows[0]?.count||0);
+    return res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows,summary:{total:Number(summary.total||0),active:Number(summary.active||0),expiring:Number(summary.expiring||0),bannerActive:Number(summary.bannerActive||0),updateRequests:Number(summary.updateRequests||0)}});
+  }catch(e){console.error('admin vendors api failed',e);return res.status(500).json({ok:false,error:e.message||'admin_vendors_load_failed'});}
 });
 app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
   try{

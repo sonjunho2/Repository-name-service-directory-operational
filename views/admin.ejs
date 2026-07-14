@@ -154,6 +154,7 @@
 .vendor-ad-status{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .vendor-ad-status small{color:#8d98b8}
 .vendor-filter-note{color:#8d98b8;font-size:13px;margin:-8px 0 14px}
+.vendor-status-badge{display:inline-flex;align-items:center;min-height:24px;padding:0 9px;border:1px solid #33405f;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap}.vendor-status-badge.active{background:#103225;color:#69e6ad;border-color:#236849}.vendor-status-badge.expiring{background:#33280d;color:#ffd56a;border-color:#6f5620}.vendor-status-badge.expired,.vendor-status-badge.hidden,.vendor-status-badge.blocked{background:#3b1320;color:#ff9db6;border-color:#7a2941}.vendor-status-badge.inactive,.vendor-status-badge.pending,.vendor-status-badge.unknown{background:#17233b;color:#b9c6e4}.vendor-subtext{display:block;margin-top:4px;color:#aeb7d0;font-size:12px;line-height:1.35}.vendor-mini-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}.vendor-mini-summary .vendor-summary-card{padding:12px}.vendor-request-badge{display:inline-flex;padding:4px 9px;border-radius:999px;background:#33280d;color:#ffd56a;font-size:12px;font-weight:900}.vendor-row .row-actions{flex-wrap:wrap;min-width:150px}@media(max-width:900px){.vendor-mini-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1100px){.vendor-summary{grid-template-columns:1fr 1fr}}
 .vendor-form-box{border:1px solid #29324f;background:#070b15;border-radius:16px;padding:16px;margin:0 0 14px}
 .vendor-form-box h3{margin:0 0 12px;font-size:17px;color:#10d9ff}
@@ -648,12 +649,12 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
   const _vBanner=_vendorSafe.filter(v=>v.banner_active).length;
   const _vExpiring=_vendorSafe.filter(v=>{const d=_daysLeftV(v); return d!==null&&d>=0&&d<=7;}).length;
 %>
-<div class="vendor-summary">
-  <div class="vendor-summary-card"><b>광고없음</b><strong><%=_vNoAd%></strong></div>
-  <div class="vendor-summary-card general"><b>일반광고</b><strong><%=_vGeneral%></strong></div>
-  <div class="vendor-summary-card recommended"><b>추천광고</b><strong><%=_vRecommended%></strong></div>
-  <div class="vendor-summary-card banner"><b>프리미엄배너</b><strong><%=_vBanner%></strong></div>
-  <div class="vendor-summary-card expire"><b>7일 이내 만료</b><strong><%=_vExpiring%></strong></div>
+<div class="vendor-mini-summary" id="vendorMiniSummary">
+  <div class="vendor-summary-card"><b>전체 업체</b><strong data-vendor-summary="total"><%=_vendorSafe.length%></strong></div>
+  <div class="vendor-summary-card recommended"><b>정상노출</b><strong data-vendor-summary="active"><%=_vendorSafe.filter(v=>v.status==='active'&&v.ad_type&&v.ad_type!=='none'&&v.expire_at&&new Date(v.expire_at)>=_todayV).length%></strong></div>
+  <div class="vendor-summary-card expire"><b>만료예정</b><strong data-vendor-summary="expiring"><%=_vExpiring%></strong></div>
+  <div class="vendor-summary-card banner"><b>배너노출</b><strong data-vendor-summary="bannerActive"><%=_vBanner%></strong></div>
+  <div class="vendor-summary-card expire"><b>수정요청 대기</b><strong data-vendor-summary="updateRequests"><%=(vendorRequests||[]).filter(x=>x.status==='new').length%></strong></div>
 </div>
 <p class="vendor-filter-note">업체목록은 광고상태, 노출상태, 만기상태를 기준으로 빠르게 확인할 수 있습니다.</p>
 <div class="vendor-toolbar">
@@ -716,8 +717,8 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
   </div>
 </form>
   </div>
-</div><div class="vendor-admin-filter"><input id="vendorSearch" placeholder="업체명 검색"><select id="vendorTypeFilter"><option value="all">전체 광고</option><option value="noad">광고없음</option><option value="general">일반광고</option><option value="recommended">추천광고</option><option value="banner">프리미엄배너</option><option value="expiring">7일 이내 만료</option></select><select id="vendorStatusFilter"><option value="all">전체 상태</option><option value="pending">검수중</option><option value="active">노출</option><option value="hidden">숨김</option><option value="expired">만료</option></select><select id="vendorSortFilter"><option value="default">기본순</option><option value="views">조회수순</option><option value="reviews">후기순</option><option value="rating">평점순</option><option value="latest">최신등록순</option></select><button type="button" id="vendorFilterReset">초기화</button></div>
-<table><tr><th>ID</th><th>구분</th><th>업체명</th><th>연결아이디</th><th>지역/업종</th><th>조회</th><th>후기</th><th>평점</th><th>찜</th><th>만기상태</th><th>영업시간</th><th>상태</th><th>관리</th></tr><% vendors.forEach(v=>{ const t=v.is_premium?'premium':v.is_recommended?'recommend':'normal'; const st=(v.review_count!==undefined||v.avg_rating!==undefined)?{count:Number(v.review_count||0),sum:Number(v.avg_rating||0)*Number(v.review_count||0)}:(vendorReviewStats[v.id]||{count:0,sum:0}); const avg=v.avg_rating!=null?Number(v.avg_rating).toFixed(1):(st.count?(st.sum/st.count).toFixed(1):'-'); const fav=Number(v.favorite_count||0); %><tr class="vendor-row" data-id="<%=v.id%>" data-views="<%=v.views||0%>" data-reviews="<%=st.count%>" data-rating="<%=avg==='-'?0:avg%>" data-ad-type="<%=v.ad_type||'none'%>" data-membership="<%=v.ad_type||'none'%>" data-expire="<%=v.expire_at||''%>" data-banner-active="<%=v.banner_active?'1':'0'%>" data-banner-until="<%=v.banner_until?fmtDate(v.banner_until):''%>" data-name="<%=String(v.name||'').toLowerCase()%>" data-type="<%=(!v.ad_type||v.ad_type==='none')?'noad':v.banner_active?'banner':v.ad_type==='recommended'?'recommended':'general'%>" data-expiring="<% const _dlFilter=(v.expire_at?Math.ceil((new Date(v.expire_at).setHours(0,0,0,0)-new Date().setHours(0,0,0,0))/(1000*60*60*24)):9999); %><%=_dlFilter>=0&&_dlFilter<=7?'1':'0'%>" data-status="<%=v.status%>" data-region="<%=v.region||''%>" data-category="<%=v.category||''%>" data-vendor-name="<%=v.name||''%>" data-business-hours="<%=v.business_hours||''%>"><td><%=v.id%></td><td>
+</div><div class="vendor-admin-filter"><input id="vendorSearch" placeholder="업체명 / 지역 / 업종 검색"><select id="vendorTypeFilter"><option value="all">전체</option><option value="active">정상노출</option><option value="expiring">만료예정</option><option value="expired">만료/비노출</option><option value="banner">배너노출</option><option value="update">수정요청 있음</option><option value="general">일반광고</option><option value="recommended">추천광고</option></select><select id="vendorStatusFilter"><option value="all">전체 공개상태</option><option value="pending">대기</option><option value="active">공개</option><option value="hidden">숨김</option><option value="blocked">차단</option><option value="expired">만료</option></select><select id="vendorSortFilter"><option value="default">기본순</option><option value="views">조회수순</option><option value="reviews">후기순</option><option value="rating">평점순</option><option value="latest">최신등록순</option></select><button type="button" id="vendorFilterReset">초기화</button></div>
+<table><tr><th>ID</th><th>업체명</th><th>광고상태</th><th>배너상태</th><th>공개상태</th><th>수정요청</th><th>조회수</th><th>관리</th></tr><% vendors.forEach(v=>{ const t=v.is_premium?'premium':v.is_recommended?'recommend':'normal'; const st=(v.review_count!==undefined||v.avg_rating!==undefined)?{count:Number(v.review_count||0),sum:Number(v.avg_rating||0)*Number(v.review_count||0)}:(vendorReviewStats[v.id]||{count:0,sum:0}); const avg=v.avg_rating!=null?Number(v.avg_rating).toFixed(1):(st.count?(st.sum/st.count).toFixed(1):'-'); const fav=Number(v.favorite_count||0); %><tr class="vendor-row" data-id="<%=v.id%>" data-views="<%=v.views||0%>" data-reviews="<%=st.count%>" data-rating="<%=avg==='-'?0:avg%>" data-ad-type="<%=v.ad_type||'none'%>" data-membership="<%=v.ad_type||'none'%>" data-expire="<%=v.expire_at||''%>" data-banner-active="<%=v.banner_active?'1':'0'%>" data-banner-until="<%=v.banner_until?fmtDate(v.banner_until):''%>" data-name="<%=String(v.name||'').toLowerCase()%>" data-type="<%=(!v.ad_type||v.ad_type==='none')?'noad':v.banner_active?'banner':v.ad_type==='recommended'?'recommended':'general'%>" data-expiring="<% const _dlFilter=(v.expire_at?Math.ceil((new Date(v.expire_at).setHours(0,0,0,0)-new Date().setHours(0,0,0,0))/(1000*60*60*24)):9999); %><%=_dlFilter>=0&&_dlFilter<=7?'1':'0'%>" data-status="<%=v.status%>" data-region="<%=v.region||''%>" data-category="<%=v.category||''%>" data-vendor-name="<%=v.name||''%>" data-business-hours="<%=v.business_hours||''%>"><td><%=v.id%></td><td>
   <div class="vendor-ad-status">
     <%- v.banner_active?'<span class="ad-badge ad-banner">추천광고 + 프리미엄배너</span>':v.ad_type==='recommended'?'<span class="ad-badge ad-recommended">추천광고</span>':v.ad_type==='general'?'<span class="ad-badge ad-general">일반광고</span>':'<span class="ad-badge ad-none">광고없음</span>' %>
     <small><%=v.banner_active?'배너 사용중':'배너 없음'%></small>
@@ -1753,6 +1754,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(isNaN(d.getTime()))return null;
     return Math.ceil((d-today)/(1000*60*60*24));
   }
+  function expireText(value){var d=daysLeft(value),date=fmtDate(value);if(d===null)return '-';if(d<0)return date+' · 만료';if(d<=7)return date+' · '+d+'일 남음';return date;}
   function adBadge(v){
     if(v.banner_active)return '<span class="ad-badge ad-banner">추천광고 + 프리미엄배너</span><small>배너 사용중</small>';
     if(v.ad_type==='recommended')return '<span class="ad-badge ad-recommended">추천광고</span><small>배너 없음</small>';
@@ -1777,6 +1779,9 @@ document.addEventListener('DOMContentLoaded',function(){
     var txt=v.status==='pending'?'검수중':v.status==='active'?'노출':v.status==='expired'?'만료':'숨김';
     return '<span class="'+cls+'">'+txt+'</span>';
   }
+  function publicStatus(v){var key={active:'active',hidden:'hidden',blocked:'blocked',pending:'pending'}[v.status]||'unknown';var text={active:'공개',hidden:'숨김',blocked:'차단',pending:'대기',unknown:'알수없음'}[key];return '<span class="vendor-status-badge '+key+'">'+text+'</span>';}
+  function adState(v){var key=v.ad_status||'expired',type=v.ad_type==='recommended'?'추천광고':v.ad_type==='general'?'일반광고':'광고없음',text=key==='active'?'정상노출':key==='expiring'?'만료예정':v.ad_type&&v.ad_type!=='none'?'만료/비노출':'광고없음';return '<span class="vendor-status-badge '+key+'">'+text+'</span><span class="vendor-subtext">'+type+'<br>'+expireText(v.expire_at)+'</span>';}
+  function bannerState(v){var key=v.banner_status||'inactive',text=key==='active'?'배너노출':key==='expiring'?'배너만료예정':key==='expired'?'배너만료':'배너없음';return '<span class="vendor-status-badge '+(key==='inactive'?'inactive':key)+'">'+text+'</span><span class="vendor-subtext">'+expireText(v.banner_until)+'</span>';}
   function rowHtml(v){
     var dl=daysLeft(v.expire_at);
     var expiring=(dl!==null&&dl>=0&&dl<=7)?'1':'0';
@@ -1786,18 +1791,12 @@ document.addEventListener('DOMContentLoaded',function(){
     var ratingText=ratingValue?('★ '+ratingValue.toFixed(1)):'-';
     return '<tr class="vendor-row" data-id="'+esc(v.id)+'" data-views="'+esc(v.views||0)+'" data-reviews="'+esc(reviewCount)+'" data-rating="'+esc(ratingValue)+'" data-ad-type="'+esc(v.ad_type||'none')+'" data-membership="'+esc(v.ad_type||'none')+'" data-expire="'+esc(v.expire_at||'')+'" data-banner-active="'+(v.banner_active?'1':'0')+'" data-banner-until="'+esc(fmtDate(v.banner_until))+'" data-name="'+esc(String(v.name||'').toLowerCase())+'" data-type="'+esc((!v.ad_type||v.ad_type==='none')?'noad':v.banner_active?'banner':v.ad_type==='recommended'?'recommended':'general')+'" data-expiring="'+expiring+'" data-status="'+esc(v.status||'')+'" data-region="'+esc(v.region||'')+'" data-category="'+esc(v.category||'')+'" data-vendor-name="'+esc(v.name||'')+'" data-business-hours="'+esc(v.business_hours||'')+'">'+
       '<td>'+esc(v.id)+'</td>'+
-      '<td><div class="vendor-ad-status">'+adBadge(v)+'</div></td>'+
-      '<td>'+esc(v.name||'')+'</td>'+
-      '<td>'+esc(v.linked_username||'-')+'</td>'+
-      '<td>'+esc(v.region||'')+'/'+esc(v.category||'')+'</td>'+
+      '<td><b>'+esc(v.name||'')+'</b><span class="vendor-subtext">'+esc(v.region||'-')+' / '+esc(v.category||'-')+'<br>'+esc(ratingText)+' · 후기 '+esc(reviewCount)+' · 찜 '+esc(favoriteCount)+'<br>연결: '+esc(v.linked_username||'-')+'</span></td>'+
+      '<td>'+adState(v)+'</td>'+
+      '<td>'+bannerState(v)+'</td>'+
+      '<td>'+publicStatus(v)+'</td>'+
+      '<td>'+(Number(v.update_request_count||0)>0?'<span class="vendor-request-badge">요청 '+Number(v.update_request_count)+'건</span>':'<span class="vendor-subtext">없음</span>')+'</td>'+
       '<td class="stat-cell">'+esc(v.views||0)+'</td>'+
-      '<td class="stat-cell">'+esc(reviewCount)+'</td>'+
-      '<td class="stat-cell">'+esc(ratingText)+'</td>'+
-      '<td class="stat-cell">'+esc(favoriteCount)+'</td>'+
-      '<td>'+expiryBadge(v)+'</td>'+
-      '<td>'+esc(v.business_hours||'-')+'</td>'+
-      '<td>업체상태: '+esc(statusLabel(v))+'<br>광고상품: '+esc(adLabel(v))+'<br><div class="expire-ko">광고만기: <b>'+esc(fmtDate(v.expire_at))+'</b></div><br><div class="expire-ko">배너상태: <b>'+(v.banner_active?'사용중':'사용안함')+'</b>'+(v.banner_until?' / 배너만기: <b>'+esc(fmtDate(v.banner_until))+'</b>':'')+'</div></td>'+
-      '<td>'+statusBadge(v)+'</td>'+
       '<td><div class="row-actions"><button type="button" class="edit-vendor-btn" data-id="'+esc(v.id)+'">수정</button><form method="post" action="/admin/delete/vendors/'+esc(v.id)+'"><button onclick="return confirm(&quot;삭제할까요?&quot;)">삭제</button></form></div></td>'+
       '</tr>';
   }
@@ -1878,10 +1877,11 @@ document.addEventListener('DOMContentLoaded',function(){
       if(vendorServerPage>Math.max(1,Number(data.totalPages||1))){vendorLoading=false;window.normalizeAdminListPage?.('vendors',data,loadVendors);return true;}
       var header=table.querySelector('tr');
       table.innerHTML='';
-      if(header)table.appendChild(header);
+      if(header){header.innerHTML='<th>ID</th><th>업체명</th><th>광고상태</th><th>배너상태</th><th>공개상태</th><th>수정요청</th><th>조회수</th><th>관리</th>';table.appendChild(header);}
       (data.rows||[]).forEach(function(v){
         table.insertAdjacentHTML('beforeend',rowHtml(v));
       });
+      Object.entries(data.summary||{}).forEach(function(entry){var el=document.querySelector('[data-vendor-summary="'+entry[0]+'"]');if(el)el.textContent=Number(entry[1]||0).toLocaleString();});
       if(typeof sortVendorRows==='function')sortVendorRows();
       if(pager){
         pager.innerHTML='';
