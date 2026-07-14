@@ -392,6 +392,8 @@ function boardSlugSafe(slug,title=''){
   return fromTitle||('board-'+Date.now());
 }
 const BOARD_LAYOUT_TYPES=['list','gallery','webzine','qna','faq','private'];
+const PROTECTED_BOARD_SLUGS=['notice','free','reviews','reports','ad-inquiry'];
+function isProtectedBoardSlug(slug){return PROTECTED_BOARD_SLUGS.includes(String(slug||'').trim().toLowerCase());}
 function boardLayoutType(value){return BOARD_LAYOUT_TYPES.includes(String(value||''))?String(value):'list';}
 function legacyBoardTypeForLayout(layout){return layout==='qna'?'qna':layout==='private'?'inquiry':layout==='faq'?'faq':'community';}
 function canReadPrivateBoardPost(user,post){return !!user&&(user.role==='admin'||Number(user.id)===Number(post?.user_id));}
@@ -881,7 +883,8 @@ async function runAdminAction(req,res,redirectTo,fn){
     return sendOk(req,res,redirectTo,payload||{});
   }catch(e){
     console.error('admin action failed',e);
-    return sendFail(req,res,500,e.message||'관리자 작업 처리 중 오류가 발생했습니다.',redirectTo);
+    const duplicate=e?.code==='23505';
+    return sendFail(req,res,duplicate?409:(e.status||500),duplicate?'이미 사용 중인 주소(slug)입니다.':(e.message||'관리자 작업 처리 중 오류가 발생했습니다.'),redirectTo);
   }
 }
 app.get('/admin/api/vendors',admin,async(req,res)=>{
@@ -1195,7 +1198,16 @@ app.post('/admin/boards',admin,async(req,res)=>runAdminAction(req,res,'/admin#bo
 }));
 app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
   const id=parseInt(req.params.id||0,10),title=String(req.body.title||'').trim().slice(0,100);if(!id||!title)throw new Error('게시판 정보를 확인해주세요.');
+  const oldBoard=await q('SELECT * FROM board_categories WHERE id=$1',[id]);
+  const current=oldBoard.rows[0];
+  if(!current){const error=new Error('게시판을 찾을 수 없습니다.');error.status=404;throw error;}
+  if(isProtectedBoardSlug(current.slug)&&!req.body.is_active){const error=new Error('기본 게시판은 비활성화할 수 없습니다.');error.status=400;throw error;}
   const slug=boardSlugSafe(req.body.slug,title),layoutType=boardLayoutType(req.body.layout_type);
+  if(slug!==current.slug){
+    if(isProtectedBoardSlug(current.slug)){const error=new Error('기본 게시판의 주소(slug)는 변경할 수 없습니다.');error.status=400;throw error;}
+    const postCount=await q('SELECT COUNT(*)::int count FROM board_posts WHERE board_id=$1',[id]);
+    if(Number(postCount.rows[0]?.count||0)>0){const error=new Error('게시글이 있는 게시판의 주소(slug)는 변경할 수 없습니다.');error.status=400;throw error;}
+  }
   const writeRole=['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member';
   const description=Object.prototype.hasOwnProperty.call(req.body,'description')?String(req.body.description||'').trim().slice(0,500):null;
   const sortOrder=Object.prototype.hasOwnProperty.call(req.body,'sort_order')?(parseInt(req.body.sort_order||0,10)||0):null;
@@ -1221,7 +1233,10 @@ app.post('/admin/boards/reorder',admin,async(req,res)=>{
   }finally{client.release();}
 });
 app.post('/admin/boards/:id/delete',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
-  const r=await q('UPDATE board_categories SET is_active=false WHERE id=$1 RETURNING id,title',[parseInt(req.params.id||0,10)]);if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 비활성화','board_category',r.rows[0].id,r.rows[0].title);
+  const id=parseInt(req.params.id||0,10),found=await q('SELECT id,title,slug FROM board_categories WHERE id=$1',[id]);
+  const board=found.rows[0];if(!board){const error=new Error('게시판을 찾을 수 없습니다.');error.status=404;throw error;}
+  if(isProtectedBoardSlug(board.slug)){const error=new Error('기본 게시판은 비활성화할 수 없습니다.');error.status=400;throw error;}
+  const r=await q('UPDATE board_categories SET is_active=false WHERE id=$1 RETURNING id,title',[id]);await logAdmin(req,'게시판 비활성화','board_category',r.rows[0].id,r.rows[0].title);
 }));
 function registerBoardPostAction(path,field,value,action){
   app.post(`/admin/board-posts/:id/${path}`,admin,async(req,res)=>{
@@ -1272,7 +1287,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.id,r.user_id,r.vendor_id,r.title,r.subtitle,r.link_url,r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
   CASE WHEN r.image_data IS NOT NULL AND r.image_data<>'' THEN true ELSE false END has_image_data,
   u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
-  const adminBoards=(await q('SELECT * FROM board_categories ORDER BY sort_order,id')).rows;
+  const adminBoards=(await q('SELECT b.*,(SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id) post_count FROM board_categories b ORDER BY b.sort_order,b.id')).rows;
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];

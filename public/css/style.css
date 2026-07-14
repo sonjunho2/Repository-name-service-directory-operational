@@ -1069,6 +1069,11 @@ body>header:not(.top)>.site-brand-center span{
   margin-bottom:28px!important;
 }
 .public-ad-banner.premium-showcase .showcase-title{display:none!important}
+.readonly-input{opacity:.72;cursor:not-allowed}
+.mini-badge{display:inline-flex;align-items:center;min-height:22px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:900;background:#1b2438;color:#c9d4ef;border:1px solid #33405f}
+.mini-badge.protected{background:#33280d;color:#ffd56a;border-color:#6f5620}
+.board-row-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.board-slug-help{display:block;margin-top:5px;color:#8f9ab8;font-size:11px;overflow-wrap:anywhere}
 @media(max-width:760px){
   .public-ad-banner.premium-showcase{
     margin-top:10px!important;
