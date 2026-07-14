@@ -911,44 +911,46 @@ async function runAdminAction(req,res,redirectTo,fn){
   }
 }
 app.get('/admin/api/vendors',admin,async(req,res)=>{
-  await expireAds();
   const where=[];
   const params=[];
   const qText=String(req.query.q||'').trim().slice(0,100);
   const status=String(req.query.status||'').trim();
-  const adType=String(req.query.ad_type||'').trim();
-  const orderBy={default:'v.id DESC',views:'v.views DESC NULLS LAST,v.id DESC',reviews:'review_count DESC,v.id DESC',rating:'avg_rating DESC NULLS LAST,v.id DESC',latest:'v.id DESC'}[String(req.query.sort||'default')]||'v.id DESC';
-  if(qText){params.push(`%${qText}%`);where.push(`(v.name ILIKE $${params.length} OR v.category ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.phone ILIKE $${params.length} OR v.tags ILIKE $${params.length} OR v.description ILIKE $${params.length} OR v.business_hours ILIKE $${params.length})`);}
+  const adType=String(req.query.quick||req.query.ad_type||'').trim(),link=String(req.query.link||'').trim();
+  const orderBy={default:'v.id DESC',latest:'v.id DESC',oldest:'v.id ASC',name:'v.name ASC,v.id DESC',views:'v.views DESC NULLS LAST,v.id DESC',reviews:'review_count DESC,v.id DESC',rating:'avg_rating DESC NULLS LAST,v.id DESC',favorites:'favorite_count DESC,v.id DESC',expire:'v.expire_at ASC NULLS LAST,v.id DESC',updates:'pending_update_count DESC,v.id DESC'}[String(req.query.sort||'latest')]||'v.id DESC';
+  if(qText){params.push(`%${qText}%`);where.push(`(v.id::text ILIKE $${params.length} OR v.name ILIKE $${params.length} OR v.category ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.phone ILIKE $${params.length} OR v.tags ILIKE $${params.length} OR v.description ILIKE $${params.length} OR v.business_hours ILIKE $${params.length} OR EXISTS(SELECT 1 FROM users su WHERE su.vendor_id=v.id AND (su.username ILIKE $${params.length} OR su.nickname ILIKE $${params.length})))`);}
   if(['pending','active','hidden','blocked','expired','inactive'].includes(status)){params.push(status);where.push(`v.status=$${params.length}`);}
   if(adType==='noad'||adType==='none')where.push("COALESCE(v.ad_type,'none')='none'");
   else if(adType==='active')where.push("v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE");
   else if(adType==='banner')where.push("v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE");
   else if(adType==='expiring')where.push("v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE AND v.expire_at<=CURRENT_DATE+INTERVAL '7 days'");
-  else if(adType==='expired')where.push("(v.status<>'active' OR COALESCE(v.ad_type,'none')='none' OR v.expire_at IS NULL OR v.expire_at<CURRENT_DATE)");
+  else if(adType==='expired'||adType==='inactive')where.push("(v.status<>'active' OR COALESCE(v.ad_type,'none')='none' OR v.expire_at IS NULL OR v.expire_at<CURRENT_DATE)");
   else if(adType==='update')where.push("EXISTS(SELECT 1 FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new')");
   else if(['general','recommended'].includes(adType)){params.push(adType);where.push(`v.ad_type=$${params.length}`);}
+  if(link==='linked')where.push('EXISTS(SELECT 1 FROM users lu WHERE lu.vendor_id=v.id)');else if(link==='unlinked')where.push('NOT EXISTS(SELECT 1 FROM users lu WHERE lu.vendor_id=v.id)');else if(link==='broken')where.push('EXISTS(SELECT 1 FROM users lu WHERE lu.vendor_id=v.id AND COALESCE(lu.is_vendor,false)=false)');
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
   try{
     res.setHeader('Cache-Control','no-store');
     const {page,limit,offset}=adminPageParams(req);
     const rows=await q(`SELECT v.*,
-      (SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,
-      (SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,
+      (SELECT u.id FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_user_id,(SELECT u.username FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_username,(SELECT u.nickname FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_nickname,(SELECT u.status FROM users u WHERE u.vendor_id=v.id ORDER BY u.id DESC LIMIT 1) linked_user_status,EXISTS(SELECT 1 FROM users u WHERE u.vendor_id=v.id) has_linked_user,
       (SELECT COUNT(*)::int FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') review_count,
       (SELECT ROUND(AVG(r.rating)::numeric,1) FROM reviews r WHERE r.vendor_id=v.id AND r.status='visible') avg_rating,
       (SELECT COUNT(*)::int FROM favorites f WHERE f.vendor_id=v.id) favorite_count,
-      (SELECT COUNT(*)::int FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new') update_request_count,
+      (SELECT COUNT(*)::int FROM flags f WHERE f.type='vendor' AND f.target_id=v.id) report_count,(SELECT COUNT(*)::int FROM flags f WHERE f.type='vendor' AND f.target_id=v.id AND COALESCE(f.status,'new')='new') pending_report_count,(SELECT COUNT(*)::int FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new') pending_update_count,(SELECT vur.id FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new' ORDER BY vur.created_at DESC,vur.id DESC LIMIT 1) latest_update_request_id,(SELECT vur.created_at FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new' ORDER BY vur.created_at DESC,vur.id DESC LIMIT 1) latest_update_requested_at,EXISTS(SELECT 1 FROM vendor_update_requests vur WHERE vur.vendor_id=v.id AND vur.status='new') has_pending_update,COALESCE(v.image_data,'')<>'' image_exists,
       CASE WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days' THEN 'expiring' WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE THEN 'active' ELSE 'expired' END ad_status,
-      CASE WHEN v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days' THEN 'expiring' WHEN v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE THEN 'active' WHEN COALESCE(v.banner_active,false)=true AND v.banner_until<CURRENT_DATE THEN 'expired' ELSE 'inactive' END banner_status
+      CASE WHEN v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days' THEN 'expiring' WHEN v.status='active' AND COALESCE(v.banner_active,false)=true AND v.banner_until>=CURRENT_DATE THEN 'active' WHEN COALESCE(v.banner_active,false)=true AND v.banner_until<CURRENT_DATE THEN 'expired' ELSE 'inactive' END banner_status,CASE WHEN v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE THEN 'active' WHEN v.status='pending' THEN 'pending' WHEN v.status='blocked' THEN 'blocked' WHEN v.status='hidden' THEN 'hidden' WHEN v.expire_at<CURRENT_DATE OR v.status='expired' THEN 'expired' WHEN COALESCE(v.ad_type,'none')='none' THEN 'no_ad' ELSE 'no_expire' END public_state,(v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at>=CURRENT_DATE) can_show_publicly,(v.expire_at-CURRENT_DATE)::int days_until_expire,(v.banner_until-CURRENT_DATE)::int days_until_banner_expire
       FROM vendors v${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
     const count=await q(`SELECT COUNT(*) FROM vendors v${whereSql}`,params);
     const summary=(await q(`SELECT COUNT(*)::int total,
-      COUNT(*) FILTER (WHERE status='active' AND COALESCE(ad_type,'none')<>'none' AND expire_at>=CURRENT_DATE)::int active,
+      COUNT(*) FILTER (WHERE status='active' AND COALESCE(ad_type,'none')<>'none' AND expire_at>=CURRENT_DATE)::int active,COUNT(*) FILTER (WHERE status='pending')::int pending,COUNT(*) FILTER (WHERE status<>'active' OR COALESCE(ad_type,'none')='none' OR expire_at IS NULL OR expire_at<CURRENT_DATE)::int "hiddenOrExpired",
       COUNT(*) FILTER (WHERE status='active' AND COALESCE(ad_type,'none')<>'none' AND expire_at BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days')::int expiring,
       COUNT(*) FILTER (WHERE status='active' AND COALESCE(banner_active,false)=true AND banner_until>=CURRENT_DATE)::int "bannerActive",
       (SELECT COUNT(*)::int FROM vendor_update_requests WHERE status='new') "updateRequests" FROM vendors`)).rows[0]||{};
     const total=Number(count.rows[0]?.count||0);
-    return res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows,summary:{total:Number(summary.total||0),active:Number(summary.active||0),expiring:Number(summary.expiring||0),bannerActive:Number(summary.bannerActive||0),updateRequests:Number(summary.updateRequests||0)}});
+    const publicLabels={active:'정상노출',pending:'검수중',hidden:'관리자 숨김',blocked:'차단',expired:'광고만료',no_ad:'광고상품 없음',no_expire:'만료일 없음'};
+    const adLabels={active:'정상노출',expiring:'만료예정',expired:'만료/비노출'},bannerLabels={active:'배너노출',expiring:'배너만료예정',expired:'배너만료',inactive:'배너 미사용'};
+    const apiRows=rows.rows.map(v=>({...v,public_state_label:publicLabels[v.public_state]||'확인필요',ad_state_label:adLabels[v.ad_status]||'확인필요',banner_state_label:bannerLabels[v.banner_status]||'확인필요',is_expiring:v.ad_status==='expiring',is_banner_expiring:v.banner_status==='expiring'}));
+    return res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:apiRows,summary:{total:Number(summary.total||0),active:Number(summary.active||0),pending:Number(summary.pending||0),hiddenOrExpired:Number(summary.hiddenOrExpired||0),expiring:Number(summary.expiring||0),bannerActive:Number(summary.bannerActive||0),updateRequests:Number(summary.updateRequests||0)}});
   }catch(e){console.error('admin vendors api failed',e);return res.status(500).json({ok:false,error:e.message||'admin_vendors_load_failed'});}
 });
 app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
