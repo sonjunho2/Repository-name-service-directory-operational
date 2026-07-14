@@ -347,11 +347,11 @@ body>#adminNotificationCenter .admin-notify-panel{
   bottom:58px!important;
   width:410px!important;
   max-width:calc(100vw - 28px)!important;
-  max-height:calc(100vh - 120px)!important;
+  max-height:70vh!important;
   z-index:2147483601!important;
-  overflow:hidden!important;
+  overflow-y:auto!important;
 }
-body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!important;overflow:auto!important}
+body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!important;overflow:auto!important}
 @media(max-width:700px){
   body>#adminNotificationCenter.admin-notify{right:12px!important;bottom:12px!important}
   body>#adminNotificationCenter .admin-notify-panel{right:0!important;bottom:56px!important;width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important}
@@ -361,7 +361,7 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
 </style></head><body><% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; function _extractPaidUsdtValue(x){return x?.paid_usdt_amount||((String(x?.admin_memo||x?.memo||'').match(/실제입금:\s*([0-9.]+)/)||[])[1]||'');} function _centerPaidUsdt(x){return _extractPaidUsdtValue(x);} function _cleanCenterMemo(x){return String(x?.admin_memo||'').replace(/\s*실제입금:\s*[0-9.]+\s*USDT\s*/g,'').trim();} function _isPaymentExpired(x){return x?.payment_status==='cancelled'&&String(x?.admin_memo||'').includes('만료');} function _paymentRequestLabel(x){const s=x?.payment_status;return s==='paid'?'입금완료':s==='waiting'?'입금확인중':s==='rejected'?'반려':s==='cancelled'?(_isPaymentExpired(x)?'기한만료':'취소'):'입금대기';} function _paymentRequestStatusLabel(x){return x?.status==='approved'?'승인완료':x?.status==='rejected'?'반려':x?.status==='cancelled'?(_isPaymentExpired(x)?'기한만료':'취소'):x?.payment_status==='waiting'?'입금확인중':'입금대기';} %><script>window.__adminLiveStage31=true;</script><header class="top"><b>관리자</b><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>
     <% if(siteBrand.showName){ %><span><%=siteBrand.name%></span><% } %>
-  </a><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-notify" id="adminNotificationCenter"><button type="button" class="admin-notify-btn" id="adminNotifyBtn"><span class="admin-notify-label">알림</span><span class="admin-notify-count" id="adminNotifyCount">0</span></button><div class="admin-notify-panel"><div class="admin-notify-head"><span>실시간 알림센터</span><span><button type="button" id="adminNotifySound" class="admin-notify-sound on">알림음 ON</button><button type="button" id="adminNotifyReadAll">전체읽음</button></span></div><div class="admin-notify-list" id="adminNotifyList"><div class="admin-notify-empty">알림을 불러오는 중...</div></div></div></div><div class="admin-shell"><aside class="admin-sidebar">
+  </a><nav><a href="/">사이트</a><a href="/logout">로그아웃</a></nav></header><div class="admin-notify" id="adminNotificationCenter"><button type="button" class="admin-notify-btn" id="adminNotifyBtn"><span class="admin-notify-label">알림</span><span class="admin-notify-count notification-count-badge" id="adminNotifyCount">0</span></button><div class="admin-notify-panel"><div class="admin-notify-head"><span>실시간 알림센터</span><span><button type="button" id="adminNotifySound" class="admin-notify-sound on">알림음 ON</button><button type="button" id="adminNotifyReadAll">전체 읽음</button></span></div><div class="notification-filter-row" id="adminNotifyFilters"><button type="button" class="active" data-filter="all">전체</button><button type="button" data-filter="unread">안읽음</button><button type="button" data-filter="ad-inquiry">광고문의</button><button type="button" data-filter="apply">입점신청</button><button type="button" data-filter="payment">결제</button><button type="button" data-filter="vendor-update">업체수정</button><button type="button" data-filter="report">신고</button><button type="button" data-filter="system">시스템</button></div><div class="admin-notify-list" id="adminNotifyList"><div class="admin-notify-empty">알림을 불러오는 중...</div></div></div></div><div class="admin-shell"><aside class="admin-sidebar">
   <h2>관리자</h2>
 
   <a class="active" href="#dashboard" data-panel="dashboard">홈</a>
@@ -3401,7 +3401,10 @@ document.addEventListener('DOMContentLoaded',function(){
   var count=document.getElementById('adminNotifyCount');
   var list=document.getElementById('adminNotifyList');
   var readAll=document.getElementById('adminNotifyReadAll');
+  var filters=document.getElementById('adminNotifyFilters');
   var soundBtn=document.getElementById('adminNotifySound');
+  var currentFilter='all';
+  var loadedItems=[];
   var lastUnread=null;
   var firstLoad=true;
   var soundOn=localStorage.getItem('adminNotifySoundV64')!=='0';
@@ -3411,6 +3414,23 @@ document.addEventListener('DOMContentLoaded',function(){
   document.addEventListener('pointerdown',unlockAudio,{once:true});
   function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function fmt(v){try{return new Date(v).toLocaleString('ko-KR',{hour12:false});}catch(e){return '';}}
+  function notificationGroup(type){
+    var t=String(type||'').toLowerCase();
+    if(t.indexOf('ad_inquiry')===0)return {key:'ad-inquiry',label:'광고문의'};
+    if(t.indexOf('payment')!==-1)return {key:'payment',label:'결제'};
+    if(t.indexOf('vendor_update')!==-1)return {key:'vendor-update',label:'업체수정'};
+    if(t.indexOf('flag')!==-1||t.indexOf('report')!==-1)return {key:'report',label:'신고'};
+    if(t.indexOf('apply')!==-1||t.indexOf('inquiry')!==-1)return {key:'apply',label:'입점신청'};
+    return {key:'system',label:'시스템'};
+  }
+  function renderItems(){
+    var items=loadedItems.filter(function(x){var g=notificationGroup(x.type);return currentFilter==='all'||(currentFilter==='unread'&&!x.is_read)||g.key===currentFilter;});
+    if(!items.length){list.innerHTML='<div class="admin-notify-empty">해당 알림이 없습니다.</div>';return;}
+    list.innerHTML=items.map(function(x){
+      var href=x.link_url||'#',g=notificationGroup(x.type);
+      return '<a class="admin-notify-item notification-item '+(x.is_read?'':'unread')+'" href="'+esc(href)+'" data-id="'+x.id+'"><div class="notification-row"><span class="notification-type-badge '+g.key+'">'+g.label+'</span><span class="notification-read-badge">'+(x.is_read?'읽음':'안읽음')+'</span></div><b>'+esc(x.title||'알림')+'</b><p>'+esc(x.message||'')+'</p><small>'+esc(fmt(x.created_at))+'</small><span class="notification-link-label">이동</span></a>';
+    }).join('');
+  }
   function ring(){
     if(!soundOn)return;
     // 브라우저 정책상 관리자 페이지에서 한 번 클릭/터치 후부터 소리가 납니다.
@@ -3432,16 +3452,10 @@ document.addEventListener('DOMContentLoaded',function(){
       var j=await r.json();
       if(!j.ok)throw new Error(j.error||'failed');
       var unread=Number(j.unread||0);
-      count.textContent=unread;
+      count.textContent=unread>99?'99+':unread;
       btn.classList.toggle('has-unread',unread>0);
-      var items=j.items||[];
-      if(!items.length){list.innerHTML='<div class="admin-notify-empty">새 알림이 없습니다.</div>';}
-      else{
-        list.innerHTML=items.map(function(x){
-          var href=x.link_url||'#';
-          return '<a class="admin-notify-item '+(x.is_read?'':'unread')+'" href="'+esc(href)+'" data-id="'+x.id+'"><b>'+esc(x.title||'알림')+'</b><p>'+esc(x.message||'')+'</p><small>'+esc(fmt(x.created_at))+'</small></a>';
-        }).join('');
-      }
+      loadedItems=j.items||[];
+      renderItems();
       if(!firstLoad && !silent && lastUnread!==null && unread>lastUnread){
         if(typeof toast==='function')toast('새 알림이 도착했습니다.','ok','미확인 '+unread+'건');
         flash();
@@ -3460,6 +3474,7 @@ document.addEventListener('DOMContentLoaded',function(){
     if(!a)return;
     fetch('/api/notifications/'+a.dataset.id+'/read',{method:'POST',credentials:'same-origin'}).catch(function(){});
   });
+  if(filters)filters.addEventListener('click',function(e){var f=e.target.closest('[data-filter]');if(!f)return;currentFilter=f.dataset.filter;filters.querySelectorAll('button').forEach(function(x){x.classList.toggle('active',x===f);});renderItems();});
   if(readAll)readAll.addEventListener('click',async function(e){e.preventDefault();await fetch('/api/notifications/read-all',{method:'POST',credentials:'same-origin'}).catch(function(){});load(true);});
   if(soundBtn)soundBtn.addEventListener('click',function(e){e.preventDefault();soundOn=!soundOn;localStorage.setItem('adminNotifySoundV64',soundOn?'1':'0');updateSoundBtn();unlockAudio();});
   updateSoundBtn();

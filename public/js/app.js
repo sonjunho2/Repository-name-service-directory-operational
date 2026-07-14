@@ -1,4 +1,35 @@
 let i=0;
+
+function notificationGroup(type){
+  const t=String(type||'').toLowerCase();
+  if(t.startsWith('ad_inquiry'))return {key:'ad-inquiry',label:'광고문의'};
+  if(t.includes('payment'))return {key:'payment',label:'결제'};
+  if(t.includes('vendor_update'))return {key:'vendor-update',label:'업체수정'};
+  if(t.includes('flag')||t.includes('report'))return {key:'report',label:'신고'};
+  if(t.includes('apply')||t.includes('inquiry'))return {key:'apply',label:'입점신청'};
+  return {key:'system',label:'시스템'};
+}
+
+function initMemberNotificationCenter(){
+  if(document.getElementById('adminNotificationCenter')||document.getElementById('memberNotificationCenter'))return;
+  const root=document.createElement('div');
+  root.id='memberNotificationCenter';root.className='notification-center';
+  root.innerHTML='<button type="button" class="notification-float-btn">알림 <span class="notification-count-badge"></span></button><section class="notification-panel"><header><b>알림센터</b><button type="button" class="notification-read-all">전체 읽음</button></header><div class="notification-filter-row"><button type="button" class="active" data-filter="all">전체</button><button type="button" data-filter="unread">안읽음</button><button type="button" data-filter="ad-inquiry">광고문의</button><button type="button" data-filter="apply">입점신청</button><button type="button" data-filter="payment">결제</button><button type="button" data-filter="vendor-update">업체수정</button><button type="button" data-filter="report">신고</button><button type="button" data-filter="system">시스템</button></div><div class="notification-list"><div class="notification-empty">알림을 불러오는 중...</div></div></section>';
+  document.body.appendChild(root);
+  const button=root.querySelector('.notification-float-btn'),count=root.querySelector('.notification-count-badge'),list=root.querySelector('.notification-list'),filters=root.querySelector('.notification-filter-row');
+  let items=[],filter='all';
+  const htmlEscape=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const render=()=>{const shown=items.filter(x=>filter==='all'||(filter==='unread'&&!x.is_read)||notificationGroup(x.type).key===filter);list.innerHTML=shown.length?shown.map(x=>{const g=notificationGroup(x.type);return `<a class="notification-item ${x.is_read?'':'unread'}" href="${htmlEscape(x.link_url||'#')}" data-id="${Number(x.id||0)}"><div class="notification-row"><span class="notification-type-badge ${g.key}">${g.label}</span><span class="notification-read-badge">${x.is_read?'읽음':'안읽음'}</span></div><b>${htmlEscape(x.title||'알림')}</b><p>${htmlEscape(x.message||'')}</p><small>${htmlEscape(new Date(x.created_at).toLocaleString('ko-KR',{hour12:false}))}</small><span class="notification-link-label">이동</span></a>`;}).join(''):'<div class="notification-empty">해당 알림이 없습니다.</div>';};
+  const load=async()=>{try{const response=await fetch('/api/notifications',{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'});if(response.status===401){root.remove();return;}const data=await response.json();if(!data.ok)throw new Error('load failed');items=data.items||[];const unread=Number(data.unread||0);count.textContent=unread>99?'99+':unread;count.hidden=unread===0;render();}catch(e){list.innerHTML='<div class="notification-empty">알림을 불러오지 못했습니다.</div>';}};
+  button.addEventListener('click',()=>{root.classList.toggle('open');if(root.classList.contains('open'))load();});
+  filters.addEventListener('click',e=>{const target=e.target.closest('[data-filter]');if(!target)return;filter=target.dataset.filter;filters.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===target));render();});
+  list.addEventListener('click',e=>{const link=e.target.closest('.notification-item');if(link)fetch(`/api/notifications/${link.dataset.id}/read`,{method:'POST',credentials:'same-origin'}).catch(()=>{});});
+  root.querySelector('.notification-read-all').addEventListener('click',async()=>{await fetch('/api/notifications/read-all',{method:'POST',credentials:'same-origin'}).catch(()=>{});load();});
+  document.addEventListener('click',e=>{if(!root.contains(e.target))root.classList.remove('open');});
+  load();
+}
+document.addEventListener('DOMContentLoaded',initMemberNotificationCenter);
+
 const slides=[...document.querySelectorAll('.promo-slide')];
 if(slides.length>1){
   setInterval(()=>{
