@@ -2186,20 +2186,19 @@ document.addEventListener('DOMContentLoaded',function(){
     if(x.status==='rejected')return '반려';
     return '대기';
   }
+  function inquiryDate(v){
+    if(!v)return '-';
+    var d=new Date(v);
+    if(isNaN(d.getTime()))return '-';
+    return d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+  }
   function imageButtons(x){
-    var html='';
-    if(x.has_main_image_data){
-      html+='<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiry-image/'+esc(x.id)+'/main" data-title="'+esc(x.company_name||'대표 이미지')+'">대표보기</button>';
-    }
-    if(x.type==='apply'&&x.has_banner_image_data){
-      html+='<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiry-image/'+esc(x.id)+'/banner" data-title="'+esc((x.company_name||'입점신청')+' 배너 이미지')+'">배너보기</button>';
-    }
-    return html||'<span class="image-none">-</span>';
+    return x.has_image_data?'<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiries/'+esc(x.id)+'/image" data-title="'+esc(x.company_name||'대표이미지')+'">대표이미지 보기</button>':'<span class="image-none">이미지 없음</span>';
   }
   function actions(x){
     if(x.status==='approved'){
       var approved='<span class="done">업체 등록완료</span>';
-      if(x.type==='apply'&&x.has_banner_image_data&&x.banner_status!=='approved'){
+      if(x.type==='apply'&&x.vendor_id&&x.has_image_data&&x.banner_status!=='approved'){
         approved+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button class="banner-btn">배너등록</button></form>';
       }else if(x.type==='apply'&&x.banner_status==='approved'){
         approved+='<span class="banner-status">배너등록완료</span>';
@@ -2210,11 +2209,6 @@ document.addEventListener('DOMContentLoaded',function(){
     var html='';
     if(x.type==='apply'){
       html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn">업체등록</button></form>';
-      if(x.has_banner_image_data&&x.banner_status!=='approved'){
-        html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button class="banner-btn">배너등록</button></form>';
-      }else if(x.banner_status==='approved'){
-        html+='<span class="banner-status">배너등록완료</span>';
-      }
     }
     html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn">반려</button></form>';
     return html;
@@ -2233,6 +2227,8 @@ document.addEventListener('DOMContentLoaded',function(){
       '<td>'+esc(x.region||'-')+'/'+esc(x.category||'-')+'</td>'+
       '<td>'+esc(x.content||'-')+'</td>'+
       '<td>'+imageButtons(x)+'</td>'+
+      '<td><span class="'+(statusKey==='approved'?'done':statusKey==='rejected'?'rejected':'pending')+'">'+esc(statusText(x))+'</span></td>'+
+      '<td>'+esc(inquiryDate(x.created_at))+'</td>'+
       '<td>'+actions(x)+'</td>'+
       '</tr>';
   }
@@ -2296,7 +2292,10 @@ document.addEventListener('DOMContentLoaded',function(){
       if(inquiryServerPage>Math.max(1,Number(data.totalPages||1))){inquiryLoading=false;window.normalizeAdminListPage?.('inquiries',data,loadInquiries);return;}
       var header=table.querySelector('tr');
       table.innerHTML='';
-      if(header)table.appendChild(header);
+      if(header){
+        header.innerHTML='<th>ID</th><th>구분</th><th>신청회원</th><th>업체명</th><th>담당자</th><th>연락처</th><th>지역/업종</th><th>내용</th><th>대표이미지</th><th>상태</th><th>신청일</th><th>관리</th>';
+        table.appendChild(header);
+      }
       (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',rowHtml(x));});
       inquiryLoading=false;
       sortInquiries();
