@@ -1051,18 +1051,32 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
 });
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username,ar.product_type source_product_type FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id LEFT JOIN vendor_ad_requests ar ON p.request_type='ad_request' AND ar.id=p.request_id WHERE p.status='paid' ORDER BY p.paid_at DESC,p.id DESC`,`SELECT COUNT(*) FROM payment_logs WHERE status='paid'`));
 app.get('/admin/api/reports',admin,async(req,res)=>{
-  const where=[];
-  const params=[];
-  const qText=String(req.query.q||'').trim().slice(0,100);
-  const type=String(req.query.type||'').trim();
-  const status=String(req.query.status||'').trim();
-  const orderBy={latest:'f.id DESC',oldest:'f.id ASC',status:"CASE WHEN f.status='new' THEN 0 ELSE 1 END,f.id DESC",reason:'f.reason ASC NULLS LAST,f.id DESC'}[String(req.query.sort||'latest')]||'f.id DESC';
-  if(qText){params.push(`%${qText}%`);where.push(`(f.reason ILIKE $${params.length} OR f.content ILIKE $${params.length} OR f.admin_memo ILIKE $${params.length} OR f.type ILIKE $${params.length} OR v.name ILIKE $${params.length} OR rv.title ILIKE $${params.length})`);}
-  if(['vendor','review'].includes(type)){params.push(type);where.push(`f.type=$${params.length}`);}
-  if(['new','done','rejected','cancelled'].includes(status)){params.push(status);where.push(`f.status=$${params.length}`);}
-  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
-  const fromSql=" FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id";
-  return adminPagedJson(req,res,`SELECT f.*,v.name vendor_name,rv.title review_title${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+  try{
+    res.setHeader('Cache-Control','no-store');
+    const where=[],params=[],qText=String(req.query.q||'').trim().slice(0,100),type=String(req.query.type||'').trim(),status=String(req.query.status||'').trim(),target=String(req.query.target||'').trim();
+    const orderBy={latest:'f.id DESC',oldest:'f.id ASC',status:"CASE WHEN COALESCE(f.status,'new')='new' THEN 0 ELSE 1 END,f.id DESC",vendor:"CASE WHEN f.type='vendor' THEN 0 ELSE 1 END,f.id DESC",review:"CASE WHEN f.type='review' THEN 0 ELSE 1 END,f.id DESC",reason:'f.reason ASC NULLS LAST,f.id DESC',processed:'f.processed_at DESC NULLS LAST,f.id DESC'}[String(req.query.sort||'latest')]||'f.id DESC';
+    if(qText){params.push(`%${qText}%`);const p=`$${params.length}`;where.push(`(f.reason ILIKE ${p} OR f.content ILIKE ${p} OR f.admin_memo ILIKE ${p} OR v.name ILIKE ${p} OR v.region ILIKE ${p} OR v.category ILIKE ${p} OR rv.title ILIKE ${p} OR rv.content ILIKE ${p} OR ru.username ILIKE ${p} OR ru.nickname ILIKE ${p} OR f.id::text ILIKE ${p} OR f.target_id::text ILIKE ${p})`);}
+    if(['vendor','review'].includes(type)){params.push(type);where.push(`f.type=$${params.length}`);}
+    if(['new','done','rejected','cancelled'].includes(status)){params.push(status);where.push(`COALESCE(f.status,'new')=$${params.length}`);}
+    if(target==='exists')where.push("((f.type='vendor' AND v.id IS NOT NULL) OR (f.type='review' AND rv.id IS NOT NULL))");
+    else if(target==='missing')where.push("((f.type='vendor' AND v.id IS NULL) OR (f.type='review' AND rv.id IS NULL) OR f.type NOT IN ('vendor','review'))");
+    const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+    const fromSql=" FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id LEFT JOIN vendors rvv ON rvv.id=rv.vendor_id LEFT JOIN users ru ON ru.id=rv.user_id";
+    const {page,limit,offset}=adminPageParams(req);
+    const rows=await q(`SELECT f.*,
+      v.id vendor_id,v.name vendor_name,v.category vendor_category,v.region vendor_region,v.status vendor_status,v.ad_type vendor_ad_type,v.expire_at vendor_expire_at,v.banner_active vendor_banner_active,v.banner_until vendor_banner_until,(v.id IS NOT NULL) vendor_exists,
+      rv.id review_id,rv.title review_title,rv.content review_content,rv.rating review_rating,rv.status review_status,rv.created_at review_created_at,rv.vendor_id review_vendor_id,rvv.name review_vendor_name,ru.username review_author_username,ru.nickname review_author_nickname,(rv.id IS NOT NULL) review_exists,
+      CASE WHEN f.type='vendor' THEN v.id IS NOT NULL WHEN f.type='review' THEN rv.id IS NOT NULL ELSE false END target_exists,
+      CASE WHEN f.type='vendor' THEN COALESCE(v.name,'업체 # '||f.target_id) WHEN f.type='review' THEN COALESCE(rv.title,'후기 # '||f.target_id) ELSE f.target_id::text END target_name,
+      CASE WHEN f.type='vendor' THEN v.status WHEN f.type='review' THEN rv.status END target_status,
+      CASE WHEN f.type='vendor' THEN '업체 신고' WHEN f.type='review' THEN '후기 신고' ELSE f.type END type_label,
+      CASE WHEN COALESCE(f.status,'new')='new' THEN '처리대기' WHEN f.status='done' THEN '처리완료' WHEN f.status='rejected' THEN '신고기각' WHEN f.status='cancelled' THEN '취소' ELSE f.status END status_label,
+      (COALESCE(f.status,'new')='new') can_process
+      ${fromSql}${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const countResult=await q(`SELECT COUNT(*)${fromSql}${whereSql}`,params),total=Number(countResult.rows[0]?.count||0);
+    const summaryResult=await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE COALESCE(f.status,'new')='new')::int waiting,COUNT(*) FILTER(WHERE f.status='done')::int done,COUNT(*) FILTER(WHERE f.status='rejected')::int rejected,COUNT(*) FILTER(WHERE f.type='vendor')::int vendor,COUNT(*) FILTER(WHERE f.type='review')::int review,COUNT(*) FILTER(WHERE (f.type='vendor' AND v.id IS NULL) OR (f.type='review' AND rv.id IS NULL) OR f.type NOT IN ('vendor','review'))::int missing_target FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id LEFT JOIN reviews rv ON f.type='review' AND rv.id=f.target_id`);
+    res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows,summary:summaryResult.rows[0]||{}});
+  }catch(e){console.error('admin reports api failed',e);res.status(500).json({ok:false,error:e.message||'admin_reports_load_failed'});}
 });
 app.get('/admin/api/banners',admin,async(req,res)=>{
   const params=[];
@@ -1302,7 +1316,21 @@ app.get('/admin/api/dashboard-summary',admin,async(req,res)=>{
 app.get('/admin/inquiries',admin,(req,res)=>res.redirect('/admin#inquiries'));
 app.get('/admin/reports',admin,(req,res)=>res.redirect('/admin#reports'));
 
-app.post('/admin/reports/:id/done',admin,async(req,res)=>runAdminAction(req,res,'/admin#reports',async()=>{const r=await q("UPDATE flags SET status=$1, admin_memo=$2, processed_at=now() WHERE id=$3 AND status='new' RETURNING id",['done',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('처리할 신고를 찾을 수 없거나 이미 처리되었습니다.'); await logAdmin(req,'신고 처리완료','report',req.params.id,req.body.admin_memo||'');}));
+app.post('/admin/reports/:id/done',admin,async(req,res)=>runAdminAction(req,res,'/admin#reports',async()=>{
+  const memo=String(req.body.admin_memo||'').trim().slice(0,500)||'확인 후 처리완료';
+  const r=await q("UPDATE flags SET status='done', admin_memo=$1, processed_at=now() WHERE id=$2 AND COALESCE(status,'new')='new' RETURNING id,type,target_id",[memo,req.params.id]);
+  if(!r.rows[0]){const e=new Error('처리할 신고를 찾을 수 없거나 이미 처리되었습니다.');e.status=409;throw e;}
+  const row=r.rows[0];
+  await logAdmin(req,'신고 처리완료','report',row.id,`${row.type}:${row.target_id} / ${memo}`);
+}));
+app.post('/admin/reports/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#reports',async()=>{
+  const memo=String(req.body.admin_memo||'').trim().slice(0,500);
+  if(memo.length<2){const e=new Error('기각 사유를 2자 이상 입력해주세요.');e.status=400;throw e;}
+  const r=await q("UPDATE flags SET status='rejected', admin_memo=$1, processed_at=now() WHERE id=$2 AND COALESCE(status,'new')='new' RETURNING id,type,target_id",[memo,req.params.id]);
+  if(!r.rows[0]){const e=new Error('처리할 신고를 찾을 수 없거나 이미 처리되었습니다.');e.status=409;throw e;}
+  const row=r.rows[0];
+  await logAdmin(req,'신고 기각','report',row.id,`${row.type}:${row.target_id} / ${memo}`);
+}));
 app.post('/admin/inquiries/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#inquiries',async()=>{const r=await q("UPDATE inquiries SET status=$1 WHERE id=$2 AND status='new' RETURNING id,type",['rejected',req.params.id]); const x=r.rows[0]; if(!x)throw new Error('반려할 문의를 찾을 수 없거나 이미 처리되었습니다.'); const label=x.type==='apply'?'입점신청 반려':'광고문의 반려'; await logAdmin(req,label,'inquiry',req.params.id,label);}));
 const sendAdminInquiryImage=async(req,res)=>{const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('이미지가 없습니다.');const r=await q(`SELECT COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(iv.image_data,'')) image_data FROM inquiries i LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true WHERE i.id=$1`,[id]);const data=r.rows[0]?.image_data;if(!data)return res.status(404).send('이미지가 없습니다.');const m=String(data).match(/^data:(.+);base64,(.+)$/);if(!m)return res.status(400).send('이미지 형식 오류');res.setHeader('Content-Type',m[1]);res.setHeader('Cache-Control','private, max-age=86400');res.send(Buffer.from(m[2],'base64'));};
 app.get('/admin/inquiries/:id/image',admin,sendAdminInquiryImage);
