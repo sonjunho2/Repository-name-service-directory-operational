@@ -978,7 +978,7 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
   CASE WHEN COALESCE(i.main_image_data,iv.image_data,i.banner_image_data,'')<>'' THEN true ELSE false END has_image_data
   ${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
-app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC`,'SELECT COUNT(*) FROM payment_logs'));
+app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username,ar.product_type source_product_type FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id LEFT JOIN vendor_ad_requests ar ON p.request_type='ad_request' AND ar.id=p.request_id WHERE p.status='paid' ORDER BY p.paid_at DESC,p.id DESC`,`SELECT COUNT(*) FROM payment_logs WHERE status='paid'`));
 app.get('/admin/api/reports',admin,async(req,res)=>{
   const where=[];
   const params=[];
@@ -1127,7 +1127,9 @@ app.get('/admin/api/ad-center',admin,async(req,res)=>{
   const source=String(req.query.source||'').trim();
   if(qText){params.push(`%${qText}%`);where.push(`(x.vendor_name ILIKE $${params.length} OR x.username ILIKE $${params.length} OR x.nickname ILIKE $${params.length} OR x.product_name ILIKE $${params.length} OR x.request_type ILIKE $${params.length} OR x.admin_memo ILIKE $${params.length} OR x.payment_txid ILIKE $${params.length} OR x.vendor_phone ILIKE $${params.length})`);}
   if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`x.status=$${params.length}`);}
-  if(['unpaid','waiting','paid','rejected','cancelled'].includes(paymentStatus)){params.push(paymentStatus);where.push(`COALESCE(x.payment_status,'unpaid')=$${params.length}`);}
+  if(['unpaid','waiting','paid','rejected'].includes(paymentStatus)){params.push(paymentStatus);where.push(`COALESCE(x.payment_status,'unpaid')=$${params.length}`);}
+  else if(paymentStatus==='expired'){where.push(`COALESCE(x.payment_status,'unpaid')='cancelled' AND COALESCE(x.admin_memo,'') ILIKE '%만료%'`);}
+  else if(paymentStatus==='cancelled'){where.push(`COALESCE(x.payment_status,'unpaid')='cancelled' AND COALESCE(x.admin_memo,'') NOT ILIKE '%만료%'`);}
   if(requestType){params.push(requestType);where.push(`x.request_type=$${params.length}`);}
   if(['ad_request','banner_request'].includes(source)){params.push(source);where.push(`x.source=$${params.length}`);}
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
@@ -1345,7 +1347,7 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   v.kakao_url current_kakao_url, v.business_hours current_business_hours, v.tags current_tags, v.description current_description
   FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.id,r.user_id,r.vendor_id,r.title,r.subtitle,r.link_url,r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
   CASE WHEN r.image_data IS NOT NULL AND r.image_data<>'' THEN true ELSE false END has_image_data,
-  u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 500`),getSettings()]);
+  u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username,ar.product_type source_product_type FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id LEFT JOIN vendor_ad_requests ar ON p.request_type='ad_request' AND ar.id=p.request_id WHERE p.status='paid' ORDER BY p.paid_at DESC,p.id DESC LIMIT 500`),getSettings()]);
   const adminBoards=(await q('SELECT b.*,(SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id) post_count FROM board_categories b ORDER BY b.sort_order,b.id')).rows;
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
@@ -1402,17 +1404,25 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   const paymentStatusStats={waiting:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='waiting').length,unpaid:[...bannerRequests.rows,...adRequests.rows].filter(x=>!x.payment_status||x.payment_status==='unpaid').length,paid:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='paid').length,rejected:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='rejected').length,cancelled:[...bannerRequests.rows,...adRequests.rows].filter(x=>x.payment_status==='cancelled').length};
   const revenueAgg=(await q(`SELECT
     COALESCE(SUM(krw_price),0) AS total,
-    COALESCE(SUM(krw_price) FILTER (WHERE paid_at>=CURRENT_DATE),0) AS today,
-    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('month',paid_at)=date_trunc('month',CURRENT_DATE)),0) AS "month",
-    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('year',paid_at)=date_trunc('year',CURRENT_DATE)),0) AS "year",
+    COALESCE(SUM(krw_price) FILTER (WHERE (paid_at AT TIME ZONE 'Asia/Seoul')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),0) AS today,
+    COALESCE(SUM(krw_price) FILTER (WHERE (paid_at AT TIME ZONE 'Asia/Seoul')::date>=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-6),0) AS "week7",
+    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('month',paid_at AT TIME ZONE 'Asia/Seoul')=date_trunc('month',CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')),0) AS "month",
+    COALESCE(SUM(krw_price) FILTER (WHERE date_trunc('year',paid_at AT TIME ZONE 'Asia/Seoul')=date_trunc('year',CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')),0) AS "year",
+    COUNT(*) FILTER (WHERE (paid_at AT TIME ZONE 'Asia/Seoul')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date)::int AS "todayCount",
+    COUNT(*) FILTER (WHERE (paid_at AT TIME ZONE 'Asia/Seoul')::date>=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-6)::int AS "week7Count",
+    COUNT(*) FILTER (WHERE date_trunc('month',paid_at AT TIME ZONE 'Asia/Seoul')=date_trunc('month',CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul'))::int AS "monthCount",
+    COALESCE(SUM(COALESCE(paid_usdt_amount,usdt_amount)) FILTER (WHERE (paid_at AT TIME ZONE 'Asia/Seoul')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),0) AS "todayUsdt",
+    COALESCE(SUM(COALESCE(paid_usdt_amount,usdt_amount)) FILTER (WHERE (paid_at AT TIME ZONE 'Asia/Seoul')::date>=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-6),0) AS "week7Usdt",
+    COALESCE(SUM(COALESCE(paid_usdt_amount,usdt_amount)) FILTER (WHERE date_trunc('month',paid_at AT TIME ZONE 'Asia/Seoul')=date_trunc('month',CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')),0) AS "monthUsdt",
     COUNT(*)::int AS count,
     COUNT(*) FILTER (WHERE product_type='general')::int AS general,
     COUNT(*) FILTER (WHERE product_type='recommended')::int AS recommended,
     COUNT(*) FILTER (WHERE product_type='banner')::int AS banner,
     COALESCE(SUM(usdt_amount),0) AS "usdtTotal"
-    FROM payment_logs`)).rows[0]||{};
+    FROM payment_logs WHERE status='paid'`)).rows[0]||{};
   const revenueStats={
     today:Number(revenueAgg.today||0),
+    week7:Number(revenueAgg.week7||0),
     month:Number(revenueAgg.month||0),
     year:Number(revenueAgg.year||0),
     total:Number(revenueAgg.total||0),
@@ -1421,6 +1431,8 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
     recommended:Number(revenueAgg.recommended||0),
     banner:Number(revenueAgg.banner||0),
     usdtTotal:Number(revenueAgg.usdtTotal||0),
+    todayCount:Number(revenueAgg.todayCount||0),week7Count:Number(revenueAgg.week7Count||0),monthCount:Number(revenueAgg.monthCount||0),
+    todayUsdt:Number(revenueAgg.todayUsdt||0),week7Usdt:Number(revenueAgg.week7Usdt||0),monthUsdt:Number(revenueAgg.monthUsdt||0),
     recent:paidRows.slice(0,10),
     statuses:paymentStatusStats
   };
