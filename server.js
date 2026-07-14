@@ -1051,7 +1051,36 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
   CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(image_v.image_data,'')) IS NOT NULL THEN true ELSE false END has_image_data
   ${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
-app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username,ar.product_type source_product_type FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id LEFT JOIN vendor_ad_requests ar ON p.request_type='ad_request' AND ar.id=p.request_id WHERE p.status='paid' ORDER BY p.paid_at DESC,p.id DESC`,`SELECT COUNT(*) FROM payment_logs WHERE status='paid'`));
+app.get('/admin/api/payments',admin,async(req,res)=>{
+  try{
+    res.setHeader('Cache-Control','no-store');
+    const {page,limit,offset}=adminPageParams(req),params=[],where=["p.status='paid'"];
+    const qText=String(req.query.q||'').trim().slice(0,120),product=String(req.query.product||'').trim().slice(0,100),source=String(req.query.source||'').trim().slice(0,100),amountState=String(req.query.amount_state||'').trim(),dateFrom=String(req.query.date_from||'').trim(),dateTo=String(req.query.date_to||'').trim();
+    const dateOk=v=>!v||/^\d{4}-\d{2}-\d{2}$/.test(v);
+    if(!dateOk(dateFrom)||!dateOk(dateTo)||dateFrom&&dateTo&&dateFrom>dateTo)return res.status(400).json({ok:false,error:'invalid_date_range'});
+    const actualSql=`COALESCE(p.paid_usdt_amount,NULLIF(substring(COALESCE(p.memo,'') from '실제입금:\\s*([0-9]+[.]?[0-9]*)'),'')::numeric)`,paidDate=`COALESCE(p.paid_at,p.created_at)`,productSql=`COALESCE(ar.product_type,p.product_type,'')`;
+    if(qText){params.push(`%${qText}%`);where.push(`(p.id::text ILIKE $${params.length} OR p.vendor_id::text ILIKE $${params.length} OR COALESCE(v.name,'') ILIKE $${params.length} OR p.user_id::text ILIKE $${params.length} OR COALESCE(u.username,'') ILIKE $${params.length} OR COALESCE(p.payment_txid,'') ILIKE $${params.length} OR COALESCE(p.memo,'') ILIKE $${params.length} OR COALESCE(p.product_type,'') ILIKE $${params.length} OR COALESCE(p.request_type,'') ILIKE $${params.length} OR p.request_id::text ILIKE $${params.length})`);}
+    if(product&&product!=='all'){params.push(product);where.push(`${productSql}=$${params.length}`);}
+    if(source&&source!=='all'){params.push(source);where.push(`p.request_type=$${params.length}`);}
+    if(amountState==='matched')where.push(`${actualSql} IS NOT NULL AND p.usdt_amount IS NOT NULL AND ABS(${actualSql}-p.usdt_amount)<0.00000001`);
+    else if(amountState==='different')where.push(`${actualSql} IS NOT NULL AND p.usdt_amount IS NOT NULL AND ABS(${actualSql}-p.usdt_amount)>=0.00000001`);
+    else if(amountState==='missing')where.push(`${actualSql} IS NULL`);
+    else if(amountState==='exists')where.push(`${actualSql} IS NOT NULL`);
+    if(dateFrom){params.push(dateFrom);where.push(`${paidDate} >= $${params.length}::date`);}
+    if(dateTo){params.push(dateTo);where.push(`${paidDate} < ($${params.length}::date+INTERVAL '1 day')`);}
+    const fromSql=` FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id LEFT JOIN vendor_ad_requests ar ON p.request_type='ad_request' AND ar.id=p.request_id`,whereSql=' WHERE '+where.join(' AND ');
+    const orderBy={latest:`${paidDate} DESC,p.id DESC`,oldest:`${paidDate} ASC,p.id ASC`,krw_desc:'p.krw_price DESC NULLS LAST,p.id DESC',krw_asc:'p.krw_price ASC NULLS LAST,p.id DESC',usdt_desc:`${actualSql} DESC NULLS LAST,p.id DESC`,product:`${productSql} ASC,p.id DESC`,vendor:`v.name ASC NULLS LAST,p.id DESC`}[String(req.query.sort||'latest')]||`${paidDate} DESC,p.id DESC`;
+    const rows=await q(`SELECT p.id,p.paid_at,p.created_at,p.user_id,u.username,p.vendor_id,v.name vendor_name,p.krw_price,p.usdt_amount,p.paid_usdt_amount,p.payment_txid,p.memo,p.request_type,p.product_type,p.request_id source_request_id,ar.product_type source_product_type,p.status payment_status,${actualSql} actual_paid_usdt,regexp_replace(COALESCE(p.memo,''),'\\s*실제입금:\\s*[0-9]+[.]?[0-9]*\\s*USDT\\s*','','gi') clean_memo,${paidDate} display_paid_at${fromSql}${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const count=await q(`SELECT COUNT(*)${fromSql}${whereSql}`,params),total=Number(count.rows[0]?.count||0);
+    const summary=(await q(`SELECT COALESCE(SUM(krw_price) FILTER(WHERE (paid_on AT TIME ZONE 'Asia/Seoul')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date),0) "todayKrw",COALESCE(SUM(krw_price) FILTER(WHERE (paid_on AT TIME ZONE 'Asia/Seoul')::date>=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')::date-6),0) "last7DaysKrw",COALESCE(SUM(krw_price) FILTER(WHERE date_trunc('month',paid_on AT TIME ZONE 'Asia/Seoul')=date_trunc('month',CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Seoul')),0) "monthKrw",COALESCE(SUM(krw_price),0) "totalKrw",COUNT(*)::int "paymentCount",COALESCE(SUM(actual),0) "totalActualUsdt",COUNT(*) FILTER(WHERE actual IS NOT NULL AND requested IS NOT NULL AND ABS(actual-requested)>=0.00000001)::int "amountMismatchCount",COUNT(*) FILTER(WHERE actual IS NULL)::int "missingActualAmountCount" FROM (SELECT p.krw_price,p.usdt_amount requested,${actualSql} actual,${paidDate} paid_on FROM payment_logs p WHERE p.status='paid') z`)).rows[0]||{};
+    const optionRows=await Promise.all([q(`SELECT DISTINCT ${productSql} value${fromSql} WHERE p.status='paid' AND ${productSql}<>'' ORDER BY value`),q("SELECT DISTINCT request_type value FROM payment_logs WHERE status='paid' AND COALESCE(request_type,'')<>'' ORDER BY request_type")]);
+    const productLabels={renewal_banner:'배너연장',renewal_general:'일반광고 연장',renewal_recommended:'추천광고 연장',inquiry:'입점신청',apply:'입점신청',banner:'프리미엄배너',recommended:'추천광고',general:'일반광고'};
+    const sourceLabels={ad_request:'광고상품 신청',banner_request:'프리미엄배너 신청',inquiry:'입점신청',apply:'입점신청'};
+    const apiRows=rows.rows.map(x=>{const productKey=x.source_product_type||x.product_type||'',actual=x.actual_paid_usdt;return {...x,requested_usdt:x.usdt_amount,actual_paid_usdt:actual,product_label:productLabels[productKey]||productKey||'기타',source_type:x.request_type,source_label:sourceLabels[x.request_type]||x.request_type||'기타',txid_exists:!!x.payment_txid,destination_panel:['ad_request','banner_request'].includes(x.request_type)&&x.source_request_id?'adCenter':null,can_navigate:!!(['ad_request','banner_request'].includes(x.request_type)&&x.source_request_id)};});
+    const num=k=>Number(summary[k]||0);
+    return res.json({ok:true,rows:apiRows,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),summary:{todayKrw:num('todayKrw'),last7DaysKrw:num('last7DaysKrw'),monthKrw:num('monthKrw'),totalKrw:num('totalKrw'),paymentCount:num('paymentCount'),totalActualUsdt:num('totalActualUsdt'),amountMismatchCount:num('amountMismatchCount'),missingActualAmountCount:num('missingActualAmountCount')},filterOptions:{products:optionRows[0].rows.map(x=>({value:x.value,label:productLabels[x.value]||x.value})),sources:optionRows[1].rows.map(x=>({value:x.value,label:sourceLabels[x.value]||x.value}))}});
+  }catch(e){console.error('admin payments api failed',e);return res.status(500).json({ok:false,error:e.message||'admin_payments_load_failed'});}
+});
 app.get('/admin/api/reports',admin,async(req,res)=>{
   try{
     res.setHeader('Cache-Control','no-store');
