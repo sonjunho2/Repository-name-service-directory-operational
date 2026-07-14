@@ -964,19 +964,44 @@ app.get('/admin/api/vendors/:id',admin,async(req,res)=>{
   }
 });
 app.get('/admin/api/users',admin,async(req,res)=>{
-  const where=[];
-  const params=[];
-  const qText=String(req.query.q||'').trim().slice(0,100);
-  const role=String(req.query.role||'').trim();
-  const status=String(req.query.status||'').trim();
-  const orderBy={default:'u.id DESC',latest:'u.id DESC',admin:"CASE WHEN u.role='admin' THEN 0 ELSE 1 END,u.id DESC",blocked:"CASE WHEN u.status='blocked' THEN 0 ELSE 1 END,u.id DESC"}[String(req.query.sort||'default')]||'u.id DESC';
-  if(qText){params.push(`%${qText}%`);where.push(`(u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
-  if(['active','blocked','suspended','inactive'].includes(status)){params.push(status);where.push(`u.status=$${params.length}`);}
-  if(role==='admin')where.push("u.role='admin'");
-  else if(role==='vendor')where.push('(COALESCE(u.is_vendor,false)=true OR u.vendor_id IS NOT NULL)');
-  else if(role==='user')where.push("u.role<>'admin' AND COALESCE(u.is_vendor,false)=false AND u.vendor_id IS NULL");
-  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
-  return adminPagedJson(req,res,`SELECT u.id,u.username,u.nickname,u.role,u.status,COALESCE(u.is_vendor,false) is_vendor,u.vendor_id,u.created_at FROM users u${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*) FROM users u${whereSql}`,params);
+  try{
+    res.setHeader('Cache-Control','no-store');
+    const where=[],params=[];
+    const qText=String(req.query.q||'').trim().slice(0,100),role=String(req.query.role||'').trim(),status=String(req.query.status||'').trim(),link=String(req.query.vendor_link||'').trim();
+    const orderBy={default:'u.id DESC',latest:'u.id DESC',oldest:'u.id ASC',admin:"CASE WHEN u.role='admin' THEN 0 ELSE 1 END,u.id DESC",vendor:"CASE WHEN u.role<>'admin' AND (COALESCE(u.is_vendor,false) OR u.vendor_id IS NOT NULL) THEN 0 ELSE 1 END,u.id DESC",blocked:"CASE WHEN u.status<>'active' THEN 0 ELSE 1 END,u.id DESC",activity:'activity_total DESC,u.id DESC'}[String(req.query.sort||'default')]||'u.id DESC';
+    if(qText){params.push(`%${qText}%`);where.push(`(u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length} OR v.name ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.category ILIKE $${params.length})`);}
+    if(['active','blocked','suspended','inactive'].includes(status)){params.push(status);where.push(`u.status=$${params.length}`);}
+    if(role==='admin')where.push("u.role='admin'");
+    else if(role==='vendor')where.push("u.role<>'admin' AND (COALESCE(u.is_vendor,false)=true OR u.vendor_id IS NOT NULL)");
+    else if(role==='user')where.push("u.role<>'admin' AND COALESCE(u.is_vendor,false)=false AND u.vendor_id IS NULL");
+    if(link==='linked')where.push('u.vendor_id IS NOT NULL AND v.id IS NOT NULL');
+    else if(link==='unlinked')where.push('u.vendor_id IS NULL AND COALESCE(u.is_vendor,false)=false');
+    else if(link==='broken')where.push('((COALESCE(u.is_vendor,false)=true AND u.vendor_id IS NULL) OR (u.vendor_id IS NOT NULL AND v.id IS NULL))');
+    const whereSql=where.length?' WHERE '+where.join(' AND '):'',fromSql=' FROM users u LEFT JOIN vendors v ON v.id=u.vendor_id';
+    const {page,limit,offset}=adminPageParams(req),currentAdminId=parseInt(req.session.user?.id||0,10)||0;
+    const rows=await q(`SELECT u.id,u.username,u.nickname,u.role,u.status,COALESCE(u.is_vendor,false) is_vendor,u.vendor_id,u.created_at,
+      v.name vendor_name,v.category vendor_category,v.region vendor_region,v.status vendor_status,v.ad_type vendor_ad_type,v.expire_at vendor_expire_at,COALESCE(v.banner_active,false) vendor_banner_active,v.banner_until vendor_banner_until,
+      (SELECT COUNT(*)::int FROM reviews r WHERE r.user_id=u.id) review_count,
+      (SELECT COUNT(*)::int FROM favorites f WHERE f.user_id=u.id) favorite_count,
+      (SELECT COUNT(*)::int FROM inquiries i WHERE i.user_id=u.id) inquiry_count,
+      (SELECT COUNT(*)::int FROM inquiries i WHERE i.user_id=u.id AND i.status='new') pending_inquiry_count,
+      (SELECT COUNT(*)::int FROM vendor_update_requests r WHERE r.user_id=u.id) vendor_update_request_count,
+      (SELECT COUNT(*)::int FROM vendor_update_requests r WHERE r.user_id=u.id AND r.status='new') pending_vendor_update_count,
+      (SELECT COUNT(*)::int FROM payment_logs p WHERE p.user_id=u.id) payment_count,
+      ((SELECT COUNT(*) FROM reviews r WHERE r.user_id=u.id)+(SELECT COUNT(*) FROM favorites f WHERE f.user_id=u.id)+(SELECT COUNT(*) FROM inquiries i WHERE i.user_id=u.id)+(SELECT COUNT(*) FROM vendor_update_requests r WHERE r.user_id=u.id)+(SELECT COUNT(*) FROM payment_logs p WHERE p.user_id=u.id))::int activity_total,
+      CASE WHEN u.role='admin' THEN 'admin' WHEN COALESCE(u.is_vendor,false) OR u.vendor_id IS NOT NULL THEN 'vendor' ELSE 'user' END account_type,
+      CASE WHEN u.role='admin' THEN '관리자' WHEN COALESCE(u.is_vendor,false) OR u.vendor_id IS NOT NULL THEN '업체회원' ELSE '일반회원' END account_type_label,
+      CASE WHEN u.vendor_id IS NOT NULL AND v.id IS NOT NULL THEN 'linked' WHEN COALESCE(u.is_vendor,false) AND u.vendor_id IS NULL THEN 'broken' WHEN u.vendor_id IS NOT NULL AND v.id IS NULL THEN 'missing' ELSE 'unlinked' END vendor_link_status,
+      (u.role<>'admin' AND u.vendor_id IS NULL AND COALESCE(u.is_vendor,false)=false) can_link_vendor,
+      (u.role<>'admin' AND (u.vendor_id IS NOT NULL OR COALESCE(u.is_vendor,false))) can_unlink_vendor,
+      (u.id=${currentAdminId}) is_current_admin,
+      (u.role='admin' AND u.status='active' AND (SELECT COUNT(*) FROM users au WHERE au.role='admin' AND au.status='active')<=1) is_protected_admin,
+      (SELECT COUNT(*)::int FROM users other_u WHERE other_u.vendor_id=u.vendor_id AND u.vendor_id IS NOT NULL AND other_u.id<>u.id) duplicate_vendor_link_count
+      ${fromSql}${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const cnt=await q(`SELECT COUNT(*)${fromSql}${whereSql}`,params),total=Number(cnt.rows[0]?.count||0);
+    const summaryResult=await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE status='active')::int active,COUNT(*) FILTER(WHERE role<>'admin' AND COALESCE(is_vendor,false)=false AND vendor_id IS NULL)::int normal,COUNT(*) FILTER(WHERE role<>'admin' AND (COALESCE(is_vendor,false) OR vendor_id IS NOT NULL))::int vendor,COUNT(*) FILTER(WHERE role='admin')::int admin,COUNT(*) FILTER(WHERE status<>'active')::int restricted,(SELECT COUNT(*)::int FROM users su LEFT JOIN vendors sv ON sv.id=su.vendor_id WHERE (COALESCE(su.is_vendor,false) AND su.vendor_id IS NULL) OR (su.vendor_id IS NOT NULL AND sv.id IS NULL)) broken_vendor_links FROM users`);
+    res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows,summary:summaryResult.rows[0]||{}});
+  }catch(e){console.error('admin users api failed',e);res.status(500).json({ok:false,error:e.message||'admin_users_load_failed'});}
 });
 app.get('/admin/api/inquiries',admin,async(req,res)=>{
   const where=[];
@@ -2110,6 +2135,17 @@ app.post('/admin/link-user-vendor',admin,async(req,res)=>{
   if(req.get('x-requested-with'))return res.json({ok:true,vendor_id:vendorId,user_id:userId});
   res.redirect('/admin#users');
 });
+app.post('/admin/users/:id/unlink-vendor',admin,async(req,res)=>runAdminAction(req,res,'/admin#users',async()=>{
+  const userId=parseInt(req.params.id||0,10);
+  if(!userId){const error=new Error('잘못된 회원입니다.');error.status=400;throw error;}
+  const found=await q('SELECT u.id,u.username,u.role,u.is_vendor,u.vendor_id,v.name vendor_name FROM users u LEFT JOIN vendors v ON v.id=u.vendor_id WHERE u.id=$1',[userId]);
+  const user=found.rows[0];
+  if(!user){const error=new Error('회원을 찾을 수 없습니다.');error.status=404;throw error;}
+  if(user.role==='admin'){const error=new Error('관리자 계정의 업체 연결은 해제할 수 없습니다.');error.status=400;throw error;}
+  if(!user.vendor_id&&!user.is_vendor){const error=new Error('업체 연결 상태가 아닙니다.');error.status=409;throw error;}
+  await q('UPDATE users SET vendor_id=NULL,is_vendor=false WHERE id=$1',[userId]);
+  await logAdmin(req,'업체회원 연결해제','user',userId,`vendor_id=${user.vendor_id||'-'} / ${user.vendor_name||'연결 업체 없음'}`);
+}));
 
 
 

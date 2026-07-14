@@ -1683,7 +1683,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function value(id,fallback){var el=document.getElementById(id);return el?el.value:(fallback||'');}
   window.saveActiveAdminListState=function(key,page){key=key||window.getPanelKeyFromActivePanel();var patch={page:Math.max(1,Number(page||window.getAdminListState(key).page||1))};
     if(key==='vendors')Object.assign(patch,{q:value('vendorSearch'),status:value('vendorStatusFilter','all'),ad_type:value('vendorTypeFilter','all'),sort:value('vendorSortFilter','default')});
-    else if(key==='users')Object.assign(patch,{q:value('userSearch'),role:value('userRoleFilter','all'),status:value('userStatusFilter','all'),sort:value('userSortFilter','default')});
+    else if(key==='users')Object.assign(patch,{q:value('userSearch'),role:value('userRoleFilter','all'),status:value('userStatusFilter','all'),vendor_link:value('userVendorLinkFilter','all'),sort:value('userSortFilter','default')});
     else if(key==='inquiries'){var inquiryFilter=typeof currentInquiryFilter!=='undefined'?currentInquiryFilter:'all';Object.assign(patch,{q:value('inquirySearch'),filter:inquiryFilter,type:inquiryFilter==='apply-new'?'apply':(inquiryFilter==='apply'||inquiryFilter==='ad')?inquiryFilter:'all',status:inquiryFilter==='apply-new'?'new':(inquiryFilter!=='all'&&inquiryFilter!=='apply'&&inquiryFilter!=='ad')?inquiryFilter:'all',sort:value('inquirySort','latest')});}
     else if(key==='reports'){var reportFilter=typeof currentReportFilter!=='undefined'?currentReportFilter:'all';Object.assign(patch,{q:value('reportSearch'),filter:reportFilter,type:(reportFilter==='vendor'||reportFilter==='review')?reportFilter:'all',status:(reportFilter!=='all'&&reportFilter!=='vendor'&&reportFilter!=='review')?reportFilter:'all',sort:value('reportSort','latest')});}
     else if(key==='banners')Object.assign(patch,{q:value('bannerSearch'),source:value('bannerSourceFilter','all'),status:value('bannerStatusFilter','all'),sort:value('bannerSortFilter','default')});
@@ -1699,7 +1699,7 @@ document.addEventListener('DOMContentLoaded',function(){
   };
   window.restoreAdminListControls=function(key){var s=window.getAdminListState(key);var set=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null)el.value=v;};
     if(key==='vendors'){set('vendorSearch',s.q);set('vendorStatusFilter',s.status);set('vendorTypeFilter',s.ad_type);set('vendorSortFilter',s.sort);}
-    else if(key==='users'){set('userSearch',s.q);set('userRoleFilter',s.role);set('userStatusFilter',s.status);set('userSortFilter',s.sort);}
+    else if(key==='users'){set('userSearch',s.q);set('userRoleFilter',s.role);set('userStatusFilter',s.status);set('userVendorLinkFilter',s.vendor_link);set('userSortFilter',s.sort);}
     else if(key==='inquiries'){set('inquirySearch',s.q);set('inquirySort',s.sort);var inquiryRestore=s.filter||(s.type==='apply'&&s.status==='new'?'apply-new':(s.type&&s.type!=='all'?s.type:s.status))||'all';if(typeof currentInquiryFilter!=='undefined'){currentInquiryFilter=inquiryRestore;document.querySelectorAll('.inquiry-filterbar button').forEach(function(b){b.classList.toggle('on',inquiryRestore==='apply-new'?(b.dataset.filter==='apply'||b.dataset.filter==='new'):b.dataset.filter===inquiryRestore);});}}
     else if(key==='reports'){set('reportSearch',s.q);set('reportSort',s.sort);var reportRestore=s.filter||(s.type&&s.type!=='all'?s.type:s.status)||'all';if(typeof currentReportFilter!=='undefined'){currentReportFilter=reportRestore;document.querySelectorAll('.report-filterbar button').forEach(function(b){b.classList.toggle('on',b.dataset.filter===reportRestore);});}}
     else if(key==='banners'){set('bannerSearch',s.q);set('bannerSourceFilter',s.source);set('bannerStatusFilter',s.status);set('bannerSortFilter',s.sort);}
@@ -1922,7 +1922,9 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('vendorStatusFilter')?.addEventListener('change',function(){loadVendors(1);});
   document.getElementById('vendorFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadVendors(1);},0);});
 })();
-</script><script>
+</script><style>
+.user-summary-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-bottom:16px}.user-summary-card{padding:14px;border:1px solid #29324f;border-radius:14px;background:#080d18}.user-summary-card span{display:block;color:#9ca8c8;font-size:12px;font-weight:800}.user-summary-card strong{display:block;margin-top:5px;font-size:24px}.user-detail-panel{display:grid;gap:14px;padding:16px;border:1px solid #33405f;border-radius:16px;background:#080d18;text-align:left}.user-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.user-detail-box{padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:#0c1220;line-height:1.65}.user-detail-box h4{margin:0 0 8px}.user-link-warning{padding:10px 12px;border:1px solid #7a5a1e;border-radius:10px;background:rgba(255,220,77,.08);color:#ffd56a;font-weight:800}.user-detail-row>td{padding:8px 12px 16px!important}.user-activity-badges{display:flex;flex-wrap:wrap;gap:5px}.user-activity-badges span{font-size:11px}.user-vendor-meta{line-height:1.55}@media(max-width:1100px){.user-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.user-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:760px){.user-summary-grid,.user-detail-grid{grid-template-columns:1fr}}
+</style><script>
 (function(){
   if(window.__adminUsersModuleV3)return;
   window.__adminUsersModuleV3=true;
@@ -1931,6 +1933,15 @@ document.addEventListener('DOMContentLoaded',function(){
   var userServerLimit=20;
   var loading=false;
   var userSearchTimer=null;
+  function ensureUserTools(){
+    var panel=document.getElementById('users'),filters=panel?.querySelector('.user-admin-filter');if(!panel||!filters)return;
+    if(!document.getElementById('userSummaryGrid'))filters.insertAdjacentHTML('beforebegin','<div id="userSummaryGrid" class="user-summary-grid"></div>');
+    if(!document.getElementById('userVendorLinkFilter')){var select=document.createElement('select');select.id='userVendorLinkFilter';select.innerHTML='<option value="all">전체 업체연결</option><option value="linked">연결됨</option><option value="unlinked">미연결</option><option value="broken">연결오류</option>';var sort=document.getElementById('userSortFilter');filters.insertBefore(select,sort||filters.lastElementChild);}
+    var status=document.getElementById('userStatusFilter');[['suspended','정지'],['inactive','비활성']].forEach(function(item){if(status&&!status.querySelector('option[value="'+item[0]+'"]'))status.insertAdjacentHTML('beforeend','<option value="'+item[0]+'">'+item[1]+'</option>');});
+    var sort=document.getElementById('userSortFilter');if(sort){sort.innerHTML='<option value="default">최신가입순</option><option value="oldest">오래된순</option><option value="admin">관리자 우선</option><option value="vendor">업체회원 우선</option><option value="blocked">차단회원 우선</option><option value="activity">활동 많은 순</option>';}
+    window.restoreAdminListControls?.('users');
+  }
+  ensureUserTools();
 
   function userQuery(page){
     var params=new URLSearchParams();
@@ -1939,10 +1950,12 @@ document.addEventListener('DOMContentLoaded',function(){
     var search=(document.getElementById('userSearch')?.value||'').trim();
     var role=document.getElementById('userRoleFilter')?.value||'all';
     var status=document.getElementById('userStatusFilter')?.value||'all';
+    var vendorLink=document.getElementById('userVendorLinkFilter')?.value||'all';
     var sort=document.getElementById('userSortFilter')?.value||'default';
     if(search)params.set('q',search);
     if(role!=='all')params.set('role',role);
     if(status!=='all')params.set('status',status);
+    if(vendorLink!=='all')params.set('vendor_link',vendorLink);
     params.set('sort',sort);
     return params;
   }
@@ -1958,8 +1971,12 @@ document.addEventListener('DOMContentLoaded',function(){
     return '<span class="role-badge role-user">일반회원</span>';
   }
   function statusText(v){
-    return {active:'정상',blocked:'차단',suspended:'일시정지',inactive:'휴면'}[v]||v||'정상';
+    return {active:'정상',blocked:'차단',suspended:'정지',inactive:'비활성'}[v]||v||'정상';
   }
+  function vendorStatus(v){return {active:'운영중',hidden:'비노출',expired:'만료',inactive:'비활성',pending:'대기'}[v]||v||'-';}
+  function adText(v){return {none:'광고없음',general:'일반광고',recommended:'추천광고'}[v]||v||'광고없음';}
+  function userDate(v){if(!v)return '-';var d=new Date(v);return isNaN(d.getTime())?'-':d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});}
+  function expireText(v){if(!v)return '-';var d=new Date(String(v).slice(0,10)+'T00:00:00+09:00');if(isNaN(d.getTime()))return '-';var today=new Date();var kst=new Date(today.toLocaleString('en-US',{timeZone:'Asia/Seoul'}));kst.setHours(0,0,0,0);var days=Math.ceil((d-kst)/86400000);return String(v).slice(0,10)+' · '+(days<0?'만료':days===0?'D-Day':'D-'+days);}
   function option(value,current,label){
     return '<option value="'+esc(value)+'" '+(value===current?'selected':'')+'>'+esc(label)+'</option>';
   }
@@ -1968,25 +1985,27 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function statusOptions(current){
     current=current||'active';
-    return option('active',current,'정상')+option('blocked',current,'차단')+option('suspended',current,'일시정지')+option('inactive',current,'휴면');
+    return option('active',current,'정상')+option('blocked',current,'차단')+option('suspended',current,'정지')+option('inactive',current,'비활성');
   }
   function userRow(u){
-    var roleKey=u.role==='admin'?'admin':((u.is_vendor||u.vendor_id)?'vendor':'user');
-    var searchText=[u.username,u.nickname].filter(Boolean).join(' ').toLowerCase();
+    var roleKey=u.account_type|| (u.role==='admin'?'admin':((u.is_vendor||u.vendor_id)?'vendor':'user'));
+    var searchText=[u.username,u.nickname,u.vendor_name,u.vendor_region,u.vendor_category].filter(Boolean).join(' ').toLowerCase();
+    var link=u.vendor_link_status||'unlinked',vendorHtml=link==='linked'?'<div class="user-vendor-meta"><b>'+esc(u.vendor_name||'-')+'</b><br><small>'+esc(u.vendor_region||'-')+' / '+esc(u.vendor_category||'-')+'</small><br><span class="'+(u.vendor_status==='active'?'done':'pending')+'">'+esc(vendorStatus(u.vendor_status))+'</span> · '+esc(adText(u.vendor_ad_type))+'<br><small>'+esc(expireText(u.vendor_expire_at))+'</small></div>':link==='broken'?'<span class="pending">업체 연결 필요</span>':link==='missing'?'<span class="rejected">연결 업체 없음</span>':'<span class="image-none">미연결</span>';
+    var activity='<div class="user-activity-badges"><span class="pending">후기 '+Number(u.review_count||0)+'</span><span class="pending">찜 '+Number(u.favorite_count||0)+'</span><span class="pending">신청 '+Number(u.inquiry_count||0)+'</span><span class="pending">수정 '+Number(u.vendor_update_request_count||0)+'</span><span class="pending">결제 '+Number(u.payment_count||0)+'</span></div>';
+    var protectedAttr=u.is_current_admin?' disabled title="현재 관리자 계정은 역할과 상태를 변경할 수 없습니다."':'';
+    var manage='<button type="button" class="user-detail-toggle" data-id="'+esc(u.id)+'">상세보기</button><button type="button" class="user-save-btn" data-id="'+esc(u.id)+'">저장</button>';
+    if(u.vendor_id)manage+='<button type="button" class="user-vendor-view-btn" data-vendor-name="'+esc(u.vendor_name||'')+'">업체관리 보기</button>';
+    if(u.can_unlink_vendor)manage+='<button type="button" class="user-unlink-btn" data-id="'+esc(u.id)+'">연결해제</button>';
+    if(roleKey==='user'&&!u.is_current_admin)manage+='<button type="button" class="user-delete-btn" data-id="'+esc(u.id)+'">삭제</button>';
     return '<tr class="user-row" data-id="'+esc(u.id)+'" data-text="'+esc(searchText)+'" data-role="'+esc(roleKey)+'" data-status="'+esc(u.status||'active')+'">'+
       '<td>'+esc(u.id)+'</td>'+
-      '<td>'+esc(u.username||'')+'</td>'+
+      '<td><b>'+esc(u.username||'')+'</b><br><input name="nickname" value="'+esc(u.nickname||'')+'" autocomplete="off"></td>'+
       '<td>'+roleBadge(u)+'</td>'+
-      '<td><input name="nickname" value="'+esc(u.nickname||'')+'" autocomplete="off"></td>'+
-      '<td><select name="role">'+roleOptions(u.role||'user')+'</select></td>'+
-      '<td><select name="status">'+statusOptions(u.status||'active')+'</select></td>'+
-      '<td><input name="password" placeholder="새 비번" autocomplete="new-password"></td>'+
-      '<td><div class="row-actions">'+
-        '<button type="button" class="user-save-btn" data-id="'+esc(u.id)+'">저장</button>'+
-        (u.role==='admin'?'':'<button type="button" class="user-delete-btn" data-id="'+esc(u.id)+'">삭제</button>')+
-      '</div></td>'+
-    '</tr>';
+      '<td>'+vendorHtml+'</td><td>'+activity+'</td>'+
+      '<td><span class="'+(u.status==='active'?'done':'rejected')+'">'+esc(statusText(u.status))+'</span><br><select name="role"'+protectedAttr+'>'+roleOptions(u.role||'user')+'</select><select name="status"'+protectedAttr+'>'+statusOptions(u.status||'active')+'</select><input name="password" placeholder="새 비밀번호(6자 이상)" autocomplete="new-password">'+(u.is_protected_admin?'<small class="user-link-warning">마지막 정상 관리자 보호 계정</small>':'')+'</td>'+
+      '<td>'+esc(userDate(u.created_at))+'</td><td><div class="row-actions">'+manage+'</div></td></tr>'+userDetail(u);
   }
+  function userDetail(u){var warnings=[];if(u.vendor_link_status==='broken')warnings.push('업체회원이지만 vendor_id가 없습니다.');if(u.vendor_link_status==='missing')warnings.push('vendor_id에 해당하는 업체가 없습니다.');if(Number(u.duplicate_vendor_link_count||0)>0)warnings.push('같은 업체가 다른 회원에게도 연결되어 있습니다.');if(u.status!=='active'&&(u.is_vendor||u.vendor_id))warnings.push('제한 상태인 업체회원입니다.');if(u.vendor_expire_at&&new Date(u.vendor_expire_at)<new Date())warnings.push('만료된 업체와 연결되어 있습니다.');var warning=warnings.length?'<div class="user-link-warning">'+warnings.map(esc).join('<br>')+'</div>':'';return '<tr class="user-detail-row" data-user-detail="'+esc(u.id)+'" hidden><td colspan="8"><div class="user-detail-panel">'+warning+'<div class="user-detail-grid"><section class="user-detail-box"><h4>회원정보</h4>ID '+esc(u.id)+'<br>아이디 '+esc(u.username||'-')+'<br>닉네임 '+esc(u.nickname||'-')+'<br>역할 '+esc(u.role||'-')+'<br>상태 '+esc(statusText(u.status))+'<br>가입일 '+esc(userDate(u.created_at))+'</section><section class="user-detail-box"><h4>업체연결</h4>업체 ID '+esc(u.vendor_id||'-')+'<br>업체명 '+esc(u.vendor_name||'-')+'<br>지역/업종 '+esc(u.vendor_region||'-')+' / '+esc(u.vendor_category||'-')+'<br>업체상태 '+esc(vendorStatus(u.vendor_status))+'<br>광고 '+esc(adText(u.vendor_ad_type))+'<br>광고만료 '+esc(expireText(u.vendor_expire_at))+'<br>배너 '+(u.vendor_banner_active?'노출':'미노출')+'<br>배너만료 '+esc(expireText(u.vendor_banner_until))+'</section><section class="user-detail-box"><h4>활동정보</h4>작성 후기 '+Number(u.review_count||0)+'<br>찜 '+Number(u.favorite_count||0)+'<br>입점·문의 '+Number(u.inquiry_count||0)+' (대기 '+Number(u.pending_inquiry_count||0)+')<br>업체 수정요청 '+Number(u.vendor_update_request_count||0)+' (대기 '+Number(u.pending_vendor_update_count||0)+')<br>결제내역 '+Number(u.payment_count||0)+'</section></div></div></td></tr>';}
   function usersPanel(){
     return document.getElementById('users');
   }
@@ -2059,10 +2078,9 @@ document.addEventListener('DOMContentLoaded',function(){
     pager.appendChild(info);
   }
   function fixHeaders(table){
-    var ths=table.querySelectorAll('th');
-    var labels=['ID','아이디','계정구분','닉네임','권한','상태','새 비밀번호','관리'];
-    ths.forEach(function(th,i){if(labels[i])th.textContent=labels[i];});
+    var header=table.querySelector('tr');if(header)header.innerHTML='<th>ID</th><th>회원</th><th>계정구분</th><th>연결 업체</th><th>활동</th><th>계정상태/수정</th><th>가입일</th><th>관리</th>';
   }
+  function renderSummary(summary){var root=document.getElementById('userSummaryGrid');if(!root)return;var items=[['전체 회원','total'],['정상 회원','active'],['일반회원','normal'],['업체회원','vendor'],['관리자','admin'],['차단·정지','restricted'],['업체 미연결 경고','broken_vendor_links']];root.innerHTML=items.map(function(item){return '<div class="user-summary-card"><span>'+item[0]+'</span><strong>'+Number(summary?.[item[1]]||0).toLocaleString('ko-KR')+'</strong></div>';}).join('');}
   async function loadUsers(page){
     page=page||Number(window.getAdminListState?.('users').page||1);
     if(loading){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(function(){loadUsers(page);},100);return;}
@@ -2085,6 +2103,7 @@ document.addEventListener('DOMContentLoaded',function(){
       if(header)table.appendChild(header);
       fixHeaders(table);
       (data.rows||[]).forEach(function(u){table.insertAdjacentHTML('beforeend',userRow(u));});
+      renderSummary(data.summary||{});
       if(pager)renderPager(pager,data);
       loadOk=true;
     }catch(e){
@@ -2095,6 +2114,7 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }
   window.loadAdminUsers=loadUsers;
+  function refreshUserRelated(){if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(window.getAdminListState?.('vendors').page||1);if(typeof window.loadDashboardSummary==='function')window.loadDashboardSummary();}
   async function saveUser(btn){
     window.saveActiveAdminListState?.('users',userServerPage);
     var row=btn.closest('tr');
@@ -2115,6 +2135,7 @@ document.addEventListener('DOMContentLoaded',function(){
       try{data=await res.json();}catch(e){}
       if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
       await loadUsers(userServerPage);
+      refreshUserRelated();
       toast('회원 정보가 저장되었습니다.','ok');
     }catch(e){
       toast('저장 실패: '+(e.message||'오류'),'bad');
@@ -2128,7 +2149,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var row=btn.closest('tr');
     if(!row)return;
     var id=btn.dataset.id||row.dataset.id;
-    if(!confirm('회원을 삭제할까요? 삭제 후 되돌리기 어렵습니다.'))return;
+    if(!confirm('이 회원 계정을 삭제할까요? 작성한 일부 기록의 작성자 정보가 변경될 수 있습니다.'))return;
     var old=btn.textContent;
     btn.disabled=true;
     btn.textContent='삭제중...';
@@ -2139,13 +2160,18 @@ document.addEventListener('DOMContentLoaded',function(){
       if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
       toast('회원이 삭제되었습니다.','warn');
       await loadUsers(userServerPage);
+      refreshUserRelated();
     }catch(e){
       toast('삭제 실패: '+(e.message||'오류'),'bad');
       btn.disabled=false;
       btn.textContent=old;
     }
   }
+  async function unlinkUser(btn){var id=btn.dataset.id;if(!confirm('이 회원과 업체의 연결을 해제할까요? 업체 데이터와 광고·결제 기록은 삭제되지 않습니다.'))return;var old=btn.textContent;btn.disabled=true;btn.textContent='해제중...';try{var res=await fetch('/admin/users/'+encodeURIComponent(id)+'/unlink-vendor',{method:'POST',body:new FormData(),credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json'}});var data=await res.json();if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));await loadUsers(userServerPage);refreshUserRelated();toast('업체 연결을 해제했습니다.','ok');}catch(e){toast('연결해제 실패: '+(e.message||'오류'),'bad');btn.disabled=false;btn.textContent=old;}}
   document.addEventListener('click',function(e){
+    var detail=e.target.closest('.user-detail-toggle');if(detail){var row=document.querySelector('.user-detail-row[data-user-detail="'+detail.dataset.id+'"]');if(row){row.hidden=!row.hidden;detail.textContent=row.hidden?'상세보기':'상세닫기';}return;}
+    var unlink=e.target.closest('.user-unlink-btn');if(unlink){e.preventDefault();e.stopPropagation();unlinkUser(unlink);return;}
+    var vendor=e.target.closest('.user-vendor-view-btn');if(vendor){var name=vendor.dataset.vendorName||'';window.saveActiveAdminListState?.('users',userServerPage);if(typeof showAdminPanel==='function')showAdminPanel('vendors');history.replaceState(null,'','#vendors');var search=document.getElementById('vendorSearch');if(search)search.value=name;window.setAdminListState?.('vendors',{page:1,q:name});if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(1);return;}
     var save=e.target.closest('.user-save-btn');
     if(save){e.preventDefault();e.stopPropagation();saveUser(save);return;}
     var del=e.target.closest('.user-delete-btn');
@@ -2157,6 +2183,7 @@ document.addEventListener('DOMContentLoaded',function(){
   });
   document.getElementById('userRoleFilter')?.addEventListener('change',function(){loadUsers(1);});
   document.getElementById('userStatusFilter')?.addEventListener('change',function(){loadUsers(1);});
+  document.getElementById('userVendorLinkFilter')?.addEventListener('change',function(){loadUsers(1);});
   document.getElementById('userFilterReset')?.addEventListener('click',function(){setTimeout(function(){loadUsers(1);},0);});
 })();
 </script><script>
@@ -3072,6 +3099,7 @@ document.addEventListener('DOMContentLoaded',function(){
   }
 
   async function submitVendorLink(form){
+    if(!confirm('선택한 회원을 이 업체의 업체회원으로 연결할까요? 연결 후 해당 회원은 업체 대시보드를 사용할 수 있습니다.'))return;
     var fd=new FormData(form);
     var btn=form.querySelector('button');
     var old=btn?btn.textContent:'';
@@ -3084,7 +3112,8 @@ document.addEventListener('DOMContentLoaded',function(){
       toast('업체회원으로 연결되었습니다.','ok');
       window.saveActiveAdminListState?.('users',window.getAdminListState?.('users').page||1);
       if(typeof window.reloadAdminPanelList==='function')await window.reloadAdminPanelList('users');
-      else setTimeout(function(){location.reload();},700);
+      if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(window.getAdminListState?.('vendors').page||1);
+      if(typeof window.loadDashboardSummary==='function')window.loadDashboardSummary();
     }catch(e){
       toast('업체회원 연결 실패: '+(e.message||'오류'),'bad');
     }finally{
@@ -3121,6 +3150,9 @@ document.addEventListener('DOMContentLoaded',function(){
 
   document.addEventListener('DOMContentLoaded',function(){
     fixUserHeaders();
+    var form=document.querySelector('form[action="/admin/link-user-vendor"]'),vendorSelect=form?.elements.vendor_id,userSelect=form?.elements.user_id;
+    if(vendorSelect&&Array.isArray(window.ADMIN_VENDORS||ADMIN_VENDORS)){Array.from(vendorSelect.options).forEach(function(option){var vendor=(window.ADMIN_VENDORS||ADMIN_VENDORS).find(function(v){return String(v.id)===String(option.value);});if(vendor?.linked_username){option.disabled=true;option.textContent+=' · 연결됨: '+vendor.linked_username;}});}
+    if(userSelect)Array.from(userSelect.options).forEach(function(option){if(option.textContent.includes('(업체회원)'))option.disabled=true;});
     setInterval(addLiveRetry,2000);
   });
   window.addEventListener('hashchange',function(){setTimeout(fixUserHeaders,300);});
@@ -3871,7 +3903,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   var controlMap={
     vendorSearch:'vendors',vendorTypeFilter:'vendors',vendorStatusFilter:'vendors',vendorSortFilter:'vendors',
-    userSearch:'users',userRoleFilter:'users',userStatusFilter:'users',userSortFilter:'users',
+    userSearch:'users',userRoleFilter:'users',userStatusFilter:'users',userVendorLinkFilter:'users',userSortFilter:'users',
     inquirySort:'inquiries',reportSort:'reports',
     bannerSearch:'banners',bannerSourceFilter:'banners',bannerStatusFilter:'banners',bannerSortFilter:'banners',
     noticeSearch:'notices',noticePinnedFilter:'notices',noticeSortFilter:'notices',
@@ -3883,7 +3915,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function loadFiltered(key,delay){window.setAdminListState?.(key,{page:1});clearTimeout(searchTimers[key]);searchTimers[key]=setTimeout(function(){var fn=window[loadMap[key]];if(typeof fn==='function')fn(1);},delay);}
   document.addEventListener('input',function(e){var key=controlMap[e.target?.id];if(!key||!searchIds.has(e.target.id))return;e.stopImmediatePropagation();loadFiltered(key,300);},true);
   document.addEventListener('change',function(e){var key=controlMap[e.target?.id];if(!key||searchIds.has(e.target.id))return;e.stopImmediatePropagation();loadFiltered(key,0);},true);
-  var resetMap={vendorFilterReset:{key:'vendors',values:{vendorSearch:'',vendorTypeFilter:'all',vendorStatusFilter:'all',vendorSortFilter:'default'}},userFilterReset:{key:'users',values:{userSearch:'',userRoleFilter:'all',userStatusFilter:'all',userSortFilter:'default'}},bannerFilterReset:{key:'banners',values:{bannerSearch:'',bannerSourceFilter:'all',bannerStatusFilter:'all',bannerSortFilter:'default'}},noticeFilterReset:{key:'notices',values:{noticeSearch:'',noticePinnedFilter:'all',noticeSortFilter:'default'}},reviewFilterReset:{key:'reviews',values:{reviewSearch:'',reviewRatingFilter:'all',reviewSortFilter:'default'}}};
+  var resetMap={vendorFilterReset:{key:'vendors',values:{vendorSearch:'',vendorTypeFilter:'all',vendorStatusFilter:'all',vendorSortFilter:'default'}},userFilterReset:{key:'users',values:{userSearch:'',userRoleFilter:'all',userStatusFilter:'all',userVendorLinkFilter:'all',userSortFilter:'default'}},bannerFilterReset:{key:'banners',values:{bannerSearch:'',bannerSourceFilter:'all',bannerStatusFilter:'all',bannerSortFilter:'default'}},noticeFilterReset:{key:'notices',values:{noticeSearch:'',noticePinnedFilter:'all',noticeSortFilter:'default'}},reviewFilterReset:{key:'reviews',values:{reviewSearch:'',reviewRatingFilter:'all',reviewSortFilter:'default'}}};
   document.addEventListener('click',function(e){var cfg=resetMap[e.target?.id];if(!cfg)return;e.preventDefault();e.stopImmediatePropagation();Object.entries(cfg.values).forEach(function(entry){var el=document.getElementById(entry[0]);if(el)el.value=entry[1];});loadFiltered(cfg.key,0);},true);
   document.addEventListener('DOMContentLoaded',window.scheduleAdminPanelLoad);
   window.addEventListener('hashchange',window.scheduleAdminPanelLoad);
