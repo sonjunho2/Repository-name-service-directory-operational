@@ -1074,6 +1074,8 @@ body>header:not(.top)>.site-brand-center span{
 .mini-badge.protected{background:#33280d;color:#ffd56a;border-color:#6f5620}
 .board-row-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
 .board-slug-help{display:block;margin-top:5px;color:#8f9ab8;font-size:11px;overflow-wrap:anywhere}
+.private-board-note.inquiry-note{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:14px 16px;border:1px solid #33405f;border-radius:16px;background:rgba(8,13,24,.72);margin-bottom:16px}
+.inquiry-status-help{margin:5px 0 0;color:#aeb7d0;font-size:13px;line-height:1.5}
 @media(max-width:760px){
   .public-ad-banner.premium-showcase{
     margin-top:10px!important;

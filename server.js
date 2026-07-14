@@ -121,7 +121,7 @@ async function ensureSchema(){
     for(const board of [['공지사항','notice','notice','admin'],['자유게시판','free','community','member'],['이용후기','reviews','review','member'],['제보/신고','reports','report','member'],['광고문의','ad-inquiry','qna','member']]){
       await q('INSERT INTO board_categories(title,slug,type,write_role) VALUES($1,$2,$3,$4) ON CONFLICT (slug) DO NOTHING',board);
     }
-    await q("UPDATE board_categories SET layout_type='qna' WHERE slug='ad-inquiry' AND (layout_type IS NULL OR layout_type='list')");
+    await q("UPDATE board_categories SET layout_type='private',type='inquiry',write_role='member',comment_enabled=true WHERE slug='ad-inquiry'");
     await q("UPDATE board_categories SET layout_type='private' WHERE slug='reports' AND (layout_type IS NULL OR layout_type='list')");
 
   }
