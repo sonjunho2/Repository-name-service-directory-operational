@@ -989,12 +989,39 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
   if(['apply','ad'].includes(type)){params.push(type);where.push(`i.type=$${params.length}`);}
   if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`i.status=$${params.length}`);}
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
-  const fromSql=` FROM inquiries i LEFT JOIN users u ON u.id=i.user_id LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true`;
+  const fromSql=` FROM inquiries i
+  LEFT JOIN users u ON u.id=i.user_id
+  LEFT JOIN vendors linked_v ON linked_v.id=u.vendor_id
+  LEFT JOIN LATERAL (
+    SELECT v.id,v.name,v.image_data
+    FROM vendors v
+    WHERE v.id=i.vendor_id
+       OR (i.vendor_id IS NULL AND LOWER(TRIM(v.name))=LOWER(TRIM(i.company_name)))
+       OR (i.vendor_id IS NULL AND COALESCE(TRIM(i.phone),'')<>'' AND REGEXP_REPLACE(COALESCE(v.phone,''),'[^0-9]','','g')=REGEXP_REPLACE(i.phone,'[^0-9]','','g'))
+    ORDER BY CASE WHEN v.id=i.vendor_id THEN 0 WHEN LOWER(TRIM(v.name))=LOWER(TRIM(i.company_name)) THEN 1 ELSE 2 END,v.id DESC
+    LIMIT 1
+  ) iv ON true
+  LEFT JOIN LATERAL (
+    SELECT v.image_data FROM vendors v
+    WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND LOWER(TRIM(v.name))=LOWER(TRIM(i.company_name)))
+    ORDER BY v.id DESC LIMIT 1
+  ) image_v ON true`;
   return adminPagedJson(req,res,`SELECT i.id,i.type,i.company_name,i.name,i.phone,i.kakao,i.email,i.category,i.region,i.content,i.status,i.banner_status,i.user_id,i.vendor_id,i.created_at,
-  u.username applicant_username,u.nickname applicant_nickname,
-  CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(iv.image_data,'')) IS NOT NULL THEN true ELSE false END has_main_image_data,
+  u.username applicant_username,u.nickname applicant_nickname,COALESCE(u.is_vendor,false) applicant_is_vendor,u.vendor_id applicant_vendor_id,
+  linked_v.name linked_vendor_name,iv.id matched_vendor_id,iv.name matched_vendor_name,
+  (SELECT COUNT(*)::int FROM vendors dv WHERE LOWER(TRIM(dv.name))=LOWER(TRIM(i.company_name))) duplicate_company_count,
+  (SELECT COUNT(*)::int FROM vendors dv WHERE COALESCE(TRIM(i.phone),'')<>'' AND REGEXP_REPLACE(COALESCE(dv.phone,''),'[^0-9]','','g')=REGEXP_REPLACE(i.phone,'[^0-9]','','g')) duplicate_phone_count,
+  (i.type='apply' AND i.status='new') can_approve,
+  CONCAT_WS(' · ',
+    CASE WHEN COALESCE(u.is_vendor,false) AND u.vendor_id IS NOT NULL AND (i.vendor_id IS NULL OR u.vendor_id<>i.vendor_id) THEN '신청 회원이 이미 다른 업체와 연결되어 있습니다.' END,
+    CASE WHEN EXISTS(SELECT 1 FROM vendors dv WHERE LOWER(TRIM(dv.name))=LOWER(TRIM(i.company_name))) THEN '동일 업체명이 존재합니다.' END,
+    CASE WHEN COALESCE(TRIM(i.phone),'')<>'' AND EXISTS(SELECT 1 FROM vendors dv WHERE REGEXP_REPLACE(COALESCE(dv.phone,''),'[^0-9]','','g')=REGEXP_REPLACE(i.phone,'[^0-9]','','g')) THEN '동일 연락처 업체가 존재합니다.' END,
+    CASE WHEN i.vendor_id IS NOT NULL AND u.vendor_id IS NOT NULL AND i.vendor_id<>u.vendor_id THEN '신청서 업체와 회원 연결 업체가 다릅니다.' END,
+    CASE WHEN i.status<>'new' THEN '이미 처리된 신청입니다.' END
+  ) approval_warning,
+  CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(image_v.image_data,'')) IS NOT NULL THEN true ELSE false END has_main_image_data,
   CASE WHEN COALESCE(i.banner_image_data,'')<>'' THEN true ELSE false END has_banner_image_data,
-  CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(iv.image_data,'')) IS NOT NULL THEN true ELSE false END has_image_data
+  CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(image_v.image_data,'')) IS NOT NULL THEN true ELSE false END has_image_data
   ${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
 app.get('/admin/api/payments',admin,async(req,res)=>adminPagedJson(req,res,`SELECT p.*,v.name vendor_name,u.username,ar.product_type source_product_type FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id LEFT JOIN vendor_ad_requests ar ON p.request_type='ad_request' AND ar.id=p.request_id WHERE p.status='paid' ORDER BY p.paid_at DESC,p.id DESC`,`SELECT COUNT(*) FROM payment_logs WHERE status='paid'`));

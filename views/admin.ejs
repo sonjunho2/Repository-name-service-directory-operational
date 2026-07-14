@@ -1229,7 +1229,7 @@ function sortInquiries(){
     if(mode==='type')return (a.dataset.type||'').localeCompare(b.dataset.type||'')||bid-aid;
     return bid-aid;
   });
-  rows.forEach(r=>table.appendChild(r));
+  rows.forEach(r=>{table.appendChild(r);const detail=table.querySelector('.inquiry-detail-row[data-detail-id="'+r.dataset.id+'"]');if(detail)table.appendChild(detail);});
 }
 document.querySelectorAll('.inquiry-filterbar button').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('.inquiry-filterbar button').forEach(b=>b.classList.remove('on'));
@@ -1637,7 +1637,9 @@ document.addEventListener('DOMContentLoaded',function(){
     reader.readAsText(file,'utf-8');
   });
 });
-</script><script>
+</script><style>
+.inquiry-review-detail{display:grid;gap:14px;padding:16px;border:1px solid #33405f;border-radius:16px;background:#080d18;text-align:left}.inquiry-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inquiry-review-box{padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:#0c1220;line-height:1.65}.inquiry-review-box h4{margin:0 0 8px}.inquiry-warning{padding:12px;border:1px solid #7a5a1e;border-radius:12px;background:rgba(255,220,77,.08);color:#ffd56a;font-weight:800}.inquiry-detail-row>td{padding:8px 12px 16px!important}.inquiry-detail-image{display:block;max-width:260px;max-height:325px;border-radius:12px;object-fit:contain}.inquiry-review-badges{display:flex;flex-wrap:wrap;gap:6px}.inquiry-review-toggle{white-space:nowrap}@media(max-width:760px){.inquiry-review-grid{grid-template-columns:1fr}}
+</style><script>
 (function(){
   function formPath(form){
     return (form.getAttribute('action')||'').toLowerCase();
@@ -2184,7 +2186,9 @@ document.addEventListener('DOMContentLoaded',function(){
   function statusText(x){
     if(x.status==='approved')return '승인';
     if(x.status==='rejected')return '반려';
-    return '대기';
+    if(x.status==='new')return '승인대기';
+    if(x.status==='cancelled')return '취소';
+    return x.status||'-';
   }
   function inquiryDate(v){
     if(!v)return '-';
@@ -2194,6 +2198,20 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function imageButtons(x){
     return x.has_image_data?'<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiries/'+esc(x.id)+'/image" data-title="'+esc(x.company_name||'대표이미지')+'">대표이미지 보기</button>':'<span class="image-none">이미지 없음</span>';
+  }
+  function reviewBadges(x){
+    var badges=[];
+    if(x.type==='apply'&&x.status==='new')badges.push('<span class="pending">검토 가능</span>');
+    if(Number(x.duplicate_company_count||0)>0||Number(x.duplicate_phone_count||0)>0)badges.push('<span class="rejected">기존 업체 확인 필요</span>');
+    if(x.applicant_is_vendor)badges.push('<span class="rejected">이미 업체회원</span>');
+    if(x.applicant_vendor_id||x.vendor_id)badges.push('<span class="done">연결업체 있음</span>');
+    if(!x.has_image_data)badges.push('<span class="image-none">대표이미지 없음</span>');
+    return '<div class="inquiry-review-badges">'+badges.join('')+'</div>';
+  }
+  function approvalConfirm(x){
+    return (Number(x.duplicate_company_count||0)>0||Number(x.duplicate_phone_count||0)>0)
+      ?'동일 업체명 또는 연락처가 존재합니다. 기존 업체와 중복되지 않는지 확인한 후 승인하세요. 계속할까요?'
+      :'이 입점신청을 승인하면 업체가 생성되거나 연결되고 신청 회원이 업체회원으로 설정됩니다. 승인할까요?';
   }
   function actions(x){
     if(x.status==='approved'){
@@ -2205,32 +2223,46 @@ document.addEventListener('DOMContentLoaded',function(){
       }
       return approved;
     }
-    if(x.status==='rejected')return '<span class="rejected">반려</span>';
+    if(x.status!=='new')return '<span class="'+(x.status==='rejected'?'rejected':'pending')+'">'+esc(statusText(x))+'</span>';
     var html='';
-    if(x.type==='apply'){
-      html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn">업체등록</button></form>';
-    }
-    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn">반려</button></form>';
+    if(x.type!=='apply')return '<span class="pending">검토대기</span>';
+    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn" onclick="if(!confirm(\''+esc(approvalConfirm(x))+'\'))return false;this.form.dataset.safeConfirmDone=\'1\'">업체등록</button></form>';
+    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn" onclick="if(!confirm(\'이 입점신청을 반려할까요? 반려 후에는 승인 버튼이 표시되지 않습니다.\'))return false;this.form.dataset.safeConfirmDone=\'1\'">반려</button></form>';
     return html;
   }
+  function detailHtml(x){
+    var warnings=[];
+    if(Number(x.duplicate_company_count||0)>0)warnings.push('동일한 업체명으로 등록된 업체가 '+Number(x.duplicate_company_count)+'개 있습니다. 승인 전 기존 업체 여부를 확인하세요.');
+    if(Number(x.duplicate_phone_count||0)>0)warnings.push('동일한 연락처를 사용하는 업체가 '+Number(x.duplicate_phone_count)+'개 있습니다.');
+    if(x.applicant_is_vendor&&x.applicant_vendor_id&&(x.vendor_id==null||String(x.applicant_vendor_id)!==String(x.vendor_id)))warnings.push('이 회원은 이미 다른 업체와 연결되어 있습니다.');
+    if(x.vendor_id&&x.applicant_vendor_id&&String(x.vendor_id)!==String(x.applicant_vendor_id))warnings.push('신청서 연결 업체와 회원 연결 업체가 다릅니다.');
+    var warningHtml=warnings.length?'<div class="inquiry-warning">'+warnings.map(esc).join('<br>')+'</div>':'';
+    var vendorLink=x.matched_vendor_id?'<br><button type="button" class="banner-btn inquiry-vendor-link" data-vendor-id="'+esc(x.matched_vendor_id)+'">업체관리에서 확인</button>':'';
+    var image=x.has_image_data?'<img class="inquiry-detail-image" loading="lazy" src="/admin/inquiries/'+esc(x.id)+'/image" alt="'+esc(x.company_name||'대표이미지')+'">':'<span class="image-none">대표이미지 없음</span>';
+    return '<tr class="inquiry-detail-row" data-detail-id="'+esc(x.id)+'" hidden><td colspan="9"><div class="inquiry-review-detail">'+warningHtml+'<div class="inquiry-review-grid">'+
+      '<section class="inquiry-review-box"><h4>신청업체</h4><b>'+esc(x.company_name||'-')+'</b><br>'+esc(x.region||'-')+' / '+esc(x.category||'-')+'<hr><div class="memo">'+esc(x.content||'-')+'</div></section>'+
+      '<section class="inquiry-review-box"><h4>신청자</h4>담당자: '+esc(x.name||'-')+'<br>아이디: '+esc(x.applicant_username||'-')+'<br>닉네임: '+esc(x.applicant_nickname||'-')+'<br>회원상태: '+(x.applicant_is_vendor?'업체회원':'일반회원')+'<br>현재 연결 업체: '+esc(x.linked_vendor_name||'-')+'</section>'+
+      '<section class="inquiry-review-box"><h4>연락처</h4>전화: '+esc(x.phone||'-')+'<br>카카오: '+esc(x.kakao||'-')+'<br>이메일: '+esc(x.email||'-')+'</section>'+
+      '<section class="inquiry-review-box"><h4>대표이미지</h4>'+image+'</section>'+
+      '<section class="inquiry-review-box"><h4>중복확인</h4>동일 업체명: '+esc(x.duplicate_company_count||0)+'개<br>동일 연락처: '+esc(x.duplicate_phone_count||0)+'개<br>일치 업체: '+esc(x.matched_vendor_name||'-')+' (ID '+esc(x.matched_vendor_id||'-')+')<br>신청서 업체 ID: '+esc(x.vendor_id||'-')+'<br>회원 업체 ID: '+esc(x.applicant_vendor_id||'-')+vendorLink+'</section>'+
+      '<section class="inquiry-review-box"><h4>처리정보</h4>신청상태: '+esc(statusText(x))+'<br>배너등록: '+esc(x.banner_status==='approved'?'완료':'미완료')+'<br>신청일: '+esc(inquiryDate(x.created_at))+'</section>'+
+      '</div></div></td></tr>';
+  }
   function rowHtml(x){
-    var statusKey=x.status==='approved'?'approved':(x.status==='rejected'?'rejected':'new');
+    var statusKey=x.status||'new';
     var typeKey=x.type==='apply'?'apply':'ad';
     var searchText=[x.company_name,x.name,x.phone,x.kakao,x.email,x.region,x.category].filter(Boolean).join(' ').toLowerCase();
     return '<tr class="inquiry-row" data-id="'+esc(x.id)+'" data-status="'+esc(statusKey)+'" data-type="'+esc(typeKey)+'" data-search="'+esc(searchText)+'">'+
       '<td>'+esc(x.id)+'</td>'+
-      '<td>'+esc(typeLabel(x))+'</td>'+
-      '<td>'+esc(x.applicant_username||x.applicant_nickname||'-')+'</td>'+
-      '<td>'+esc(x.company_name||'-')+'</td>'+
-      '<td>'+esc(x.name||'-')+'</td>'+
+      '<td><b>'+esc(x.company_name||'-')+'</b><br><small>'+esc(x.region||'-')+' / '+esc(x.category||'-')+'</small></td>'+
+      '<td>'+esc(x.applicant_nickname||'-')+' / '+esc(x.applicant_username||'-')+'<br><small>'+(x.applicant_is_vendor?'업체회원':'일반회원')+'</small></td>'+
       '<td>'+esc(x.phone||'-')+'<br>'+esc(x.kakao||'')+'<br>'+esc(x.email||'')+'</td>'+
-      '<td>'+esc(x.region||'-')+'/'+esc(x.category||'-')+'</td>'+
-      '<td>'+esc(x.content||'-')+'</td>'+
       '<td>'+imageButtons(x)+'</td>'+
+      '<td>'+reviewBadges(x)+'</td>'+
       '<td><span class="'+(statusKey==='approved'?'done':statusKey==='rejected'?'rejected':'pending')+'">'+esc(statusText(x))+'</span></td>'+
       '<td>'+esc(inquiryDate(x.created_at))+'</td>'+
-      '<td>'+actions(x)+'</td>'+
-      '</tr>';
+      '<td><button type="button" class="image-preview-btn inquiry-review-toggle" data-inquiry-id="'+esc(x.id)+'" aria-expanded="false">상세보기</button>'+actions(x)+'</td>'+
+      '</tr>'+detailHtml(x);
   }
   function ensurePager(table){
     var panel=document.getElementById('inquiries');
@@ -2293,7 +2325,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var header=table.querySelector('tr');
       table.innerHTML='';
       if(header){
-        header.innerHTML='<th>ID</th><th>구분</th><th>신청회원</th><th>업체명</th><th>담당자</th><th>연락처</th><th>지역/업종</th><th>내용</th><th>대표이미지</th><th>상태</th><th>신청일</th><th>관리</th>';
+        header.innerHTML='<th>신청번호</th><th>업체</th><th>신청자</th><th>연락처</th><th>대표이미지</th><th>검토상태</th><th>처리상태</th><th>신청일</th><th>관리</th>';
         table.appendChild(header);
       }
       (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',rowHtml(x));});
@@ -2322,6 +2354,21 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   window.loadAdminInquiries=loadInquiries;
   document.addEventListener('click',function(e){
+    var toggle=e.target&&e.target.closest('.inquiry-review-toggle');
+    if(toggle){
+      var detail=document.querySelector('.inquiry-detail-row[data-detail-id="'+toggle.dataset.inquiryId+'"]');
+      if(detail){var open=detail.hidden;detail.hidden=!open;toggle.setAttribute('aria-expanded',String(open));toggle.textContent=open?'상세닫기':'상세보기';}
+      return;
+    }
+    var vendorLink=e.target&&e.target.closest('.inquiry-vendor-link');
+    if(vendorLink){
+      if(typeof showAdminPanel==='function')showAdminPanel('vendors');
+      history.replaceState(null,'','#vendors');
+      var search=document.getElementById('vendorSearch');if(search)search.value='';
+      window.setAdminListState?.('vendors',{page:1,q:''});
+      if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(1);
+      return;
+    }
     if(e.target&&e.target.closest('.inquiry-filterbar button')){
       setTimeout(function(){loadInquiries(1);},0);
       return;
@@ -2704,6 +2751,11 @@ document.addEventListener('DOMContentLoaded',function(){
           await window.reloadAdminPanelList(panelKey);
           if(panelKey==='vendorRequests'){
             if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(window.getAdminListState?.('vendors').page||1);
+            if(typeof window.loadDashboardSummary==='function')window.loadDashboardSummary();
+          }
+          if(panelKey==='inquiries'&&(actionPath.includes('/approve')||actionPath.includes('/reject'))){
+            if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(window.getAdminListState?.('vendors').page||1);
+            if(typeof window.loadAdminUsers==='function')window.loadAdminUsers(window.getAdminListState?.('users').page||1);
             if(typeof window.loadDashboardSummary==='function')window.loadDashboardSummary();
           }
         }else{
