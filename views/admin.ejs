@@ -394,6 +394,7 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
     <a href="#boards" data-panel="boards">게시판 설정</a>
     <a href="#boardPosts" data-panel="boardPosts">게시글 관리</a>
     <a href="#boardComments" data-panel="boardComments">댓글 관리</a>
+    <a href="#adInquiries" data-panel="adInquiries">광고문의 답변관리</a>
     <a href="#notices" data-panel="notices">공지관리</a>
     <a href="#reviews" data-panel="reviews">후기관리</a>
     <a href="#reports" data-panel="reports">신고관리</a>
@@ -1172,6 +1173,14 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(100vh - 230px)!
   </div>
   <div class="table-wrap"><table><thead><tr><th>ID</th><th>게시판</th><th>게시글</th><th>작성자</th><th>댓글 내용</th><th>상태</th><th>작성일</th><th>관리</th></tr></thead><tbody id="boardCommentAdminRows"><tr><td colspan="8">댓글을 불러오는 중입니다.</td></tr></tbody></table></div>
   <div id="boardCommentAdminPager" class="admin-pagination centered"></div>
+</section>
+<section id="adInquiries" class="panel admin-panel">
+  <h2>광고문의 답변관리</h2>
+  <p class="settings-help">광고문의 게시판에 등록된 1:1 문의를 확인하고 답변할 수 있습니다.</p>
+  <div class="ad-inquiry-summary"><div><span>전체 문의</span><strong id="adInquiryTotal">-</strong></div><div><span>답변대기</span><strong id="adInquiryWaiting">-</strong></div><div><span>답변완료</span><strong id="adInquiryAnswered">-</strong></div></div>
+  <div class="admin-board-filterbar ad-inquiries"><input id="adInquirySearch" placeholder="제목, 내용, 작성자 검색" autocomplete="off"><select id="adInquiryStatus"><option value="all">전체</option><option value="waiting">답변대기</option><option value="answered">답변완료</option></select></div>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>제목</th><th>작성자</th><th>답변상태</th><th>댓글</th><th>조회수</th><th>작성일</th><th>관리</th></tr></thead><tbody id="adInquiryAdminRows"><tr><td colspan="8">광고문의를 불러오는 중입니다.</td></tr></tbody></table></div>
+  <div id="adInquiryAdminPager" class="admin-pagination centered"></div>
 </section></main></div>
 <div class="admin-image-modal" id="adminImagePreviewModal" aria-hidden="true">
   <div class="admin-image-modal-card">
@@ -1443,6 +1452,22 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
 
 <script>
 (function(){
+  if(window.__adminAdInquiriesV1)return;window.__adminAdInquiriesV1=true;
+  var busy=false,timer=null,limit=20,restored=false;
+  function esc(v){return String(v??'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function date(v){if(!v)return '-';var d=new Date(v);return Number.isNaN(d.getTime())?'-':d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
+  function row(x){var url='/boards/ad-inquiry/'+Number(x.id||0),answered=x.answer_status==='answered';return '<tr><td>'+Number(x.id||0)+'</td><td><span class="admin-board-title" title="'+esc(x.title)+'">'+esc(x.title)+'</span></td><td>'+esc(x.nickname||x.username||'탈퇴회원')+'</td><td><span class="answer-badge '+(answered?'answered':'waiting')+'">'+(answered?'답변완료':'답변대기')+'</span></td><td>'+Number(x.comment_count||0)+'</td><td>'+Number(x.views||0)+'</td><td><span class="board-admin-muted">'+date(x.created_at)+'</span></td><td><div class="admin-board-actions"><a href="'+url+'" target="_blank" rel="noopener">보기</a><a href="'+url+'" target="_blank" rel="noopener">답변</a></div></td></tr>';}
+  function pager(data){var el=document.getElementById('adInquiryAdminPager');if(!el)return;var page=Math.max(1,Number(data.page||1)),pages=Math.max(1,Number(data.totalPages||1)),start=Math.max(1,page-2),end=Math.min(pages,page+2);function btn(label,target,disabled,active){return '<button type="button" class="admin-page-btn'+(active?' active':'')+'"'+(disabled?' disabled':' data-ad-inquiry-page="'+target+'"')+'>'+label+'</button>';}var html=btn('처음',1,page===1,false)+btn('이전',page-1,page===1,false);for(var n=start;n<=end;n++)html+=btn(String(n),n,false,n===page);html+=btn('다음',page+1,page===pages,false)+btn('마지막',pages,page===pages,false);el.innerHTML='<span class="admin-page-info">전체 '+Number(data.total||0)+'건 · '+page+'/'+pages+'페이지</span><div class="admin-page-buttons">'+html+'</div>';}
+  window.loadAdminAdInquiries=async function(page){var body=document.getElementById('adInquiryAdminRows');if(!body||busy)return false;if(!restored){window.restoreAdminListControls?.('adInquiries');restored=true;}page=Math.max(1,Number(page||window.getAdminListState?.('adInquiries').page||1));busy=true;body.innerHTML='<tr><td colspan="8">광고문의를 불러오는 중입니다.</td></tr>';var q=(document.getElementById('adInquirySearch')?.value||'').trim(),status=document.getElementById('adInquiryStatus')?.value||'all',params=new URLSearchParams({page:String(page),limit:String(limit),status:status});if(q)params.set('q',q);window.setAdminListState?.('adInquiries',{page:page,q:q,status:status});try{var res=await fetch('/admin/api/ad-inquiries?'+params.toString(),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(page>Math.max(1,Number(data.totalPages||1))){busy=false;return window.loadAdminAdInquiries(Math.max(1,Number(data.totalPages||1)));}body.innerHTML=(data.rows||[]).map(row).join('')||'<tr><td colspan="8">조건에 맞는 광고문의가 없습니다.</td></tr>';var s=data.summary||{};document.getElementById('adInquiryTotal').textContent=Number(s.total||0);document.getElementById('adInquiryWaiting').textContent=Number(s.waiting||0);document.getElementById('adInquiryAnswered').textContent=Number(s.answered||0);pager(data);return true;}catch(e){body.innerHTML='<tr><td colspan="8">광고문의를 불러오지 못했습니다.</td></tr>';return false;}finally{busy=false;}};
+  window.restoreAdminListControls?.('adInquiries');
+  document.getElementById('adInquirySearch')?.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(function(){window.loadAdminAdInquiries(1);},300);});
+  document.getElementById('adInquiryStatus')?.addEventListener('change',function(){window.loadAdminAdInquiries(1);});
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-ad-inquiry-page]');if(b)window.loadAdminAdInquiries(Number(b.dataset.adInquiryPage||1));});
+})();
+</script>
+
+<script>
+(function(){
   const typeSel=document.getElementById('vendorTypeFilter');
   const rows=[...document.querySelectorAll('.vendor-row')];
   if(!typeSel||!rows.length)return;
@@ -1655,6 +1680,7 @@ document.addEventListener('DOMContentLoaded',function(){
     else if(key==='adCenter')Object.assign(patch,{q:value('adCenterSearch'),status:document.querySelector('[data-ad-center-filter].on')?.dataset.adCenterFilter||'all',payment_status:value('adCenterPayment','all'),request_type:value('adCenterType','all'),source:value('adCenterSource','all')});
     else if(key==='boardPosts')Object.assign(patch,{q:value('boardPostSearch'),board_id:value('boardPostBoardFilter','all'),status:value('boardPostStatusFilter','all'),pinned:value('boardPostPinnedFilter','all'),sort:value('boardPostSort','latest')});
     else if(key==='boardComments')Object.assign(patch,{q:value('boardCommentSearch'),board_id:value('boardCommentBoardFilter','all'),status:value('boardCommentStatusFilter','all'),sort:value('boardCommentSort','latest')});
+    else if(key==='adInquiries')Object.assign(patch,{q:value('adInquirySearch'),status:value('adInquiryStatus','all')});
     return window.setAdminListState(key,patch);
   };
   window.restoreAdminListControls=function(key){var s=window.getAdminListState(key);var set=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null)el.value=v;};
@@ -1670,10 +1696,11 @@ document.addEventListener('DOMContentLoaded',function(){
     else if(key==='adCenter'){set('adCenterSearch',s.q);set('adCenterPayment',s.payment_status);set('adCenterType',s.request_type);set('adCenterSource',s.source);document.querySelectorAll('[data-ad-center-filter]').forEach(function(b){b.classList.toggle('on',(s.status||'all')===b.dataset.adCenterFilter);});}
     else if(key==='boardPosts'){set('boardPostSearch',s.q);set('boardPostBoardFilter',s.board_id);set('boardPostStatusFilter',s.status);set('boardPostPinnedFilter',s.pinned);set('boardPostSort',s.sort);}
     else if(key==='boardComments'){set('boardCommentSearch',s.q);set('boardCommentBoardFilter',s.board_id);set('boardCommentStatusFilter',s.status);set('boardCommentSort',s.sort);}
+    else if(key==='adInquiries'){set('adInquirySearch',s.q);set('adInquiryStatus',s.status);}
     return s;
   };
   window.normalizeAdminListPage=function(key,data,reload){var pages=Math.max(1,Number(data?.totalPages||1)),page=Math.max(1,Number(data?.page||1));if(page>pages){window.setAdminListState(key,{page:pages});setTimeout(function(){reload(pages);},0);return true;}return false;};
-  window.reloadAdminPanelList=function(key){var map={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',payments:'loadAdminPayments',boardPosts:'loadAdminBoardPosts',boardComments:'loadAdminBoardComments'};var fn=window[map[key]];if(typeof fn==='function')return fn(window.getAdminListState(key).page||1);};
+  window.reloadAdminPanelList=function(key){var map={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',payments:'loadAdminPayments',boardPosts:'loadAdminBoardPosts',boardComments:'loadAdminBoardComments',adInquiries:'loadAdminAdInquiries'};var fn=window[map[key]];if(typeof fn==='function')return fn(window.getAdminListState(key).page||1);};
   ['vendors','users','inquiries','reports'].forEach(window.restoreAdminListControls);
   document.addEventListener('submit',function(e){var form=e.target;if(!form||!form.closest('.admin-content'))return;var action=String(form.getAttribute('action')||'');if(action.includes('/settings/')||action.includes('/restore-json')||action.includes('/backup')||action.includes('/logout'))return;var key=window.getPanelKeyFromActivePanel();window.saveActiveAdminListState(key,window.getAdminListState(key).page||1);try{sessionStorage.setItem('adminReturnPanel',key);}catch(err){}},true);
 })();
@@ -3742,8 +3769,8 @@ document.addEventListener('DOMContentLoaded',function(){
 (function(){
   if(window.__adminPanelDispatcherV1)return;
   window.__adminPanelDispatcherV1=true;
-  var apiPanels=new Set(['vendors','users','inquiries','reports','payments','banners','notices','reviews','adminLogs','vendorRequests','adCenter','boardPosts','boardComments']);
-  var loadMap={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',payments:'loadAdminPayments',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',boardPosts:'loadAdminBoardPosts',boardComments:'loadAdminBoardComments'};
+  var apiPanels=new Set(['vendors','users','inquiries','reports','payments','banners','notices','reviews','adminLogs','vendorRequests','adCenter','boardPosts','boardComments','adInquiries']);
+  var loadMap={vendors:'loadAdminVendors',users:'loadAdminUsers',inquiries:'loadAdminInquiries',reports:'loadAdminReports',payments:'loadAdminPayments',banners:'loadAdminBanners',notices:'loadAdminNotices',reviews:'loadAdminReviews',adminLogs:'loadAdminLogs',vendorRequests:'loadAdminVendorRequests',adCenter:'loadAdminAdCenter',boardPosts:'loadAdminBoardPosts',boardComments:'loadAdminBoardComments',adInquiries:'loadAdminAdInquiries'};
   var panelTimer=null,searchTimers={};
   window.isAdminApiPanel=function(key){return apiPanels.has(key);};
   window.getActiveAdminPanelKey=function(){var id=document.querySelector('.admin-panel.active')?.id||String(location.hash||'').replace('#','');return id==='revenue'?'payments':id;};

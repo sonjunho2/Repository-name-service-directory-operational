@@ -1041,6 +1041,24 @@ app.get('/admin/api/board-posts',admin,async(req,res)=>{
   const fromSql=' FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id';
   return adminPagedJson(req,res,`SELECT p.id,p.board_id,b.title board_title,b.slug board_slug,p.title,u.username,u.nickname,p.status,p.is_pinned,p.views,p.created_at,p.updated_at,(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id) comment_count${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
+app.get('/admin/api/ad-inquiries',admin,async(req,res)=>{
+  try{
+    res.setHeader('Cache-Control','no-store');
+    const {page,limit,offset}=adminPageParams(req),params=[];
+    const qText=String(req.query.q||'').trim().slice(0,100),status=String(req.query.status||'all').trim();
+    let search='';
+    if(qText){params.push(`%${qText}%`);search=` AND (p.title ILIKE $${params.length} OR p.content ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`;}
+    const adminCount=`(SELECT COUNT(*)::int FROM board_comments ac JOIN users au ON au.id=ac.user_id WHERE ac.post_id=p.id AND ac.status='visible' AND au.role='admin')`;
+    const commentCount=`(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id AND c.status='visible')`;
+    const base=` FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id WHERE b.slug='ad-inquiry' AND p.status='visible'${search}`;
+    const statusSql=status==='waiting'?` AND ${adminCount}=0`:status==='answered'?` AND ${adminCount}>0`:'';
+    const rows=await q(`SELECT p.id,p.title,LEFT(p.content,240) content,p.user_id,u.username,u.nickname,p.created_at,p.views,${commentCount} comment_count,${adminCount} admin_comment_count,CASE WHEN ${adminCount}>0 THEN 'answered' ELSE 'waiting' END answer_status${base}${statusSql} ORDER BY (${adminCount}=0) DESC,p.created_at DESC,p.id DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const count=await q(`SELECT COUNT(*)::int count${base}${statusSql}`,params);
+    const summary=await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER (WHERE ${adminCount}=0)::int waiting,COUNT(*) FILTER (WHERE ${adminCount}>0)::int answered${base}`,params);
+    const total=Number(count.rows[0]?.count||0);
+    return res.json({ok:true,rows:rows.rows,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),summary:summary.rows[0]||{total:0,waiting:0,answered:0}});
+  }catch(e){console.error('admin ad inquiries api failed',e);return res.status(500).json({ok:false,error:e.message||'ad_inquiries_load_failed'});}
+});
 app.get('/admin/api/board-comments',admin,async(req,res)=>{
   const params=[];const where=[];
   const qText=String(req.query.q||'').trim().slice(0,100);

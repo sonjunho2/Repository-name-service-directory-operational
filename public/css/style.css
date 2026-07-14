@@ -1076,6 +1076,7 @@ body>header:not(.top)>.site-brand-center span{
 .board-slug-help{display:block;margin-top:5px;color:#8f9ab8;font-size:11px;overflow-wrap:anywhere}
 .private-board-note.inquiry-note{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:14px 16px;border:1px solid #33405f;border-radius:16px;background:rgba(8,13,24,.72);margin-bottom:16px}
 .inquiry-status-help{margin:5px 0 0;color:#aeb7d0;font-size:13px;line-height:1.5}
+.ad-inquiry-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}.ad-inquiry-summary>div{display:grid;gap:5px;padding:14px 16px;border:1px solid #29324f;border-radius:16px;background:#10182b}.ad-inquiry-summary span{color:#9faccc;font-size:12px;font-weight:800}.ad-inquiry-summary strong{color:#fff;font-size:24px}.answer-badge{display:inline-flex;align-items:center;min-height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:900}.answer-badge.waiting{background:#33280d;color:#ffd56a;border:1px solid #6f5620}.answer-badge.answered{background:#103225;color:#69e6ad;border:1px solid #236849}.admin-board-filterbar.ad-inquiries{grid-template-columns:minmax(260px,1fr) minmax(150px,220px)}
 @media(max-width:760px){
   .public-ad-banner.premium-showcase{
     margin-top:10px!important;
