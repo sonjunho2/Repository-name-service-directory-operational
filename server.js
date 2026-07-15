@@ -2346,7 +2346,7 @@ async function findManagedAdmin(id,client={query:(sql,params)=>q(sql,params)},lo
 app.get('/admin/api/admin-accounts',admin,async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
   const currentId=Number(req.session.user?.id||0);
-  const rows=await q(`SELECT id,username,nickname,status,created_at,last_login_at,(id=$1) is_self FROM users WHERE role='admin' AND status<>'deleted' ORDER BY (id=$1) DESC,(status='active') DESC,id DESC`,[currentId]);
+  const rows=await q(`SELECT id,username,nickname,status,(id=$1) is_self FROM users WHERE role='admin' AND status<>'deleted' ORDER BY (id=$1) DESC,(status='active') DESC,id DESC`,[currentId]);
   const summary=rows.rows.reduce((x,row)=>{x.total++;if(row.status==='active')x.active++;else x.suspended++;return x;},{total:0,active:0,suspended:0});
   res.json({ok:true,rows:rows.rows,summary});
 });
