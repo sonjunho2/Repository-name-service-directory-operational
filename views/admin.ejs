@@ -63,6 +63,18 @@
 .settings-tab.active,.settings-tab:hover{background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;border-color:transparent}
 .settings-panel{display:none}
 .settings-panel.active{display:block}
+.data-management-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.data-management-card{min-width:0;padding:18px;border:1px solid #29324f;border-radius:16px;background:#070b15}
+.data-management-card.full{grid-column:1/-1}
+.data-management-card h3{margin:0 0 12px}
+.data-status-badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:900}
+.data-status-badge.available{background:#123b2b;color:#1fe087}
+.data-status-badge.disabled{background:#29324f;color:#aeb7d0}
+.data-scope-lists{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.data-scope-list{margin:0;padding-left:20px;color:#c8d0e8;line-height:1.8}
+.data-download-link{display:flex;align-items:center;justify-content:center;height:42px;margin-top:14px;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}
+.data-disabled-button{width:100%;height:42px;margin-top:14px;opacity:.5;cursor:not-allowed}
+@media(max-width:850px){.data-management-grid,.data-scope-lists{grid-template-columns:1fr}.data-management-card.full{grid-column:auto}}
 .settings-section-title{margin:0 0 14px;font-size:20px}
 .settings-split{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .settings-pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -815,8 +827,9 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
 
   <div class="settings-tabs">
     <button type="button" class="settings-tab active" data-settings-tab="basic">기본설정</button>
-    <button type="button" class="settings-tab" data-settings-tab="payment">결제설정</button>
-    <button type="button" class="settings-tab" data-settings-tab="admin">관리자설정</button>
+    <button type="button" class="settings-tab" data-settings-tab="payment">결제·광고설정</button>
+    <button type="button" class="settings-tab" data-settings-tab="admin">관리자 계정관리</button>
+    <button type="button" class="settings-tab" data-settings-tab="data">데이터 관리</button>
   </div>
 
   <div id="settings-basic" class="settings-panel active">
@@ -1000,7 +1013,6 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
   </div>
 
   <div id="settings-admin" class="settings-panel">
-    <div class="settings-split">
       <div class="settings-box admin-accounts-box">
         <h3 class="settings-section-title">관리자 계정 관리</h3>
         <div class="admin-account-summary" id="adminAccountSummary"><div><b>전체 관리자</b><strong data-admin-account-summary="total">0</strong></div><div><b>사용중</b><strong data-admin-account-summary="active">0</strong></div><div><b>사용중지</b><strong data-admin-account-summary="suspended">0</strong></div></div>
@@ -1010,20 +1022,6 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
         <div class="admin-account-table-wrap"><table class="admin-account-table"><thead><tr><th>ID</th><th>관리자 계정</th><th>상태</th><th>현재 세션</th><th>관리</th></tr></thead><tbody id="adminAccountRows"><tr><td colspan="5">관리자 목록을 불러오는 중입니다.</td></tr></tbody></table></div>
       </div>
 
-      <div class="settings-box">
-        <h3 class="settings-section-title">데이터 백업 / 복원</h3>
-        <p class="settings-help">현재 운영 데이터를 JSON 파일로 내려받을 수 있습니다. 복원은 관리자 비밀번호가 필요합니다.</p>
-        <a href="/admin/backup.json" style="display:flex;align-items:center;justify-content:center;height:42px;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900;margin-bottom:14px">백업 다운로드</a>
-        <form method="post" action="/admin/restore-json" class="settings-form" onsubmit="return confirm('백업 JSON으로 복원할까요? 현재 운영 데이터가 백업 파일 내용으로 교체됩니다.')">
-          <input type="file" id="backupFileInput" accept=".json,application/json" style="padding:10px;height:auto">
-          <textarea id="backupJsonText" name="backup_json" placeholder="backup.json 파일을 선택하면 자동으로 내용이 들어갑니다. 직접 붙여넣기도 가능합니다."></textarea>
-          <input name="password" type="password" placeholder="관리자 비밀번호">
-          <input name="confirm_text" placeholder="확인 문구: 복원">
-          <button>백업 복원</button>
-        </form>
-      </div>
-    </div>
-
     <div class="admin-account-modal" id="adminAccountModal" hidden><div class="admin-account-modal-card"><div class="admin-account-modal-head"><h3>관리자 관리</h3><button type="button" data-admin-account-close>닫기</button></div><p id="adminAccountSelfNotice" class="settings-help" hidden>현재 로그인한 관리자 계정입니다. 사용중지와 삭제는 할 수 없습니다.</p><input type="hidden" id="managedAdminId">
       <form method="post" data-admin-account-form="update" data-local-admin-ajax class="settings-form"><h4>기본정보 수정</h4><input name="username" placeholder="관리자 아이디" required><input name="nickname" placeholder="관리자 닉네임" required><button>저장</button></form>
       <form method="post" data-admin-account-form="password" data-local-admin-ajax class="settings-form"><h4>비밀번호 변경</h4><p class="settings-help">현재 비밀번호는 보안상 확인할 수 없습니다.<br>기존 비밀번호를 모르는 경우 새 비밀번호로 재설정하세요.</p><label class="admin-password-field"><input name="new_password" type="password" placeholder="새 비밀번호" autocomplete="new-password" required><button type="button" data-admin-password-toggle="new_password" aria-label="새 비밀번호 보기">보기</button></label><label class="admin-password-field"><input name="new_password_confirm" type="password" placeholder="새 비밀번호 확인" autocomplete="new-password" required><button type="button" data-admin-password-toggle="new_password_confirm" aria-label="새 비밀번호 확인 보기">보기</button></label><label class="admin-password-field"><input name="actor_password" type="password" placeholder="현재 작업자 비밀번호" autocomplete="current-password" required><button type="button" data-admin-password-toggle="actor_password" aria-label="현재 작업자 비밀번호 보기">보기</button></label><div class="admin-password-tools"><button type="button" data-admin-password-generate="change">임시 비밀번호 생성</button><button type="button" data-admin-password-copy="new_password">비밀번호 복사</button></div><button>비밀번호 변경</button></form>
@@ -1032,21 +1030,47 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
     </div></div>
 
     <div id="adminPasswordResultModal" class="admin-password-result-modal" hidden><div class="admin-password-result-card"><h3>관리자 비밀번호 설정 완료</h3><div><b>관리자 아이디</b><strong data-admin-password-result="username"></strong></div><div><b>설정된 비밀번호</b><code data-admin-password-result="password"></code></div><p>이 비밀번호는 현재 화면에서만 한 번 표시됩니다. 닫은 후에는 다시 확인할 수 없습니다.</p><div class="admin-password-tools"><button type="button" data-admin-password-result-copy>비밀번호 복사</button><button type="button" data-admin-password-result-close>확인</button></div></div></div>
+  </div>
 
-    <div class="settings-box danger-box" style="margin-top:18px">
-      <h3>데이터 초기화</h3>
-      <p class="danger-note">관리자 비밀번호와 확인 문구를 입력해야 초기화됩니다. 관리자 계정과 환경설정의 업종/지역만 유지됩니다.</p>
-      <p class="danger-note">초기화 대상: 일반회원, 업체회원, 업체, 배너, 공지, 후기, 광고/입점 신청, 신고, 업체 수정요청, 배너신청, 광고연장신청</p>
-      <form method="post" action="/admin/settings/reset-data" class="settings-form" onsubmit="return confirm('정말 초기화할까요? 이 작업은 되돌릴 수 없습니다.')">
-        <input name="password" type="password" placeholder="관리자 비밀번호" required>
-        <input name="confirm_text" placeholder="초기화 라고 입력" required>
-        <button>운영 데이터 초기화</button>
-      </form>
-    </div>
+  <div id="settings-data" class="settings-panel">
+    <div class="data-management-grid">
+      <section class="data-management-card">
+        <span class="data-status-badge available">사용 가능</span>
+        <h3>전체 운영 데이터 백업</h3>
+        <p class="settings-help">회원, 업체, 게시판, 결제, 문의, 알림, 환경설정을 포함한 전체 운영 데이터를 JSON 파일로 내려받습니다.</p>
+        <p class="danger-note">백업에는 개인정보와 비밀번호 해시가 포함될 수 있습니다. 외부에 노출되지 않도록 안전한 장소에 보관하세요.</p>
+        <a href="/admin/backup.json" class="data-download-link">전체 백업 다운로드</a>
+      </section>
 
-    <div class="settings-box" style="margin-top:18px">
-      <h3 class="settings-section-title">운영 구조 안내</h3>
-      <div class="settings-help">상품등급, 결제설정, 업체회원, 관리자 로그 기능이 적용되어 있습니다.</div>
+      <section class="data-management-card">
+        <span class="data-status-badge disabled">현재 비활성화</span>
+        <h3>백업 복원</h3>
+        <p class="settings-help">데이터 충돌과 운영 데이터 손상을 방지하기 위해 관리자 화면의 백업 복원 기능은 현재 제공하지 않습니다.</p>
+        <button type="button" class="data-disabled-button" disabled>백업 복원 비활성화</button>
+      </section>
+
+      <section class="data-management-card danger-box">
+        <h3>운영 데이터 초기화</h3>
+        <p class="danger-note">먼저 전체 백업을 내려받아 안전하게 보관하세요. 초기화한 데이터는 되돌릴 수 없습니다.</p>
+        <form method="post" action="/admin/settings/reset-data" class="settings-form" data-no-ajax onsubmit="return confirm('관리자 계정, 환경설정, 게시판 설정을 제외한 모든 운영 데이터가 삭제되며 되돌릴 수 없습니다. 계속할까요?')">
+          <input name="password" type="password" placeholder="현재 관리자 비밀번호" autocomplete="current-password" required>
+          <input name="confirm_text" placeholder="초기화 라고 입력" required>
+          <button>운영 데이터 전체 초기화</button>
+        </form>
+      </section>
+
+      <section class="data-management-card">
+        <h3>보존·삭제 범위</h3>
+        <div class="data-scope-lists">
+          <div><b>보존되는 데이터</b><ul class="data-scope-list"><li>관리자 계정</li><li>환경설정</li><li>게시판 설정</li></ul></div>
+          <div><b>삭제되는 데이터</b><ul class="data-scope-list"><li>일반·업체 회원과 업체</li><li>게시글과 댓글</li><li>배너, 후기, 공지, 이벤트</li><li>문의, 신고, 즐겨찾기</li><li>업체 변경·배너·광고 요청</li><li>결제·조회·알림·관리자 로그</li></ul></div>
+        </div>
+      </section>
+
+      <section class="data-management-card full">
+        <h3>운영 구조 안내</h3>
+        <p class="settings-help">백업은 한 시점의 일관된 전체 운영 데이터로 생성됩니다. 복원은 비활성화되어 있으며, 초기화 전에는 반드시 백업 파일의 보관 상태를 확인하세요.</p>
+      </section>
     </div>
   </div>
 </section><section id="boards" class="panel admin-panel">
@@ -1492,30 +1516,7 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
   }
 })();
 </script>
-<script>
-document.addEventListener('DOMContentLoaded',function(){
-  var fileInput=document.getElementById('backupFileInput');
-  var textArea=document.getElementById('backupJsonText');
-  if(!fileInput||!textArea)return;
-  fileInput.addEventListener('change',function(){
-    var file=fileInput.files&&fileInput.files[0];
-    if(!file)return;
-    if(!file.name.toLowerCase().endsWith('.json')){
-      alert('backup.json 파일만 선택해주세요.');
-      fileInput.value='';
-      return;
-    }
-    var reader=new FileReader();
-    reader.onload=function(){
-      textArea.value=String(reader.result||'');
-    };
-    reader.onerror=function(){
-      alert('파일을 읽지 못했습니다. 다시 선택해주세요.');
-    };
-    reader.readAsText(file,'utf-8');
-  });
-});
-</script><style>
+<style>
 .inquiry-review-detail{display:grid;gap:14px;padding:16px;border:1px solid #33405f;border-radius:16px;background:#080d18;text-align:left}.inquiry-review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inquiry-review-box{padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:#0c1220;line-height:1.65}.inquiry-review-box h4{margin:0 0 8px}.inquiry-warning{padding:12px;border:1px solid #7a5a1e;border-radius:12px;background:rgba(255,220,77,.08);color:#ffd56a;font-weight:800}.inquiry-detail-row>td{padding:8px 12px 16px!important}.inquiry-detail-image{display:block;max-width:260px;max-height:325px;border-radius:12px;object-fit:contain}.inquiry-review-badges{display:flex;flex-wrap:wrap;gap:6px}.inquiry-review-toggle{white-space:nowrap}@media(max-width:760px){.inquiry-review-grid{grid-template-columns:1fr}}
 </style><script>
 (function(){
@@ -3616,7 +3617,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function normalizeTab(key){
     key=String(key||'').replace(/^settings-/,'').trim();
-    return ['basic','payment','admin'].includes(key)?key:'basic';
+    return ['basic','payment','admin','data'].includes(key)?key:'basic';
   }
   function activateSettingsTab(key){
     key=normalizeTab(key);

@@ -6,6 +6,12 @@ const app=express(); const upload=multer({storage:multer.memoryStorage(), limits
 app.get('/favicon.ico',(req,res)=>res.status(204).end());
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
 const q=(s,p=[])=>pool.query(s,p);
+const ADMIN_BACKUP_TABLES=[
+  'users','vendors','banners','reviews','events','notices','inquiries','flags',
+  'vendor_update_requests','vendor_banner_requests','vendor_ad_requests','favorites',
+  'app_settings','payment_logs','vendor_view_logs','notifications','admin_logs',
+  'board_categories','board_posts','board_comments'
+];
 function validImageBuffer(file){
   if(!file||!file.buffer||!file.mimetype)return false;
   const b=file.buffer;
@@ -2226,19 +2232,44 @@ app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
 });
 
 app.get('/admin/backup.json',admin,async(req,res)=>{
-  const tables=['users','vendors','banners','reviews','notices','inquiries','flags','vendor_update_requests','vendor_banner_requests','vendor_ad_requests','favorites','app_settings','payment_logs','vendor_view_logs'];
-  const data={created_at:new Date().toISOString(),tables:{}};
-  for(const t of tables){try{const r=await q(`SELECT * FROM ${t} ORDER BY 1`); data.tables[t]=r.rows;}catch(e){data.tables[t]=[];}}
-  res.setHeader('Content-Type','application/json; charset=utf-8');
-  res.setHeader('Content-Disposition','attachment; filename=\"backup.json\"');
-  res.send(JSON.stringify(data,null,2));
+  const client=await pool.connect();
+  let transactionActive=false;
+  try{
+    await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    transactionActive=true;
+    const tables={};
+    const rowCounts={};
+    for(const table of ADMIN_BACKUP_TABLES){
+      const result=await client.query(`SELECT * FROM ${table} ORDER BY 1`);
+      tables[table]=result.rows;
+      rowCounts[table]=result.rowCount;
+    }
+    await client.query('COMMIT');
+    transactionActive=false;
+    const createdAt=new Date().toISOString();
+    const data={format:'service-directory-backup',version:1,created_at:createdAt,table_count:ADMIN_BACKUP_TABLES.length,row_counts:rowCounts,tables};
+    await logAdmin(req,'데이터 백업','system','backup',`테이블 ${ADMIN_BACKUP_TABLES.length}개 백업`);
+    const timestamp=new Date().toISOString().replace(/[-:]/g,'').replace('T','-').slice(0,15);
+    res.setHeader('Content-Type','application/json; charset=utf-8');
+    res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma','no-cache');
+    res.setHeader('X-Content-Type-Options','nosniff');
+    res.setHeader('Content-Disposition',`attachment; filename=\"service-directory-backup-${timestamp}.json\"`);
+    res.send(JSON.stringify(data,null,2));
+  }catch(e){
+    if(transactionActive){try{await client.query('ROLLBACK');}catch(rollbackError){console.error('backup rollback error',rollbackError);}}
+    console.error('backup error',e);
+    if(!res.headersSent)res.status(500).send('백업 파일을 생성하지 못했습니다.');
+  }finally{
+    client.release();
+  }
 });
 app.post('/admin/restore-json',admin,async(req,res)=>{await logAdmin(req,'복원 차단','system','restore','복원 기능 임시 비활성화');res.redirect('/admin#settings');});
 
 app.post('/admin/settings/reset-data',admin,async(req,res)=>{
   const password=(req.body.password||'').trim();
   const confirmText=(req.body.confirm_text||'').trim();
-  const adminUser=await q('SELECT * FROM users WHERE id=$1 AND role=$2',[req.session.user.id,'admin']);
+  const adminUser=await q("SELECT password_hash FROM users WHERE id=$1 AND role='admin' AND status='active'",[req.session.user.id]);
 
   if(!adminUser.rows[0] || !await bcrypt.compare(password,adminUser.rows[0].password_hash)){
     return res.redirect('/admin#settings');
@@ -2248,9 +2279,12 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
     return res.redirect('/admin#settings');
   }
 
-  await q('BEGIN');
+  const client=await pool.connect();
   try{
     const tables=[
+      'board_comments',
+      'board_posts',
+      'notifications',
       'payment_logs',
       'vendor_view_logs',
       'vendor_ad_requests',
@@ -2262,30 +2296,34 @@ app.post('/admin/settings/reset-data',admin,async(req,res)=>{
       'banners',
       'inquiries',
       'notices',
+      'events',
       'admin_logs',
       'vendors'
     ];
 
+    await client.query('BEGIN');
     for(const table of tables){
-      await q(`DELETE FROM ${table}`);
+      await client.query(`DELETE FROM ${table}`);
     }
 
-    await q("DELETE FROM users WHERE role <> 'admin'");
+    await client.query("DELETE FROM users WHERE role <> 'admin'");
 
     for(const table of tables){
-      await q(`ALTER SEQUENCE IF EXISTS ${table}_id_seq RESTART WITH 1`);
+      await client.query(`ALTER SEQUENCE IF EXISTS ${table}_id_seq RESTART WITH 1`);
     }
 
-    await q("SELECT setval(pg_get_serial_sequence('users','id'), COALESCE((SELECT MAX(id) FROM users),0)+1, false)");
+    await client.query("SELECT setval(pg_get_serial_sequence('users','id'),COALESCE((SELECT MAX(id) FROM users),0)+1,false)");
 
-    await q('COMMIT');
+    await client.query('COMMIT');
   }catch(e){
-    await q('ROLLBACK');
+    try{await client.query('ROLLBACK');}catch(rollbackError){console.error('reset-data rollback error',rollbackError);}
     console.error('reset-data error',e);
     return res.redirect('/admin#settings');
+  }finally{
+    client.release();
   }
 
-  await logAdmin(req,'초기화','system','all','관리자 계정과 환경설정을 제외한 전체 운영 데이터 초기화');
+  await logAdmin(req,'운영 데이터 초기화','system','all','관리자 계정, 환경설정, 게시판 설정을 제외한 운영 데이터 초기화');
   res.redirect('/admin#settings');
 });
 
