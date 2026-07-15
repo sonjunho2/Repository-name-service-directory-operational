@@ -41,6 +41,7 @@
 @media(max-width:900px){.report-done-form{grid-template-columns:1fr}.report-done-form button{width:100%}}
 
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.settings-box{padding:18px;border:1px solid #29324f;border-radius:16px;background:#070b15}.settings-box h3{margin:0 0 14px}.settings-box textarea{height:230px!important;line-height:1.7}.settings-help{margin:8px 0 0;color:#8d98b8;font-size:13px}.settings-form{display:grid;gap:10px}.settings-form button{width:100%;height:42px}.admin-account-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}@media(max-width:900px){.settings-grid,.admin-account-grid{grid-template-columns:1fr}}
+.admin-accounts-box{min-width:0}.admin-account-summary{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin-bottom:16px}.admin-account-summary>div{padding:14px;border:1px solid #29324f;border-radius:12px;background:#080d18}.admin-account-summary b,.admin-account-summary strong{display:block}.admin-account-summary strong{margin-top:6px;font-size:24px;color:#10d9ff}.admin-account-create{margin-bottom:18px}.admin-account-create-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.admin-account-table-wrap{max-width:100%;min-width:0;overflow-x:auto}.admin-account-table{width:100%;min-width:900px;table-layout:fixed}.admin-account-modal[hidden]{display:none!important}.admin-account-modal{position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.72)}.admin-account-modal-card{width:min(680px,100%);max-height:90vh;overflow:auto;padding:20px;border:1px solid #39466c;border-radius:18px;background:#0b1020}.admin-account-modal-head{display:flex;align-items:center;justify-content:space-between}.admin-account-modal-card form{margin-top:16px;padding-top:16px;border-top:1px solid #29324f}.admin-current-badge{display:inline-flex;padding:4px 8px;border-radius:999px;background:#123b2b;color:#1fe087;font-size:12px;font-weight:900}@media(max-width:760px){.admin-account-summary,.admin-account-create-grid{grid-template-columns:1fr}}
 .settings-box select{height:42px}.vendor-member-badge{color:#10d9ff;font-weight:900}
 .danger-box{border-color:#ff6b6b!important;background:linear-gradient(135deg,rgba(255,107,107,.12),rgba(255,63,180,.06))!important}
 .danger-box h3{color:#ff6b6b}
@@ -999,17 +1000,13 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
 
   <div id="settings-admin" class="settings-panel">
     <div class="settings-split">
-      <div class="settings-box">
+      <div class="settings-box admin-accounts-box">
         <h3 class="settings-section-title">관리자 계정 관리</h3>
-        <form method="post" action="/admin/settings/admin-account" class="settings-form">
-          <div class="admin-account-grid">
-            <input name="username" placeholder="관리자 아이디" value="<%=me?.username||''%>" required>
-            <input name="nickname" placeholder="관리자 닉네임" value="<%=me?.nickname||'관리자'%>">
-            <input name="password" type="password" placeholder="새 비밀번호">
-          </div>
-          <p class="settings-help">비밀번호를 비워두면 아이디/닉네임만 변경됩니다.</p>
-          <button>관리자 계정 저장</button>
+        <div class="admin-account-summary" id="adminAccountSummary"><div><b>전체 관리자</b><strong data-admin-account-summary="total">0</strong></div><div><b>사용중</b><strong data-admin-account-summary="active">0</strong></div><div><b>사용중지</b><strong data-admin-account-summary="suspended">0</strong></div></div>
+        <form class="settings-form admin-account-create" data-admin-account-form="create" data-local-admin-ajax autocomplete="off">
+          <div class="admin-account-create-grid"><input name="username" placeholder="관리자 아이디" autocomplete="off" required><input name="nickname" placeholder="관리자 닉네임" maxlength="50" required><input name="password" type="password" placeholder="초기 비밀번호" autocomplete="new-password" required><input name="password_confirm" type="password" placeholder="비밀번호 확인" autocomplete="new-password" required></div><button>관리자 추가</button>
         </form>
+        <div class="admin-account-table-wrap"><table class="admin-account-table"><thead><tr><th>ID</th><th>관리자 계정</th><th>상태</th><th>생성일</th><th>최근 로그인</th><th>현재 세션</th><th>관리</th></tr></thead><tbody id="adminAccountRows"><tr><td colspan="7">관리자 목록을 불러오는 중입니다.</td></tr></tbody></table></div>
       </div>
 
       <div class="settings-box">
@@ -1025,6 +1022,13 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
         </form>
       </div>
     </div>
+
+    <div class="admin-account-modal" id="adminAccountModal" hidden><div class="admin-account-modal-card"><div class="admin-account-modal-head"><h3>관리자 관리</h3><button type="button" data-admin-account-close>닫기</button></div><p id="adminAccountSelfNotice" class="settings-help" hidden>현재 로그인한 관리자 계정입니다. 사용중지와 삭제는 할 수 없습니다.</p><input type="hidden" id="managedAdminId">
+      <form data-admin-account-form="update" data-local-admin-ajax class="settings-form"><h4>기본정보 수정</h4><input name="username" placeholder="관리자 아이디" required><input name="nickname" placeholder="관리자 닉네임" required><button>저장</button></form>
+      <form data-admin-account-form="password" data-local-admin-ajax class="settings-form"><h4>비밀번호 변경</h4><input name="new_password" type="password" placeholder="새 비밀번호" autocomplete="new-password" required><input name="new_password_confirm" type="password" placeholder="새 비밀번호 확인" autocomplete="new-password" required><input name="actor_password" type="password" placeholder="현재 작업자 비밀번호" autocomplete="current-password" required><button>비밀번호 변경</button></form>
+      <form data-admin-account-form="status" data-local-admin-ajax class="settings-form"><h4>계정 상태</h4><select name="status"><option value="active">사용중</option><option value="suspended">사용중지</option></select><button id="adminAccountStatusButton">상태 변경</button></form>
+      <form data-admin-account-form="delete" data-local-admin-ajax class="settings-form danger-box" id="adminAccountDeleteForm"><h4>계정 삭제</h4><input name="actor_password" type="password" placeholder="현재 작업자 비밀번호" autocomplete="current-password" required><input name="confirm_text" placeholder="확인 문구: 관리자삭제" required><button>관리자 삭제</button></form>
+    </div></div>
 
     <div class="settings-box danger-box" style="margin-top:18px">
       <h3>데이터 초기화</h3>
@@ -3580,6 +3584,24 @@ document.addEventListener('DOMContentLoaded',function(){
 
 <script>
 (function(){
+  if(window.__adminAccountsV1)return;
+  window.__adminAccountsV1=true;
+  var rows=new Map(),modal=document.getElementById('adminAccountModal'),managedId=document.getElementById('managedAdminId');
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function date(v){if(!v)return '-';var d=new Date(v);return isNaN(d)?'-':d.toLocaleString('ko-KR');}
+  function message(code){return {username_already_exists:'이미 사용 중인 관리자 아이디입니다.',last_active_admin:'마지막 활성 관리자는 중지하거나 삭제할 수 없습니다.',self_suspend_forbidden:'현재 로그인한 계정은 사용중지할 수 없습니다.',self_delete_forbidden:'현재 로그인한 계정은 삭제할 수 없습니다.',invalid_actor_password:'현재 관리자 비밀번호가 올바르지 않습니다.',password_mismatch:'새 비밀번호 확인이 일치하지 않습니다.',admin_not_found:'관리자 계정을 찾을 수 없습니다.',password_too_short:'비밀번호는 8자 이상이어야 합니다.',invalid_confirm_text:'확인 문구를 정확히 입력해주세요.',invalid_username:'아이디는 영문·숫자·밑줄 4~30자로 입력해주세요.',invalid_nickname:'닉네임을 입력해주세요.'}[code]||'관리자 계정 작업을 처리하지 못했습니다.';}
+  function toastMessage(text,type){if(typeof toast==='function')toast(text,type);else alert(text);}
+  async function loadAdminAccounts(){var body=document.getElementById('adminAccountRows');if(!body)return;try{var res=await fetch('/admin/api/admin-accounts',{credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'fetch'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');rows=new Map((data.rows||[]).map(function(x){return [String(x.id),x];}));document.querySelectorAll('[data-admin-account-summary]').forEach(function(el){el.textContent=Number(data.summary?.[el.dataset.adminAccountSummary]||0).toLocaleString();});body.innerHTML=(data.rows||[]).map(function(x){return '<tr><td>'+esc(x.id)+'</td><td><b>'+esc(x.username)+'</b><br><small>'+esc(x.nickname)+'</small></td><td><span class="'+(x.status==='active'?'done':'rejected')+'">'+(x.status==='active'?'사용중':'사용중지')+'</span></td><td>'+esc(date(x.created_at))+'</td><td>'+esc(date(x.last_login_at))+'</td><td>'+(x.is_self?'<span class="admin-current-badge">현재 로그인</span>':'-')+'</td><td><button type="button" data-admin-account-manage="'+esc(x.id)+'">관리</button></td></tr>';}).join('')||'<tr><td colspan="7">표시할 관리자가 없습니다.</td></tr>';}catch(e){body.innerHTML='<tr><td colspan="7">관리자 목록을 불러오지 못했습니다.</td></tr>';}}
+  window.loadAdminAccounts=loadAdminAccounts;
+  function openModal(id){var x=rows.get(String(id));if(!x||!modal)return;managedId.value=x.id;modal.querySelector('[data-admin-account-form="update"] [name="username"]').value=x.username||'';modal.querySelector('[data-admin-account-form="update"] [name="nickname"]').value=x.nickname||'';modal.querySelector('[data-admin-account-form="status"] [name="status"]').value=x.status==='active'?'active':'suspended';modal.querySelectorAll('input[type="password"],input[name="confirm_text"]').forEach(function(i){i.value='';});document.getElementById('adminAccountSelfNotice').hidden=!x.is_self;document.getElementById('adminAccountDeleteForm').hidden=!!x.is_self;var statusButton=document.getElementById('adminAccountStatusButton');statusButton.disabled=!!x.is_self;modal.hidden=false;}
+  function closeModal(){if(modal)modal.hidden=true;}
+  document.addEventListener('click',function(e){var logSettings=e.target.closest('[data-admin-log-navigate="settings"]');if(logSettings){showAdminPanel('settings');history.replaceState(null,'','#settings');window.activateAdminSettingsTab?.('admin');setTimeout(loadAdminAccounts,0);return;}var manage=e.target.closest('[data-admin-account-manage]');if(manage){openModal(manage.dataset.adminAccountManage);return;}if(e.target.closest('[data-admin-account-close]')||e.target===modal)closeModal();var tab=e.target.closest('.settings-tab[data-settings-tab="admin"]');if(tab)setTimeout(loadAdminAccounts,0);});
+  document.addEventListener('submit',async function(e){var form=e.target.closest('[data-admin-account-form]');if(!form)return;e.preventDefault();e.stopPropagation();var kind=form.dataset.adminAccountForm,id=managedId?.value||'',url=kind==='create'?'/admin/settings/admin-accounts/create':'/admin/settings/admin-accounts/'+encodeURIComponent(id)+'/'+kind,button=e.submitter||form.querySelector('button');if(kind==='delete'&&!confirm('이 관리자 계정을 삭제할까요?'))return;if(button)button.disabled=true;try{var res=await fetch(url,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'fetch'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'request_failed');if(kind==='create')form.reset();if(kind==='password')form.reset();if(kind==='delete')closeModal();await loadAdminAccounts();if(kind!=='create'&&kind!=='delete'&&rows.has(String(id)))openModal(id);toastMessage(kind==='create'?'관리자를 추가했습니다.':kind==='delete'?'관리자를 삭제했습니다.':'관리자 계정을 저장했습니다.','ok');}catch(err){toastMessage(message(err.message),'bad');}finally{if(button)button.disabled=false;}},true);
+})();
+</script>
+
+<script>
+(function(){
   if(window.__adminSettingsTabRestoreV1)return;
   window.__adminSettingsTabRestoreV1=true;
   var STORAGE_KEY='adminSettingsActiveTab';
@@ -3597,6 +3619,7 @@ document.addEventListener('DOMContentLoaded',function(){
       panel.classList.toggle('active',panel.id==='settings-'+key);
     });
     try{sessionStorage.setItem(STORAGE_KEY,key);}catch(e){}
+    if(key==='admin'&&typeof window.loadAdminAccounts==='function')window.loadAdminAccounts();
   }
   function restoreSettingsTab(){
     var settingsPanel=document.getElementById('settings');
