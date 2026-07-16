@@ -2197,96 +2197,11 @@ function makeButton(label,disabled,active,onClick){
 })();
 </script><script>
 (function(){window.__adminLiveStage31=true;/* V64: legacy bottom livebar disabled. The single notification center is #adminNotificationCenter. */})();
-</script><script>
-
-</script><script>
-(function(){
-  if(window.__adminKoreanLabels)return;
-  window.__adminKoreanLabels=true;
-
-  var labelMap={
-    user:'일반회원',
-    admin:'관리자',
-    active:'정상',
-    blocked:'차단',
-    suspended:'일시정지',
-    inactive:'휴면',
-    pending:'대기',
-    approved:'승인완료',
-    rejected:'반려',
-    cancelled:'취소',
-    new:'대기',
-    done:'처리완료',
-    general:'일반광고',
-    recommended:'추천광고',
-    premium:'프리미엄',
-    banner:'배너',
-    none:'없음',
-    hidden:'숨김',
-    expired:'만료'
-  };
-
-  function koreanizeSelects(root){
-    (root||document).querySelectorAll('select option').forEach(function(opt){
-      var key=String(opt.value||opt.textContent||'').trim();
-      if(labelMap[key])opt.textContent=labelMap[key];
-    });
-  }
-
-  function koreanizeBadges(root){
-    (root||document).querySelectorAll('.role-badge,.status-pending,.status-on,.status-off,.ad-badge').forEach(function(el){
-      var t=String(el.textContent||'').trim();
-      if(labelMap[t])el.textContent=labelMap[t];
-    });
-  }
-
-  function run(){
-    koreanizeSelects(document);
-    koreanizeBadges(document);
-  }
-
-  document.addEventListener('DOMContentLoaded',function(){
-    run();
-    setTimeout(run,400);
-    setTimeout(run,1000);
-  });
-  window.addEventListener('hashchange',function(){setTimeout(run,300);});
-  document.addEventListener('click',function(){setTimeout(run,300);},true);
-
-  var mo=new MutationObserver(function(muts){
-    var need=false;
-    muts.forEach(function(m){if(m.addedNodes&&m.addedNodes.length)need=true;});
-    if(need)setTimeout(run,80);
-  });
-  document.addEventListener('DOMContentLoaded',function(){
-    mo.observe(document.body,{childList:true,subtree:true});
-  });
-})();
 </script>
 <script>
 (function(){
-  if(window.__adminQaPolish1)return;
-  window.__adminQaPolish1=true;
+  if(window.__adminUserVendorLinkModalV1)return;
   window.__adminUserVendorLinkModalV1=true;
-
-
-  function fixUserHeaders(){
-    var users=document.getElementById('users');
-    if(!users)return;
-    users.querySelectorAll('th').forEach(function(th){
-      var t=(th.textContent||'').trim();
-      if(t==='등급/만기')th.textContent='상태';
-      if(t==='수정')th.textContent='관리';
-    });
-    var ths=users.querySelectorAll('table th');
-    ths.forEach(function(th,idx){
-      if((th.textContent||'').trim()==='상태' && idx>0){
-        var next=ths[idx+1];
-        if(next && (next.textContent||'').trim()==='상태')next.textContent='새 비밀번호';
-      }
-    });
-  }
-
   function closeUserVendorLinkModal(){var modal=document.getElementById('userVendorLinkModal'),form=modal?.querySelector('form');if(!modal)return;if(form){form.reset();form.dataset.submitting='0';}modal.hidden=true;document.body.style.overflow='';}
   function openUserVendorLinkModal(){var modal=document.getElementById('userVendorLinkModal');if(!modal)return;modal.hidden=false;document.body.style.overflow='hidden';}
   window.closeUserVendorLinkModal=closeUserVendorLinkModal;
@@ -2317,24 +2232,6 @@ function makeButton(label,disabled,active,onClick){
     }
   }
 
-  function addLiveRetry(){
-    var body=document.getElementById('adminLiveBody');
-    if(!body)return;
-    if((body.textContent||'').indexOf('불러오지 못했습니다')===-1)return;
-    if(body.querySelector('.live-retry-btn'))return;
-    var btn=document.createElement('button');
-    btn.type='button';
-    btn.className='admin-live-btn live-retry-btn';
-    btn.textContent='다시 불러오기';
-    btn.onclick=function(){
-      fetch('/admin/api/live-summary',{credentials:'same-origin',headers:{'Accept':'application/json'}})
-        .then(function(r){return r.json();})
-        .then(function(d){toast(d&&d.ok?'알림센터 API 정상':'알림센터 응답 확인 필요',d&&d.ok?'ok':'bad');})
-        .catch(function(e){toast('알림센터 API 오류: '+e.message,'bad');});
-    };
-    body.appendChild(btn);
-  }
-
   document.addEventListener('submit',function(e){
     var form=e.target;
     if(form && form.getAttribute('action')==='/admin/link-user-vendor'){
@@ -2348,13 +2245,9 @@ function makeButton(label,disabled,active,onClick){
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!document.getElementById('userVendorLinkModal')?.hidden)closeUserVendorLinkModal();});
 
   document.addEventListener('DOMContentLoaded',function(){
-    fixUserHeaders();
     var form=document.querySelector('form[action="/admin/link-user-vendor"]'),userSelect=form?.elements.user_id;
     if(userSelect)Array.from(userSelect.options).forEach(function(option){if(option.textContent.includes('(업체회원)'))option.disabled=true;});
-    setInterval(addLiveRetry,2000);
   });
-  window.addEventListener('hashchange',function(){setTimeout(fixUserHeaders,300);});
-  document.addEventListener('click',function(){setTimeout(fixUserHeaders,300);},true);
 })();
 </script>
 
