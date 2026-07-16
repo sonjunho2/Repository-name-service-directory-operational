@@ -577,7 +577,27 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
 </div>
 <div id="userPager" class="server-user-pager"></div>
 <div id="userVendorLinkBox" class="settings-box"><h3>회원 → 업체회원 연결</h3><form method="post" action="/admin/link-user-vendor" class="settings-form"><div class="user-vendor-link-grid"><select name="user_id" required><option value="">회원 선택</option><% users.filter(u=>u.role!=='admin'&&!u.is_vendor&&!u.vendor_id).forEach(u=>{%><option value="<%=u.id%>"><%=u.username%> / <%=u.nickname%></option><%})%></select><select name="vendor_id" required><option value="">업체 선택</option><% for(const v of vendors){%><option value="<%=v.id%>" <%=v.linked_username?'disabled':''%>><%=v.name%> / <%=v.region%> / <%=v.category%> <%=v.linked_username?'(연결됨: '+v.linked_username+')':''%></option><%}%></select><button>업체회원으로 연결</button></div></form><p class="settings-help">관리자와 이미 연결된 회원·업체는 선택할 수 없습니다.</p></div>
-</section><section id="notices" class="panel admin-panel"><h2>공지사항 관리</h2><nav class="board-operation-tabs" aria-label="게시판 운영 메뉴"><button type="button" data-board-operation-target="boardPosts">전체 게시글</button><button type="button" data-board-operation-target="notices">공지사항</button><button type="button" data-board-operation-target="reviews">이용후기</button><button type="button" data-board-operation-target="reports">신고·제보</button><button type="button" data-board-operation-target="adInquiries">광고문의</button></nav><div id="noticeSummaryGrid" class="admin-summary-grid notice-summary-grid"><button type="button" data-notice-card="all"><b>전체 공지</b><strong data-notice-summary="total">0</strong></button><button type="button" data-notice-card="pinned"><b>상단고정</b><strong data-notice-summary="pinned">0</strong></button><button type="button" data-notice-card="normal"><b>일반공지</b><strong data-notice-summary="normal">0</strong></button><button type="button" data-notice-card="recent"><b>최근 7일</b><strong data-notice-summary="recent">0</strong></button></div><form id="noticeForm" method="post" action="/admin/notice" class="notice-editor-form"><input type="hidden" name="id" id="noticeId"><div class="notice-form-grid"><input name="title" id="noticeTitle" placeholder="공지 제목" maxlength="200" required><label class="notice-pinned-field"><input type="checkbox" name="is_pinned" id="noticePinned">상단고정</label><textarea name="content" id="noticeContent" placeholder="공지 내용" maxlength="20000" required></textarea></div><div class="notice-form-actions"><button id="noticeSubmitBtn">공지 등록</button><button type="button" id="noticeCancelEdit" class="cancel-edit" hidden>수정취소</button></div></form><div class="notice-admin-filter"><input id="noticeSearch" placeholder="공지 ID / 제목 / 내용 검색"><select id="noticePinnedFilter"><option value="all">전체 공지</option><option value="pinned">상단고정</option><option value="normal">일반공지</option></select><select id="noticeSortFilter"><option value="latest">최신등록순</option><option value="oldest">오래된순</option><option value="pinned">상단고정 우선</option><option value="normal">일반공지 우선</option><option value="title">제목순</option></select><button type="button" id="noticeFilterReset">초기화</button></div><div class="notice-table-wrap"><table id="noticeManagementTable"><colgroup><col style="width:70px"><col style="width:110px"><col style="width:260px"><col style="width:460px"><col style="width:160px"><col style="width:90px"><col style="width:170px"></colgroup><thead><tr><th>ID</th><th>고정상태</th><th>제목</th><th>내용</th><th>등록일</th><th>상세</th><th>관리</th></tr></thead><tbody id="noticeTableBody"><tr class="loading-row"><td colspan="7">공지목록을 불러오는 중입니다.</td></tr></tbody></table></div><div id="noticePager" class="server-notice-pager"></div></section><section id="reviews" class="panel admin-panel"><h2>이용후기 관리</h2><nav class="board-operation-tabs" aria-label="게시판 운영 메뉴"><button type="button" data-board-operation-target="boardPosts">전체 게시글</button><button type="button" data-board-operation-target="notices">공지사항</button><button type="button" data-board-operation-target="reviews">이용후기</button><button type="button" data-board-operation-target="reports">신고·제보</button><button type="button" data-board-operation-target="adInquiries">광고문의</button></nav><div id="reviewSummaryGrid" class="review-summary-grid"><button type="button" data-review-card="all"><b>전체 후기</b><strong data-review-summary="total">-</strong></button><button type="button" data-review-card="visible"><b>공개중</b><strong data-review-summary="visible">-</strong></button><button type="button" data-review-card="hidden"><b>숨김</b><strong data-review-summary="hidden">-</strong></button><button type="button" data-review-card="deleted"><b>삭제됨</b><strong data-review-summary="deleted">-</strong></button><button type="button" data-review-card="low"><b>낮은 평점</b><strong data-review-summary="lowRating">-</strong></button><button type="button" data-review-card="reported"><b>신고 있음</b><strong data-review-summary="reported">-</strong></button><button type="button" data-review-card="pending"><b>미처리 신고</b><strong data-review-summary="pendingReports">-</strong></button></div><div class="review-admin-filter"><input id="reviewSearch" placeholder="후기 ID / 업체명 / 작성자 / 제목 / 내용 검색"><select id="reviewStatusFilter"><option value="all">전체 상태</option><option value="visible">공개중</option><option value="hidden">숨김</option><option value="deleted">삭제됨</option></select><select id="reviewRatingFilter"><option value="all">전체 평점</option><option value="5">5점</option><option value="4">4점</option><option value="3">3점</option><option value="low">2점 이하</option><option value="high">4점 이상</option></select><select id="reviewReportFilter"><option value="all">전체 신고상태</option><option value="reported">신고 있음</option><option value="pending">미처리 신고</option><option value="none">신고 없음</option></select><select id="reviewSortFilter"><option value="latest">최신 작성순</option><option value="oldest">오래된순</option><option value="rating_high">평점 높은순</option><option value="rating_low">평점 낮은순</option><option value="reports">신고 많은 순</option><option value="pending_reports">미처리 신고 우선</option><option value="vendor">업체명순</option></select><button type="button" id="reviewFilterReset">초기화</button></div><div class="review-table-wrap"><table id="reviewManagementTable"><colgroup><col style="width:100px"><col style="width:180px"><col style="width:140px"><col style="width:340px"><col style="width:80px"><col style="width:120px"><col style="width:100px"><col style="width:90px"><col style="width:210px"></colgroup><thead><tr><th>ID / 작성일</th><th>업체</th><th>작성자</th><th>후기</th><th>평점</th><th>신고</th><th>상태</th><th>상세</th><th>관리</th></tr></thead><tbody id="reviewTableBody"><tr class="loading-row"><td colspan="9">후기목록을 불러오는 중입니다.</td></tr></tbody></table></div><div id="reviewPager" class="server-review-pager"></div></section><section id="inquiries" class="panel admin-panel"><h2>광고문의 / 입점신청</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 신청</b><strong><%=inquiries.length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=inquiries.filter(x=>x.status!=="approved"&&x.status!=="rejected").length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=inquiries.filter(x=>x.status==="approved").length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=inquiries.filter(x=>x.status==="rejected").length%></strong></div></div><div class="admin-sub-filter inquiry-filterbar"><button type="button" class="on" data-filter="all">전체 <%=inquiries.length%></button><button type="button" data-filter="new">대기 <%=inquiries.filter(x=>x.status!=="approved"&&x.status!=="rejected").length%></button><button type="button" data-filter="approved">승인 <%=inquiries.filter(x=>x.status==="approved").length%></button><button type="button" data-filter="rejected">반려 <%=inquiries.filter(x=>x.status==="rejected").length%></button><button type="button" data-filter="apply">입점신청 <%=inquiries.filter(x=>x.type==="apply").length%></button><button type="button" data-filter="ad">광고문의 <%=inquiries.filter(x=>x.type!=="apply").length%></button></div><div class="admin-searchbar"><input id="inquirySearch" placeholder="업체명 / 담당자 / 연락처 / 지역 / 업종 검색"><select id="inquirySort"><option value="latest">신청일 최신순</option><option value="oldest">신청일 오래된순</option><option value="status">처리상태순</option><option value="type">구분순</option></select><button type="button" id="inquirySearchReset">초기화</button></div><table><tr><th>ID</th><th>구분</th><th>신청회원</th><th>업체명</th><th>담당자</th><th>연락처</th><th>지역/업종</th><th>내용</th><th>이미지</th><th>처리</th></tr><% inquiries.forEach(x=>{%><tr class="inquiry-row" data-id="<%=x.id%>" data-status="<%=x.status==='approved'?'approved':x.status==='rejected'?'rejected':'new'%>" data-type="<%=x.type==='apply'?'apply':'ad'%>" data-search="<%=String((x.company_name||'')+' '+(x.name||'')+' '+(x.phone||'')+' '+(x.kakao||'')+' '+(x.email||'')+' '+(x.region||'')+' '+(x.category||'')).toLowerCase()%>"><td><%=x.id%></td><td><%=x.type==='apply'?'입점신청':'광고문의'%></td><td><%=x.applicant_username?x.applicant_username:'비회원/미연결'%><br><small><%=x.applicant_nickname||''%></small></td><td><%=x.company_name%></td><td><%=x.name||'-'%></td><td><%=x.phone%><br><%=x.kakao||''%><br><%=x.email||''%></td><td><%=x.region||'-'%>/<%=x.category||'-'%></td><td class="memo"><%=x.content%></td><td class="image-links"><% const _inqHasPreview=!!x.has_image_data; const _inqPreviewUrl=_inqHasPreview?(`/admin/inquiries/${x.id}/image`):''; %><% if(_inqPreviewUrl){%><button type="button" class="image-preview-btn inquiry-image-preview" data-src="<%=_inqPreviewUrl%>" data-title="<%=x.company_name||'대표 이미지'%>">대표보기</button><%}else{%><span class="image-none">-</span><%}%></td><td><% if(x.status==='approved'){%><span class="done">업체 등록완료</span><%}else if(x.status==='rejected'){%><span class="rejected">반려</span><%}else{%><% if(x.type==='apply'){%><form method="post" action="/admin/inquiries/<%=x.id%>/approve"><button class="approve-btn" onclick="return confirm('이 신청내용으로 업체를 등록할까요?')">업체등록</button></form><%}%><form method="post" action="/admin/inquiries/<%=x.id%>/reject"><button class="reject-btn" onclick="return confirm('이 신청을 반려할까요?')">반려</button></form><%}%></td></tr><%})%></table></section><style>
+</section><section id="notices" class="panel admin-panel"><h2>공지사항 관리</h2><nav class="board-operation-tabs" aria-label="게시판 운영 메뉴"><button type="button" data-board-operation-target="boardPosts">전체 게시글</button><button type="button" data-board-operation-target="notices">공지사항</button><button type="button" data-board-operation-target="reviews">이용후기</button><button type="button" data-board-operation-target="reports">신고·제보</button><button type="button" data-board-operation-target="adInquiries">광고문의</button></nav><div id="noticeSummaryGrid" class="admin-summary-grid notice-summary-grid"><button type="button" data-notice-card="all"><b>전체 공지</b><strong data-notice-summary="total">0</strong></button><button type="button" data-notice-card="pinned"><b>상단고정</b><strong data-notice-summary="pinned">0</strong></button><button type="button" data-notice-card="normal"><b>일반공지</b><strong data-notice-summary="normal">0</strong></button><button type="button" data-notice-card="recent"><b>최근 7일</b><strong data-notice-summary="recent">0</strong></button></div><form id="noticeForm" method="post" action="/admin/notice" class="notice-editor-form"><input type="hidden" name="id" id="noticeId"><div class="notice-form-grid"><input name="title" id="noticeTitle" placeholder="공지 제목" maxlength="200" required><label class="notice-pinned-field"><input type="checkbox" name="is_pinned" id="noticePinned">상단고정</label><textarea name="content" id="noticeContent" placeholder="공지 내용" maxlength="20000" required></textarea></div><div class="notice-form-actions"><button id="noticeSubmitBtn">공지 등록</button><button type="button" id="noticeCancelEdit" class="cancel-edit" hidden>수정취소</button></div></form><div class="notice-admin-filter"><input id="noticeSearch" placeholder="공지 ID / 제목 / 내용 검색"><select id="noticePinnedFilter"><option value="all">전체 공지</option><option value="pinned">상단고정</option><option value="normal">일반공지</option></select><select id="noticeSortFilter"><option value="latest">최신등록순</option><option value="oldest">오래된순</option><option value="pinned">상단고정 우선</option><option value="normal">일반공지 우선</option><option value="title">제목순</option></select><button type="button" id="noticeFilterReset">초기화</button></div><div class="notice-table-wrap"><table id="noticeManagementTable"><colgroup><col style="width:70px"><col style="width:110px"><col style="width:260px"><col style="width:460px"><col style="width:160px"><col style="width:90px"><col style="width:170px"></colgroup><thead><tr><th>ID</th><th>고정상태</th><th>제목</th><th>내용</th><th>등록일</th><th>상세</th><th>관리</th></tr></thead><tbody id="noticeTableBody"><tr class="loading-row"><td colspan="7">공지목록을 불러오는 중입니다.</td></tr></tbody></table></div><div id="noticePager" class="server-notice-pager"></div></section><section id="reviews" class="panel admin-panel"><h2>이용후기 관리</h2><nav class="board-operation-tabs" aria-label="게시판 운영 메뉴"><button type="button" data-board-operation-target="boardPosts">전체 게시글</button><button type="button" data-board-operation-target="notices">공지사항</button><button type="button" data-board-operation-target="reviews">이용후기</button><button type="button" data-board-operation-target="reports">신고·제보</button><button type="button" data-board-operation-target="adInquiries">광고문의</button></nav><div id="reviewSummaryGrid" class="review-summary-grid"><button type="button" data-review-card="all"><b>전체 후기</b><strong data-review-summary="total">-</strong></button><button type="button" data-review-card="visible"><b>공개중</b><strong data-review-summary="visible">-</strong></button><button type="button" data-review-card="hidden"><b>숨김</b><strong data-review-summary="hidden">-</strong></button><button type="button" data-review-card="deleted"><b>삭제됨</b><strong data-review-summary="deleted">-</strong></button><button type="button" data-review-card="low"><b>낮은 평점</b><strong data-review-summary="lowRating">-</strong></button><button type="button" data-review-card="reported"><b>신고 있음</b><strong data-review-summary="reported">-</strong></button><button type="button" data-review-card="pending"><b>미처리 신고</b><strong data-review-summary="pendingReports">-</strong></button></div><div class="review-admin-filter"><input id="reviewSearch" placeholder="후기 ID / 업체명 / 작성자 / 제목 / 내용 검색"><select id="reviewStatusFilter"><option value="all">전체 상태</option><option value="visible">공개중</option><option value="hidden">숨김</option><option value="deleted">삭제됨</option></select><select id="reviewRatingFilter"><option value="all">전체 평점</option><option value="5">5점</option><option value="4">4점</option><option value="3">3점</option><option value="low">2점 이하</option><option value="high">4점 이상</option></select><select id="reviewReportFilter"><option value="all">전체 신고상태</option><option value="reported">신고 있음</option><option value="pending">미처리 신고</option><option value="none">신고 없음</option></select><select id="reviewSortFilter"><option value="latest">최신 작성순</option><option value="oldest">오래된순</option><option value="rating_high">평점 높은순</option><option value="rating_low">평점 낮은순</option><option value="reports">신고 많은 순</option><option value="pending_reports">미처리 신고 우선</option><option value="vendor">업체명순</option></select><button type="button" id="reviewFilterReset">초기화</button></div><div class="review-table-wrap"><table id="reviewManagementTable"><colgroup><col style="width:100px"><col style="width:180px"><col style="width:140px"><col style="width:340px"><col style="width:80px"><col style="width:120px"><col style="width:100px"><col style="width:90px"><col style="width:210px"></colgroup><thead><tr><th>ID / 작성일</th><th>업체</th><th>작성자</th><th>후기</th><th>평점</th><th>신고</th><th>상태</th><th>상세</th><th>관리</th></tr></thead><tbody id="reviewTableBody"><tr class="loading-row"><td colspan="9">후기목록을 불러오는 중입니다.</td></tr></tbody></table></div><div id="reviewPager" class="server-review-pager"></div></section><section id="inquiries" class="panel admin-panel">
+  <h2>입점 승인</h2>
+  <p class="admission-help">입점 신청서의 회원 연결 상태와 업체 중복 여부를 확인한 뒤 승인하거나 반려합니다.<br>광고문의는 게시글 관리의 광고문의 탭에서 처리합니다.</p>
+  <div id="admissionSummaryGrid" class="admission-summary-grid">
+    <button type="button" class="active" data-admission-card="all"><b>전체 신청</b><strong data-admission-summary="total">0</strong></button>
+    <button type="button" data-admission-card="waiting"><b>승인대기</b><strong data-admission-summary="waiting">0</strong></button>
+    <button type="button" data-admission-card="approved"><b>승인완료</b><strong data-admission-summary="approved">0</strong></button>
+    <button type="button" data-admission-card="rejected"><b>반려</b><strong data-admission-summary="rejected">0</strong></button>
+    <button type="button" data-admission-card="cancelled"><b>취소</b><strong data-admission-summary="cancelled">0</strong></button>
+  </div>
+  <div class="admission-filterbar">
+    <input id="inquirySearch" placeholder="업체명, 신청자, 아이디, 연락처, 지역, 업종 검색">
+    <select id="inquiryStatus"><option value="all">전체 상태</option><option value="new">승인대기</option><option value="approved">승인완료</option><option value="rejected">반려</option><option value="cancelled">취소</option></select>
+    <select id="inquirySort"><option value="latest">신청일 최신순</option><option value="oldest">신청일 오래된순</option><option value="waiting">승인대기 우선</option><option value="company">업체명순</option></select>
+    <button type="button" id="inquirySearchReset">초기화</button>
+  </div>
+  <div class="admission-table-wrap"><table id="admissionManagementTable" class="admission-table"><thead><tr><th>ID / 신청일</th><th>신청 회원</th><th>업체명</th><th>담당자·연락처</th><th>지역·업종</th><th>연결·중복 점검</th><th>대표 이미지</th><th>상태</th><th>관리</th></tr></thead><tbody id="admissionTableBody"><tr><td colspan="9">입점신청을 불러오는 중입니다.</td></tr></tbody></table></div>
+  <div id="inquiryPager" class="server-inquiry-pager"></div>
+</section>
+<style>
+.admission-help{color:#9eabc8;line-height:1.65;margin:0 0 16px}.admission-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:10px;margin-bottom:16px}.admission-summary-grid button{display:grid;gap:6px;text-align:left;padding:14px;border:1px solid #293451;border-radius:14px;background:#080d18;color:#dfe9ff}.admission-summary-grid button.active{border-color:#10d9ff;background:linear-gradient(135deg,rgba(16,217,255,.14),rgba(255,63,180,.08))}.admission-summary-grid strong{font-size:24px}.admission-filterbar{display:grid;grid-template-columns:minmax(260px,1.8fr) minmax(140px,.8fr) minmax(160px,.8fr) 100px;gap:10px;margin-bottom:14px}.admission-filterbar>*{min-width:0}.admission-table-wrap{width:100%;max-width:100%;overflow-x:auto;border:1px solid #293451;border-radius:14px}.admission-table{min-width:1250px;margin:0!important;table-layout:fixed}.admission-table th,.admission-table td{white-space:normal;vertical-align:top}.admission-detail-row[hidden]{display:none}.admission-warning{color:#ffd56a}.admission-safe{color:#69e6ad}.admission-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px;background:#080d18}.admission-detail-grid section{padding:12px;border:1px solid #293451;border-radius:12px;background:#0c1220;line-height:1.6}.admission-detail-grid h4{margin:0 0 8px}.admission-actions{display:grid;gap:7px}.admission-actions form{margin:0}.admission-badge{display:inline-flex;padding:4px 8px;border-radius:999px;border:1px solid currentColor;font-size:12px;font-weight:900}@media(max-width:900px){.admission-summary-grid{grid-template-columns:1fr 1fr}.admission-filterbar{grid-template-columns:1fr 1fr}.admission-detail-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.admission-summary-grid,.admission-filterbar,.admission-detail-grid{grid-template-columns:1fr}}
 #reports{--report-border:#293451}.report-summary-grid{display:grid;grid-template-columns:repeat(7,minmax(110px,1fr));gap:10px;margin:0 0 14px}.report-summary-grid button{display:grid;gap:7px;text-align:left;padding:14px;border:1px solid var(--report-border);border-radius:12px;background:#0b1221;color:#dce7ff;cursor:pointer}.report-summary-grid b{font-size:12px;color:#9eabc8}.report-summary-grid strong{font-size:23px}.report-admin-filter{display:grid;grid-template-columns:minmax(250px,1.8fr) repeat(4,minmax(125px,.8fr)) auto;gap:8px;margin-bottom:14px}.report-admin-filter>*{min-width:0;height:42px}.report-table-wrap{overflow:auto;border:1px solid var(--report-border);border-radius:12px}.report-table-wrap table{min-width:1290px;table-layout:fixed;margin:0}.report-table-wrap th,.report-table-wrap td{white-space:normal;vertical-align:top}.report-row td>small,.report-target-cell small{display:block;margin-top:5px;color:#8491ad;font-size:11px}.report-type-badge,.report-status-badge,.report-target-status{display:inline-flex;align-items:center;min-height:24px;padding:0 9px;border:1px solid #384563;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap}.report-type-badge.vendor{background:#102d35;color:#75e7fa}.report-type-badge.review{background:#2d203c;color:#dab1ff}.report-status-badge.new{background:#33280d;color:#ffd56a}.report-status-badge.done,.report-target-status.exists{background:#103225;color:#69e6ad}.report-status-badge.rejected,.report-status-badge.cancelled,.report-target-status.missing{background:#3b1320;color:#ff9db6}.report-target-link{display:block;width:auto!important;min-height:0!important;height:auto!important;padding:0!important;border:0!important;background:transparent!important;color:#84dfff!important;text-align:left;font-weight:900;cursor:pointer}.report-target-link:disabled{color:#9aa2b5!important;cursor:default}.report-content-clamp,.report-memo-clamp{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;margin:6px 0;line-height:1.45}.report-detail-toggle{width:auto!important;height:28px!important;min-height:28px!important;padding:0 9px!important;font-size:11px!important}.report-missing-warning{display:block;margin-top:7px;color:#ff9db6}.report-action-forms{display:grid;gap:8px}.report-action-forms form{display:grid;grid-template-columns:1fr auto;gap:5px;margin:0}.report-action-forms input{min-width:0;height:34px}.report-action-forms button{width:auto!important;height:34px!important;min-height:34px!important;padding:0 9px!important}.report-action-finished{color:#9aa5bd;font-weight:800}.report-detail-row[hidden]{display:none}.report-detail-row td{padding:0!important;border-top:0!important}.report-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px;background:#080e1b;border-top:1px dashed #35415e}.report-detail-grid section{padding:13px;border:1px solid #25314d;border-radius:10px;background:#0d1525}.report-detail-grid .report-detail-wide{grid-column:1/-1}.report-detail-grid dl{display:grid;grid-template-columns:90px 1fr;gap:7px;margin:9px 0 0}.report-detail-grid dt{color:#8f9bb5}.report-detail-grid dd{margin:0;word-break:break-word}.report-detail-grid p{white-space:pre-wrap;word-break:break-word}.server-report-pager{margin-top:14px}@media(max-width:1100px){.report-summary-grid{grid-template-columns:repeat(4,1fr)}.report-admin-filter{grid-template-columns:1fr 1fr 1fr}}@media(max-width:650px){.report-summary-grid,.report-admin-filter{grid-template-columns:1fr 1fr}.report-detail-grid{grid-template-columns:1fr}.report-detail-grid .report-detail-wide{grid-column:auto}}
 </style><section id="reports" class="panel admin-panel"><h2>신고·제보 관리</h2><nav class="board-operation-tabs" aria-label="게시판 운영 메뉴"><button type="button" data-board-operation-target="boardPosts">전체 게시글</button><button type="button" data-board-operation-target="notices">공지사항</button><button type="button" data-board-operation-target="reviews">이용후기</button><button type="button" data-board-operation-target="reports">신고·제보</button><button type="button" data-board-operation-target="adInquiries">광고문의</button></nav><div id="reportSummaryGrid" class="report-summary-grid"><button type="button" data-report-card="all"><b>전체 신고</b><strong data-report-summary="total">-</strong></button><button type="button" data-report-card="new"><b>처리 대기</b><strong data-report-summary="waiting">-</strong></button><button type="button" data-report-card="done"><b>처리완료</b><strong data-report-summary="done">-</strong></button><button type="button" data-report-card="rejected"><b>기각</b><strong data-report-summary="rejected">-</strong></button><button type="button" data-report-card="vendor"><b>업체 신고</b><strong data-report-summary="vendor">-</strong></button><button type="button" data-report-card="review"><b>후기 신고</b><strong data-report-summary="review">-</strong></button><button type="button" data-report-card="missing"><b>대상 없음</b><strong data-report-summary="missing_target">-</strong></button></div><div class="report-admin-filter"><input id="reportSearch" placeholder="대상명 / ID / 사유 / 신고내용 / 처리메모 검색"><select id="reportTypeFilter"><option value="all">전체 유형</option><option value="vendor">업체 신고</option><option value="review">후기 신고</option></select><select id="reportStatusFilter"><option value="all">전체 상태</option><option value="new">처리 대기</option><option value="done">처리완료</option><option value="rejected">기각</option><option value="cancelled">취소</option></select><select id="reportTargetFilter"><option value="all">전체 대상</option><option value="exists">대상 존재</option><option value="missing">대상 없음</option></select><select id="reportSort"><option value="latest">신고일 최신순</option><option value="oldest">신고일 오래된순</option><option value="status">처리상태순</option><option value="vendor">업체 신고 우선</option><option value="review">후기 신고 우선</option><option value="reason">신고사유순</option><option value="processed">최근 처리순</option></select><button type="button" id="reportSearchReset">초기화</button></div><div class="report-table-wrap"><table id="reportManagementTable"><colgroup><col style="width:96px"><col style="width:92px"><col style="width:190px"><col style="width:250px"><col style="width:120px"><col style="width:110px"><col style="width:210px"><col style="width:230px"></colgroup><thead><tr><th>ID / 신고일</th><th>유형</th><th>신고 대상</th><th>신고 내용</th><th>대상 상태</th><th>처리 상태</th><th>처리 이력</th><th>관리</th></tr></thead><tbody id="reportTableBody"><tr><td colspan="8" class="admin-list-loading">신고 목록을 불러오는 중입니다.</td></tr></tbody></table></div><div id="reportPager" class="server-report-pager"></div></section><section id="vendorRequests" class="panel admin-panel"><h2>업체 수정요청</h2><div class="integrated-tools"><div class="integrated-card"><b>전체 요청</b><strong><%=(vendorRequests||[]).length%></strong></div><div class="integrated-card"><b>대기</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='new').length%></strong></div><div class="integrated-card"><b>승인</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='approved').length%></strong></div><div class="integrated-card"><b>반려</b><strong><%=(vendorRequests||[]).filter(x=>x.status==='rejected').length%></strong></div></div><table><tr><th>ID</th><th>회원</th><th>현재업체</th><th>요청내용</th><th>상태</th><th>처리</th></tr><% (vendorRequests||[]).forEach(x=>{%><tr><td><%=x.id%></td><td><%=x.username%><br><small><%=x.nickname||''%></small></td><td><%=x.current_vendor_name||x.vendor_id%></td><td class="memo"><b><%=x.name%></b><br><%=x.region%>/<%=x.category%><br><%=x.phone||'-'%><br><%=x.business_hours||'-'%><br><%=x.description||'-'%></td><td><span class="<%=x.status==='approved'?'done':x.status==='rejected'?'rejected':'pending'%>"><%=x.status==='approved'?'승인':x.status==='rejected'?'반려':'대기'%></span><br><small><%=_cleanCenterMemo(x)%></small></td><td><% if(x.status==='new'){%><form method="post" action="/admin/vendor-requests/<%=x.id%>/approve" class="report-done-form"><input name="admin_memo" placeholder="처리 메모"><button class="approve-btn">승인</button></form><form method="post" action="/admin/vendor-requests/<%=x.id%>/reject" class="report-done-form" style="margin-top:8px"><input name="admin_memo" placeholder="반려 사유"><button class="reject-btn">반려</button></form><%}else{%>처리완료<%}%></td></tr><%})%></table></section><section id="bannerRequests" class="panel admin-panel"><h2>배너신청관리</h2>
 <%
@@ -1021,49 +1041,6 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
 <script>(function(){const reqs=<%- JSON.stringify(vendorRequests||[]).replace(/</g,'\\u003c') %>;function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}function short(s){s=String(s||'-');return s.length>140?s.slice(0,140)+'...':s;}const table=document.querySelector('#vendorRequests table');if(!table)return;[...table.querySelectorAll('tr')].slice(1).forEach((tr,i)=>{const x=reqs[i];if(!x||tr.children.length<4)return;tr.children[2].innerHTML=esc(x.current_vendor_name||x.vendor_id||'-')+'<br><small>'+esc(x.current_region||'-')+'/'+esc(x.current_category||'-')+'</small>';const image=x.has_image_data?'<a class="image-preview-btn" href="/admin/vendor-requests/'+encodeURIComponent(x.id)+'/image" target="_blank" rel="noopener" style="margin-top:8px;display:inline-block">대표이미지/GIF 보기</a>':'<span class="image-none">변경 이미지 없음</span>';tr.children[3].innerHTML='<b>기존값 / 요청값</b><br>업체명: <small>'+esc(x.current_vendor_name||'-')+'</small> → <b>'+esc(x.name||'-')+'</b><br>전화: <small>'+esc(x.current_phone||'-')+'</small> → <b>'+esc(x.phone||'-')+'</b><br>카카오: <small>'+esc(x.current_kakao_url||'-')+'</small> → <b>'+esc(x.kakao_url||'-')+'</b><br>지역/업종: <small>'+esc(x.current_region||'-')+'/'+esc(x.current_category||'-')+'</small> → <b>'+esc(x.region||'-')+'/'+esc(x.category||'-')+'</b><br>영업시간: <small>'+esc(x.current_business_hours||'-')+'</small> → <b>'+esc(x.business_hours||'-')+'</b><br>태그: <small>'+esc(x.current_tags||'-')+'</small> → <b>'+esc(x.tags||'-')+'</b><br>설명: <small>'+esc(short(x.current_description))+'</small> → <b>'+esc(short(x.description))+'</b><br>'+image;});})();</script>
 <script>function showAdminPanel(id){document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));const p=document.getElementById(id);if(p){p.classList.add('active')}const boardOperationPanels=['boardPosts','notices','reviews','reports','adInquiries'];const sidebarId=boardOperationPanels.includes(id)?'boardPosts':id;document.querySelectorAll('[data-panel]').forEach(a=>a.classList.toggle('active',a.dataset.panel===sidebarId));if(typeof window.syncBoardOperationTabs==='function')window.syncBoardOperationTabs(id);}document.querySelectorAll('[data-panel]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();showAdminPanel(a.dataset.panel);history.replaceState(null,'','#'+a.dataset.panel)}));function applyIntegratedReady(){}function applyUserFilter(){const q=(userSearch?.value||'').trim().toLowerCase();const r=userRoleFilter?.value||'all';const s=userStatusFilter?.value||'all';document.querySelectorAll('.user-row').forEach(row=>{const okText=!q||(row.dataset.text||'').includes(q);const okRole=r==='all'||row.dataset.role===r;const okStatus=s==='all'||row.dataset.status===s;row.classList.toggle('hidden-row',!(okText&&okRole&&okStatus));});}function sortUserRows(){const table=document.querySelector('#users table');if(!table)return;const rows=[...table.querySelectorAll('.user-row')];const mode=document.getElementById('userSortFilter')?.value||'default';rows.sort((a,b)=>{if(mode==='latest')return Number(b.dataset.id)-Number(a.dataset.id);if(mode==='admin')return (b.dataset.role==='admin')-(a.dataset.role==='admin')||Number(b.dataset.id)-Number(a.dataset.id);if(mode==='blocked')return (b.dataset.status==='blocked')-(a.dataset.status==='blocked')||Number(b.dataset.id)-Number(a.dataset.id);return Number(a.dataset.id)-Number(b.dataset.id);});rows.forEach(r=>table.appendChild(r));}['input','change'].forEach(ev=>{userSearch?.addEventListener(ev,applyUserFilter);userRoleFilter?.addEventListener(ev,applyUserFilter);userStatusFilter?.addEventListener(ev,applyUserFilter);userSortFilter?.addEventListener(ev,sortUserRows);});userFilterReset?.addEventListener('click',()=>{userSearch.value='';userRoleFilter.value='all';userStatusFilter.value='all';userSortFilter.value='default';applyUserFilter();sortUserRows();});function showPreview(box,src,text){if(!box)return;const img=box.querySelector('img');const span=box.querySelector('span');if(src){img.src=src;box.style.display='flex';if(span)span.textContent=text||'선택한 이미지가 표시됩니다.';}else{box.style.display='none';if(img)img.removeAttribute('src');}}function bindPreview(input,box){if(!input)return;input.addEventListener('change',()=>{const f=input.files&&input.files[0];if(!f)return showPreview(box,null);showPreview(box,URL.createObjectURL(f),'새로 선택한 이미지입니다.');});}const vf=document.getElementById('vendorForm');bindPreview(vf?.image,document.getElementById('vendorImagePreview'));cancelVendorEdit.onclick=()=>{vf.reset();vf.id.value='';showPreview(document.getElementById('vendorImagePreview'),null);vendorSubmitBtn.textContent='업체 등록';cancelVendorEdit.style.display='none'};
 function updateReportAlert(){const el=document.getElementById('pendingReportCount');if(el)el.textContent=document.querySelectorAll('.report-row[data-status="new"]').length;}
-let currentInquiryFilter='all';
-function normalizeInquiryFilter(value){return ['all','apply-new','apply','ad','new','approved','rejected','cancelled'].includes(String(value||''))?String(value):'all';}
-function syncInquiryFilterButtons(){document.querySelectorAll('.inquiry-filterbar button').forEach(function(b){b.classList.toggle('on',currentInquiryFilter==='apply-new'?(b.dataset.filter==='apply'||b.dataset.filter==='new'):b.dataset.filter===currentInquiryFilter);});}
-window.getAdminInquiryFilter=function(){return currentInquiryFilter||'all';};
-window.setAdminInquiryFilter=function(value,options){currentInquiryFilter=normalizeInquiryFilter(value);syncInquiryFilterButtons();if(!options||options.load!==false){if(typeof window.loadAdminInquiries==='function')window.loadAdminInquiries(1);else applyInquiryFilter();}};
-function applyInquiryFilter(){
-  if(window.isAdminApiPanel?.('inquiries'))return;
-  const q=(document.getElementById('inquirySearch')?.value||'').trim().toLowerCase();
-  document.querySelectorAll('.inquiry-row').forEach(row=>{
-    const status=row.dataset.status||'';
-    const type=row.dataset.type||'';
-    const search=row.dataset.search||'';
-    const okFilter=currentInquiryFilter==='all'||status===currentInquiryFilter||type===currentInquiryFilter;
-    const okSearch=!q||search.includes(q);
-    row.classList.toggle('hidden-row',!(okFilter&&okSearch));
-  });
-}
-function sortInquiries(){
-  const table=document.querySelector('#inquiries table'); if(!table)return;
-  const rows=[...table.querySelectorAll('.inquiry-row')];
-  const mode=document.getElementById('inquirySort')?.value||'latest';
-  const statusRank={new:0,rejected:1,approved:2};
-  rows.sort((a,b)=>{
-    const aid=Number(a.dataset.id||0), bid=Number(b.dataset.id||0);
-    if(mode==='oldest')return aid-bid;
-    if(mode==='status')return (statusRank[a.dataset.status||'']??9)-(statusRank[b.dataset.status||'']??9)||bid-aid;
-    if(mode==='type')return (a.dataset.type||'').localeCompare(b.dataset.type||'')||bid-aid;
-    return bid-aid;
-  });
-  rows.forEach(r=>{table.appendChild(r);const detail=table.querySelector('.inquiry-detail-row[data-detail-id="'+r.dataset.id+'"]');if(detail)table.appendChild(detail);});
-}
-document.querySelectorAll('.inquiry-filterbar button').forEach(btn=>btn.addEventListener('click',()=>{
-  document.querySelectorAll('.inquiry-filterbar button').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on'); window.setAdminInquiryFilter(btn.dataset.filter,{load:false}); applyInquiryFilter();
-}));
-document.getElementById('inquirySearch')?.addEventListener('input',applyInquiryFilter);
-document.getElementById('inquirySort')?.addEventListener('change',sortInquiries);
-document.getElementById('inquirySearchReset')?.addEventListener('click',()=>{
-  inquirySearch.value=''; inquirySort.value='latest'; window.setAdminInquiryFilter('all',{load:false});
-  applyInquiryFilter(); sortInquiries();
-});
-sortInquiries();
-
 document.querySelectorAll('.settings-tab').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));
@@ -1490,7 +1467,7 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
     if(key==='payments')Object.assign(patch,{q:value('paymentHistorySearch'),product:value('paymentProductFilter','all'),source:value('paymentSourceFilter','all'),amountState:value('paymentAmountFilter','all'),dateFrom:value('paymentDateFrom'),dateTo:value('paymentDateTo'),sort:value('paymentHistorySort','latest')});
     else if(key==='vendors')Object.assign(patch,{q:value('vendorSearch'),status:value('vendorStatusFilter','all'),quick:value('vendorTypeFilter','all'),sort:value('vendorSortFilter','latest')});
     else if(key==='users')Object.assign(patch,{q:value('userSearch'),role:value('userRoleFilter','all'),status:value('userStatusFilter','all'),vendor_link:value('userLinkFilter','all'),sort:value('userSortFilter','default')});
-    else if(key==='inquiries'){var inquiryFilter=typeof window.getAdminInquiryFilter==='function'?window.getAdminInquiryFilter():'all';Object.assign(patch,{q:value('inquirySearch'),filter:inquiryFilter,type:inquiryFilter==='apply-new'?'apply':(inquiryFilter==='apply'||inquiryFilter==='ad')?inquiryFilter:'all',status:inquiryFilter==='apply-new'?'new':(inquiryFilter!=='all'&&inquiryFilter!=='apply'&&inquiryFilter!=='ad')?inquiryFilter:'all',sort:value('inquirySort','latest')});}
+    else if(key==='inquiries')Object.assign(patch,{q:value('inquirySearch'),status:value('inquiryStatus','all'),sort:value('inquirySort','latest')});
     else if(key==='reports')Object.assign(patch,{q:value('reportSearch'),type:value('reportTypeFilter','all'),status:value('reportStatusFilter','all'),target:value('reportTargetFilter','all'),sort:value('reportSort','latest')});
     else if(key==='banners')Object.assign(patch,{q:value('bannerSearch'),type:value('bannerTypeFilter','all'),status:value('bannerStatusFilter','all'),image:value('bannerImageFilter','all'),sort:value('bannerSortFilter','default')});
     else if(key==='notices')Object.assign(patch,{q:value('noticeSearch'),pinned:value('noticePinnedFilter','all'),sort:value('noticeSortFilter','latest')});
@@ -1507,7 +1484,7 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
     if(key==='payments'){set('paymentHistorySearch',s.q);set('paymentProductFilter',s.product);set('paymentSourceFilter',s.source);set('paymentAmountFilter',s.amountState);set('paymentDateFrom',s.dateFrom);set('paymentDateTo',s.dateTo);set('paymentHistorySort',s.sort);}
     else if(key==='vendors'){set('vendorSearch',s.q);set('vendorStatusFilter',['all','active','pending','hidden','expired'].includes(s.status)?s.status:'all');set('vendorTypeFilter',['all','noad','general','recommended','banner'].includes(s.quick||s.ad_type)?(s.quick||s.ad_type):'all');set('vendorSortFilter',['latest','oldest','name','expire'].includes(s.sort)?s.sort:'latest');}
     else if(key==='users'){set('userSearch',s.q);set('userRoleFilter',s.role);set('userStatusFilter',s.status);set('userLinkFilter',s.vendor_link);set('userSortFilter',s.sort);}
-    else if(key==='inquiries'){set('inquirySearch',s.q);set('inquirySort',s.sort);var inquiryRestore=s.filter||(s.type==='apply'&&s.status==='new'?'apply-new':(s.type&&s.type!=='all'?s.type:s.status))||'all';if(typeof window.setAdminInquiryFilter==='function')window.setAdminInquiryFilter(inquiryRestore,{load:false});}
+    else if(key==='inquiries'){set('inquirySearch',s.q);set('inquiryStatus',['new','approved','rejected','cancelled'].includes(s.status)?s.status:'all');set('inquirySort',['latest','oldest','waiting','company'].includes(s.sort)?s.sort:'latest');}
     else if(key==='reports'){set('reportSearch',s.q);set('reportTypeFilter',s.type);set('reportStatusFilter',s.status);set('reportTargetFilter',s.target);set('reportSort',s.sort);}
     else if(key==='banners'){set('bannerSearch',s.q);set('bannerTypeFilter',s.type);set('bannerStatusFilter',s.status);set('bannerImageFilter',s.image);set('bannerSortFilter',s.sort);}
     else if(key==='notices'){set('noticeSearch',s.q);set('noticePinnedFilter',s.pinned);set('noticeSortFilter',s.sort);}
@@ -1956,224 +1933,77 @@ document.querySelectorAll('[data-ad-center-filter]').forEach(btn=>{
 })();
 </script><script>
 (function(){
-  var inquiryServerPage=Number(window.getAdminListState?.('inquiries').page||1);
-  var inquiryServerLimit=20;
-  var inquiryLoading=false;
-  var inquirySearchTimer=null;
-
-  function inquiryQuery(page){
-    var params=new URLSearchParams();
-    params.set('page',String(page));
-    params.set('limit',String(inquiryServerLimit));
-    var search=(document.getElementById('inquirySearch')?.value||'').trim();
-    var sort=document.getElementById('inquirySort')?.value||'latest';
-    if(search)params.set('q',search);
-    if(currentInquiryFilter==='apply-new'){params.set('type','apply');params.set('status','new');}
-    else if(currentInquiryFilter==='apply'||currentInquiryFilter==='ad')params.set('type',currentInquiryFilter);
-    else if(currentInquiryFilter!=='all')params.set('status',currentInquiryFilter);
-    params.set('sort',sort);
-    return params;
-  }
-
-  function typeLabel(x){
-    return x.type==='apply'?'입점신청':'광고문의';
-  }
-  function statusText(x){
-    if(x.status==='approved')return '승인';
-    if(x.status==='rejected')return '반려';
-    if(x.status==='new')return '승인대기';
-    if(x.status==='cancelled')return '취소';
-    return x.status||'-';
-  }
-  function inquiryDate(v){
-    if(!v)return '-';
-    var d=new Date(v);
-    if(isNaN(d.getTime()))return '-';
-    return d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
-  }
-  function imageButtons(x){
-    return x.has_image_data?'<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiries/'+esc(x.id)+'/image" data-title="'+esc(x.company_name||'대표이미지')+'">대표이미지 보기</button>':'<span class="image-none">이미지 없음</span>';
-  }
-  function reviewBadges(x){
-    var badges=[];
-    if(x.type==='apply'&&x.status==='new')badges.push('<span class="pending">검토 가능</span>');
-    if(Number(x.duplicate_company_count||0)>0||Number(x.duplicate_phone_count||0)>0)badges.push('<span class="rejected">기존 업체 확인 필요</span>');
-    if(x.applicant_is_vendor)badges.push('<span class="rejected">이미 업체회원</span>');
-    if(x.applicant_vendor_id||x.vendor_id)badges.push('<span class="done">연결업체 있음</span>');
-    if(!x.has_image_data)badges.push('<span class="image-none">대표이미지 없음</span>');
-    return '<div class="inquiry-review-badges">'+badges.join('')+'</div>';
-  }
-  function approvalConfirm(x){
-    return (Number(x.duplicate_company_count||0)>0||Number(x.duplicate_phone_count||0)>0)
-      ?'동일 업체명 또는 연락처가 존재합니다. 기존 업체와 중복되지 않는지 확인한 후 승인하세요. 계속할까요?'
-      :'이 입점신청을 승인하면 업체가 생성되거나 연결되고 신청 회원이 업체회원으로 설정됩니다. 승인할까요?';
-  }
+  if(window.__adminAdmissionsModuleV1)return;
+  window.__adminAdmissionsModuleV1=true;
+  var currentPage=1,currentStatus='all',currentSort='latest',currentSearch='',loading=false,searchTimer=null,limit=20;
+  var panel=document.getElementById('inquiries'),body=document.getElementById('admissionTableBody'),pager=document.getElementById('inquiryPager');
+  if(!panel||!body||!pager)return;
+  function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function date(value){if(!value)return '-';var d=new Date(value);return isNaN(d.getTime())?'-':d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false});}
+  function statusText(value){return value==='approved'?'승인완료':value==='rejected'?'반려':value==='cancelled'?'취소':'승인대기';}
+  function risky(x){return !!(x.approval_warning||Number(x.duplicate_company_count)>0||Number(x.duplicate_phone_count)>0||x.applicant_vendor_id||x.matched_vendor_id||(x.vendor_id&&x.applicant_vendor_id&&String(x.vendor_id)!==String(x.applicant_vendor_id)));}
+  function image(x){return (x.has_image_data||x.has_main_image_data)?'<button type="button" class="image-preview-btn inquiry-image-preview" data-src="/admin/inquiries/'+esc(x.id)+'/image" data-title="'+esc(x.company_name||'대표 이미지')+'">미리보기</button>':'<span class="image-none">이미지 없음</span>';}
   function actions(x){
-    if(x.status==='approved'){
-      var approved='<span class="done">업체 등록완료</span>';
-      if(x.type==='apply'&&x.vendor_id&&x.has_image_data&&x.banner_status!=='approved'){
-        approved+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/banner"><button class="banner-btn">배너등록</button></form>';
-      }else if(x.type==='apply'&&x.banner_status==='approved'){
-        approved+='<span class="banner-status">배너등록완료</span>';
-      }
-      return approved;
+    var html='<div class="admission-actions"><button type="button" data-admission-detail="'+esc(x.id)+'">상세</button>';
+    if((x.status||'new')!=='new')return html+'</div>';
+    if(x.type==='apply'&&x.can_approve){
+      var message=risky(x)?'중복 업체 또는 기존 연결 정보가 감지되었습니다. 상세 내용을 확인한 후 승인하세요. 계속할까요?':'이 신청 내용으로 업체를 등록하고 신청 회원을 업체회원으로 연결할까요?';
+      html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn" onclick="if(!confirm(&quot;'+esc(message)+'&quot;))return false;this.form.dataset.safeConfirmDone=\'1\'">입점 승인</button></form>';
     }
-    if(x.status!=='new')return '<span class="'+(x.status==='rejected'?'rejected':'pending')+'">'+esc(statusText(x))+'</span>';
-    var html='';
-    if(x.type!=='apply')return '<span class="pending">검토대기</span>';
-    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/approve"><button class="approve-btn" onclick="if(!confirm(\''+esc(approvalConfirm(x))+'\'))return false;this.form.dataset.safeConfirmDone=\'1\'">업체등록</button></form>';
-    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn" onclick="if(!confirm(\'이 입점신청을 반려할까요? 반려 후에는 승인 버튼이 표시되지 않습니다.\'))return false;this.form.dataset.safeConfirmDone=\'1\'">반려</button></form>';
+    html+='<form method="post" action="/admin/inquiries/'+esc(x.id)+'/reject"><button class="reject-btn" onclick="if(!confirm(&quot;이 입점신청을 반려할까요?&quot;))return false;this.form.dataset.safeConfirmDone=\'1\'">반려</button></form></div>';
     return html;
   }
-  function detailHtml(x){
-    var warnings=[];
-    if(Number(x.duplicate_company_count||0)>0)warnings.push('동일한 업체명으로 등록된 업체가 '+Number(x.duplicate_company_count)+'개 있습니다. 승인 전 기존 업체 여부를 확인하세요.');
-    if(Number(x.duplicate_phone_count||0)>0)warnings.push('동일한 연락처를 사용하는 업체가 '+Number(x.duplicate_phone_count)+'개 있습니다.');
-    if(x.applicant_is_vendor&&x.applicant_vendor_id&&(x.vendor_id==null||String(x.applicant_vendor_id)!==String(x.vendor_id)))warnings.push('이 회원은 이미 다른 업체와 연결되어 있습니다.');
-    if(x.vendor_id&&x.applicant_vendor_id&&String(x.vendor_id)!==String(x.applicant_vendor_id))warnings.push('신청서 연결 업체와 회원 연결 업체가 다릅니다.');
-    var warningHtml=warnings.length?'<div class="inquiry-warning">'+warnings.map(esc).join('<br>')+'</div>':'';
-    var vendorLink=x.matched_vendor_id?'<br><button type="button" class="banner-btn inquiry-vendor-link" data-vendor-id="'+esc(x.matched_vendor_id)+'">업체관리에서 확인</button>':'';
-    var image=x.has_image_data?'<img class="inquiry-detail-image" loading="lazy" src="/admin/inquiries/'+esc(x.id)+'/image" alt="'+esc(x.company_name||'대표이미지')+'">':'<span class="image-none">대표이미지 없음</span>';
-    return '<tr class="inquiry-detail-row" data-detail-id="'+esc(x.id)+'" hidden><td colspan="9"><div class="inquiry-review-detail">'+warningHtml+'<div class="inquiry-review-grid">'+
-      '<section class="inquiry-review-box"><h4>신청업체</h4><b>'+esc(x.company_name||'-')+'</b><br>'+esc(x.region||'-')+' / '+esc(x.category||'-')+'<hr><div class="memo">'+esc(x.content||'-')+'</div></section>'+
-      '<section class="inquiry-review-box"><h4>신청자</h4>담당자: '+esc(x.name||'-')+'<br>아이디: '+esc(x.applicant_username||'-')+'<br>닉네임: '+esc(x.applicant_nickname||'-')+'<br>회원상태: '+(x.applicant_is_vendor?'업체회원':'일반회원')+'<br>현재 연결 업체: '+esc(x.linked_vendor_name||'-')+'</section>'+
-      '<section class="inquiry-review-box"><h4>연락처</h4>전화: '+esc(x.phone||'-')+'<br>카카오: '+esc(x.kakao||'-')+'<br>이메일: '+esc(x.email||'-')+'</section>'+
-      '<section class="inquiry-review-box"><h4>대표이미지</h4>'+image+'</section>'+
-      '<section class="inquiry-review-box"><h4>중복확인</h4>동일 업체명: '+esc(x.duplicate_company_count||0)+'개<br>동일 연락처: '+esc(x.duplicate_phone_count||0)+'개<br>일치 업체: '+esc(x.matched_vendor_name||'-')+' (ID '+esc(x.matched_vendor_id||'-')+')<br>신청서 업체 ID: '+esc(x.vendor_id||'-')+'<br>회원 업체 ID: '+esc(x.applicant_vendor_id||'-')+vendorLink+'</section>'+
-      '<section class="inquiry-review-box"><h4>처리정보</h4>신청상태: '+esc(statusText(x))+'<br>배너등록: '+esc(x.banner_status==='approved'?'완료':'미완료')+'<br>신청일: '+esc(inquiryDate(x.created_at))+'</section>'+
-      '</div></div></td></tr>';
+  function detail(x){
+    var warning=esc(x.approval_warning||'');
+    return '<tr class="admission-detail-row" data-admission-detail-for="'+esc(x.id)+'" hidden><td colspan="9"><div class="admission-detail-grid">'+
+      '<section><h4>신청 내용 전체</h4><div class="memo">'+esc(x.content||'-')+'</div></section>'+
+      '<section><h4>회원 계정 정보</h4>아이디: '+esc(x.applicant_username||'비회원/미연결')+'<br>닉네임: '+esc(x.applicant_nickname||'-')+'<br>회원 업체 ID: '+esc(x.applicant_vendor_id||'-')+'<br>연결 업체: '+esc(x.linked_vendor_name||'-')+'</section>'+
+      '<section><h4>신청 업체 정보</h4>'+esc(x.company_name||'-')+'<br>'+esc(x.region||'-')+' / '+esc(x.category||'-')+'<br>신청서 업체 ID: '+esc(x.vendor_id||'-')+'</section>'+
+      '<section><h4>매칭·중복</h4>기존 업체: '+esc(x.matched_vendor_name||'-')+' (ID '+esc(x.matched_vendor_id||'-')+')<br>업체명 중복: '+Number(x.duplicate_company_count||0)+'개<br>연락처 중복: '+Number(x.duplicate_phone_count||0)+'개</section>'+
+      '<section><h4>승인 경고</h4><span class="'+(risky(x)?'admission-warning':'admission-safe')+'">'+(warning||'검토 이상 없음')+'</span><br>신청일: '+esc(date(x.created_at))+'<br>처리 상태: '+esc(statusText(x.status))+'</section>'+
+      '<section><h4>대표 이미지</h4>'+image(x)+'</section></div></td></tr>';
   }
-  function rowHtml(x){
-    var statusKey=x.status||'new';
-    var typeKey=x.type==='apply'?'apply':'ad';
-    var searchText=[x.company_name,x.name,x.phone,x.kakao,x.email,x.region,x.category].filter(Boolean).join(' ').toLowerCase();
-    return '<tr class="inquiry-row" data-id="'+esc(x.id)+'" data-status="'+esc(statusKey)+'" data-type="'+esc(typeKey)+'" data-search="'+esc(searchText)+'">'+
-      '<td>'+esc(x.id)+'</td>'+
-      '<td><b>'+esc(x.company_name||'-')+'</b><br><small>'+esc(x.region||'-')+' / '+esc(x.category||'-')+'</small></td>'+
-      '<td>'+esc(x.applicant_nickname||'-')+' / '+esc(x.applicant_username||'-')+'<br><small>'+(x.applicant_is_vendor?'업체회원':'일반회원')+'</small></td>'+
-      '<td>'+esc(x.phone||'-')+'<br>'+esc(x.kakao||'')+'<br>'+esc(x.email||'')+'</td>'+
-      '<td>'+imageButtons(x)+'</td>'+
-      '<td>'+reviewBadges(x)+'</td>'+
-      '<td><span class="'+(statusKey==='approved'?'done':statusKey==='rejected'?'rejected':'pending')+'">'+esc(statusText(x))+'</span></td>'+
-      '<td>'+esc(inquiryDate(x.created_at))+'</td>'+
-      '<td><button type="button" class="image-preview-btn inquiry-review-toggle" data-inquiry-id="'+esc(x.id)+'" aria-expanded="false">상세보기</button>'+actions(x)+'</td>'+
-      '</tr>'+detailHtml(x);
+  function row(x){
+    var warning=risky(x);
+    return '<tr class="admission-row" data-admission-id="'+esc(x.id)+'"><td><b>#'+esc(x.id)+'</b><br><small>'+esc(date(x.created_at))+'</small></td>'+
+      '<td>'+esc(x.applicant_username||'비회원/미연결')+'<br><small>'+esc(x.applicant_nickname||'-')+(x.applicant_vendor_id?' · 연결 업체 '+esc(x.applicant_vendor_id):'')+'</small></td>'+
+      '<td><b>'+esc(x.company_name||'-')+'</b>'+(x.matched_vendor_name?'<br><small>기존 후보: '+esc(x.matched_vendor_name)+'</small>':'')+'</td>'+
+      '<td>'+esc(x.name||'-')+'<br>'+esc(x.phone||'-')+'<br>'+esc(x.kakao||'-')+'<br>'+esc(x.email||'-')+'</td>'+
+      '<td>'+esc(x.region||'-')+'<br>'+esc(x.category||'-')+'</td>'+
+      '<td><span class="admission-badge '+(warning?'admission-warning':'admission-safe')+'">'+(warning?'중복·연결 확인 필요':'검토 이상 없음')+'</span><br><small>업체명 '+Number(x.duplicate_company_count||0)+' · 연락처 '+Number(x.duplicate_phone_count||0)+'</small></td>'+
+      '<td>'+image(x)+'</td><td>'+esc(statusText(x.status))+'</td><td>'+actions(x)+'</td></tr>'+detail(x);
   }
-  function ensurePager(table){
-    var panel=document.getElementById('inquiries');
-    if(!panel||!table)return null;
-    panel.querySelectorAll('.admin-pager').forEach(function(p){p.remove();});
-    panel.querySelectorAll('.server-inquiry-pager').forEach(function(p,i){if(i>0)p.remove();});
-    var pager=panel.querySelector('.server-inquiry-pager');
-    if(!pager){
-      pager=document.createElement('div');
-      pager.className='server-inquiry-pager';
-      table.insertAdjacentElement('afterend',pager);
-    }
-    return pager;
+  function query(){
+    var params=new URLSearchParams();params.set('type','apply');params.set('page',String(currentPage));params.set('limit',String(limit));params.set('sort',currentSort);
+    if(currentSearch)params.set('q',currentSearch);
+    if(currentStatus!=='all')params.set('status',currentStatus);
+    return params;
   }
-  function showTableMessage(table,msg,cls){
-    var header=table.querySelector('tr');
-    var colspan=header?Math.max(1,header.children.length):1;
-    table.innerHTML='';
-    if(header)table.appendChild(header);
-    table.insertAdjacentHTML('beforeend','<tr class="'+(cls||'loading-row')+'"><td colspan="'+colspan+'">'+esc(msg)+'</td></tr>');
-  }
-  function addPageNumbers(pager,page,totalPages){
-    var start=Math.max(1,page-2);
-    var end=Math.min(totalPages,start+4);
-    start=Math.max(1,end-4);
-    if(start>1){
-      pager.appendChild(makeButton('1',false,page===1,function(){loadInquiries(1);}));
-      if(start>2){
-        var dots=document.createElement('span'); dots.className='dots'; dots.textContent='...'; pager.appendChild(dots);
-      }
-    }
-    for(var p=start;p<=end;p++){
-      (function(n){pager.appendChild(makeButton(String(n),false,n===page,function(){loadInquiries(n);}));})(p);
-    }
-    if(end<totalPages){
-      if(end<totalPages-1){
-        var dots2=document.createElement('span'); dots2.className='dots'; dots2.textContent='...'; pager.appendChild(dots2);
-      }
-      pager.appendChild(makeButton(String(totalPages),false,page===totalPages,function(){loadInquiries(totalPages);}));
-    }
-  }
-  async function loadInquiries(page){
-    page=page||Number(window.getAdminListState?.('inquiries').page||1);
-    if(inquiryLoading){clearTimeout(inquirySearchTimer);inquirySearchTimer=setTimeout(function(){loadInquiries(page);},100);return;}
-    var panel=document.getElementById('inquiries');
-    if(!panel)return;
-    var table=panel.querySelector('table');
-    if(!table)return;
-    var pager=ensurePager(table);
-    inquiryServerPage=Math.max(1,page||1);
-    window.saveActiveAdminListState?.('inquiries',inquiryServerPage);
-    inquiryLoading=true;
-    showTableMessage(table,'신청목록을 불러오는 중입니다.','loading-row');
-    if(pager)pager.innerHTML='<span class="server-inquiry-info">신청목록을 불러오는 중입니다.</span>';
+  function syncCards(){panel.querySelectorAll('[data-admission-card]').forEach(function(card){var mapped=card.dataset.admissionCard==='waiting'?'new':card.dataset.admissionCard;card.classList.toggle('active',mapped===currentStatus);});}
+  function summary(values){['total','waiting','approved','rejected','cancelled'].forEach(function(key){var el=panel.querySelector('[data-admission-summary="'+key+'"]');if(el)el.textContent=Number(values&&values[key]||0).toLocaleString('ko-KR');});}
+  function button(label,disabled,active,page){var b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=disabled;b.classList.toggle('active',!!active);if(page)b.addEventListener('click',function(){loadAdmissions(page);});return b;}
+  function drawPager(data){pager.innerHTML='';pager.appendChild(button('이전',data.page<=1,false,data.page-1));var start=Math.max(1,data.page-2),end=Math.min(data.totalPages,start+4);for(var p=start;p<=end;p++)pager.appendChild(button(String(p),false,p===data.page,p));pager.appendChild(button('다음',data.page>=data.totalPages,false,data.page+1));var info=document.createElement('span');info.className='server-inquiry-info';info.textContent='총 '+data.total+'건 · '+data.page+'/'+data.totalPages+'페이지';pager.appendChild(info);}
+  async function loadAdmissions(page){
+    if(loading)return false;
+    currentPage=Math.max(1,Number(page||currentPage||1));currentSearch=(document.getElementById('inquirySearch').value||'').trim();currentStatus=document.getElementById('inquiryStatus').value||'all';currentSort=document.getElementById('inquirySort').value||'latest';
+    loading=true;body.innerHTML='<tr><td colspan="9">입점신청을 불러오는 중입니다.</td></tr>';
     try{
-      var res=await fetch('/admin/api/inquiries?'+inquiryQuery(inquiryServerPage).toString(),{headers:{'Accept':'application/json'}});
-      var data=await res.json();
-      if(!data.ok)throw new Error('load failed');
-      if(inquiryServerPage>Math.max(1,Number(data.totalPages||1))){inquiryLoading=false;window.normalizeAdminListPage?.('inquiries',data,loadInquiries);return;}
-      var header=table.querySelector('tr');
-      table.innerHTML='';
-      if(header){
-        header.innerHTML='<th>신청번호</th><th>업체</th><th>신청자</th><th>연락처</th><th>대표이미지</th><th>검토상태</th><th>처리상태</th><th>신청일</th><th>관리</th>';
-        table.appendChild(header);
-      }
-      (data.rows||[]).forEach(function(x){table.insertAdjacentHTML('beforeend',rowHtml(x));});
-      inquiryLoading=false;
-      sortInquiries();
-      if(pager){
-        pager.innerHTML='';
-        var from=data.total?((data.page-1)*data.limit+1):0;
-        var to=Math.min(data.page*data.limit,data.total);
-        pager.appendChild(makeButton('처음',data.page<=1,false,function(){loadInquiries(1);}));
-        pager.appendChild(makeButton('이전',data.page<=1,false,function(){loadInquiries(data.page-1);}));
-        addPageNumbers(pager,data.page,data.totalPages);
-        pager.appendChild(makeButton('다음',data.page>=data.totalPages,false,function(){loadInquiries(data.page+1);}));
-        pager.appendChild(makeButton('마지막',data.page>=data.totalPages,false,function(){loadInquiries(data.totalPages);}));
-        var info=document.createElement('span');
-        info.className='server-inquiry-info';
-        info.textContent='총 '+data.total+'건 · 현재 '+from+'-'+to+'건 표시';
-        pager.appendChild(info);
-      }
-    }catch(e){
-      showTableMessage(table,'신청목록을 불러오지 못했습니다.','loading-row');
-      if(pager)pager.innerHTML='<span class="server-inquiry-info">서버 페이지 데이터를 불러오지 못했습니다.</span>';
-    }finally{
-      inquiryLoading=false;
-    }
+      var response=await fetch('/admin/api/inquiries?'+query().toString(),{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','X-Requested-With':'fetch'}});
+      var data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'load_failed');
+      if(currentPage>Math.max(1,Number(data.totalPages||1))){loading=false;return loadAdmissions(Math.max(1,Number(data.totalPages||1)));}
+      body.innerHTML=(data.rows||[]).map(row).join('')||'<tr><td colspan="9">조건에 맞는 입점신청이 없습니다.</td></tr>';summary(data.summary);drawPager(data);syncCards();
+      window.setAdminListState?.('inquiries',{page:currentPage,q:currentSearch,status:currentStatus,sort:currentSort});return true;
+    }catch(error){body.innerHTML='<tr><td colspan="9">입점신청을 불러오지 못했습니다.</td></tr>';pager.innerHTML='<span class="server-inquiry-info">서버 데이터를 확인해주세요.</span>';return false;}finally{loading=false;}
   }
-  window.loadAdminInquiries=loadInquiries;
-  document.addEventListener('click',function(e){
-    var toggle=e.target&&e.target.closest('.inquiry-review-toggle');
-    if(toggle){
-      var detail=document.querySelector('.inquiry-detail-row[data-detail-id="'+toggle.dataset.inquiryId+'"]');
-      if(detail){var open=detail.hidden;detail.hidden=!open;toggle.setAttribute('aria-expanded',String(open));toggle.textContent=open?'상세닫기':'상세보기';}
-      return;
-    }
-    var vendorLink=e.target&&e.target.closest('.inquiry-vendor-link');
-    if(vendorLink){
-      if(typeof showAdminPanel==='function')showAdminPanel('vendors');
-      history.replaceState(null,'','#vendors');
-      var search=document.getElementById('vendorSearch');if(search)search.value='';
-      window.setAdminListState?.('vendors',{page:1,q:''});
-      if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(1);
-      return;
-    }
-    if(e.target&&e.target.closest('.inquiry-filterbar button')){
-      setTimeout(function(){loadInquiries(1);},0);
-      return;
-    }
-  });
-  document.getElementById('inquirySearch')?.addEventListener('input',function(){
-    clearTimeout(inquirySearchTimer);
-    inquirySearchTimer=setTimeout(function(){loadInquiries(1);},300);
-  });
-  document.getElementById('inquirySearchReset')?.addEventListener('click',function(){setTimeout(function(){loadInquiries(1);},0);});
+  window.loadAdminInquiries=loadAdmissions;
+  window.setAdminInquiryFilter=function(value,options){document.getElementById('inquiryStatus').value=value==='apply-new'||value==='waiting'?'new':['approved','rejected','cancelled'].includes(value)?value:'all';currentStatus=document.getElementById('inquiryStatus').value;currentPage=1;syncCards();if(!options||options.load!==false)return loadAdmissions(1);};
+  window.restoreAdminListControls?.('inquiries');var restored=window.getAdminListState?.('inquiries')||{};currentPage=Math.max(1,Number(restored.page||1));currentStatus=document.getElementById('inquiryStatus').value||'all';currentSort=document.getElementById('inquirySort').value||'latest';currentSearch=(document.getElementById('inquirySearch').value||'').trim();syncCards();
+  document.getElementById('inquirySearch').addEventListener('input',function(){clearTimeout(searchTimer);searchTimer=setTimeout(function(){loadAdmissions(1);},300);});
+  document.getElementById('inquiryStatus').addEventListener('change',function(){loadAdmissions(1);});
+  document.getElementById('inquirySort').addEventListener('change',function(){loadAdmissions(1);});
+  document.getElementById('inquirySearchReset').addEventListener('click',function(){document.getElementById('inquirySearch').value='';document.getElementById('inquiryStatus').value='all';document.getElementById('inquirySort').value='latest';loadAdmissions(1);});
+  document.getElementById('admissionSummaryGrid').addEventListener('click',function(event){var card=event.target.closest('[data-admission-card]');if(!card)return;document.getElementById('inquiryStatus').value=card.dataset.admissionCard==='waiting'?'new':card.dataset.admissionCard==='all'?'all':card.dataset.admissionCard;loadAdmissions(1);});
+  body.addEventListener('click',function(event){var toggle=event.target.closest('[data-admission-detail]');if(!toggle)return;var target=body.querySelector('[data-admission-detail-for="'+toggle.dataset.admissionDetail+'"]'),opening=target&&target.hidden;body.querySelectorAll('.admission-detail-row').forEach(function(row){row.hidden=true;});body.querySelectorAll('[data-admission-detail]').forEach(function(button){button.textContent='상세';});if(target&&opening){target.hidden=false;toggle.textContent='닫기';}});
 })();
 </script><script>
 (function(){
@@ -3630,8 +3460,8 @@ document.addEventListener('DOMContentLoaded',function(){
       setValue('adInquirySearch','');setValue('adInquiryStatus','waiting');
       window.setAdminListState?.('adInquiries',{page:1,q:'',status:'waiting'});goAdminSection('#adInquiries');load=window.loadAdminAdInquiries;
     }else if(action==='apply-waiting'){
-      setValue('inquirySearch','');window.setAdminInquiryFilter?.('apply-new',{load:false});
-      window.setAdminListState?.('inquiries',{page:1,q:'',filter:'apply-new',type:'apply',status:'new'});goAdminSection('#inquiries');load=window.loadAdminInquiries;
+      setValue('inquirySearch','');setValue('inquiryStatus','new');window.setAdminInquiryFilter?.('waiting',{load:false});
+      window.setAdminListState?.('inquiries',{page:1,q:'',status:'new',sort:'latest'});goAdminSection('#inquiries');load=window.loadAdminInquiries;
     }else if(action==='payment-waiting'){
       setValue('adCenterSearch','');window.setAdminAdCenterDashboardFilter?.('waiting');
       window.setAdminListState?.('adCenter',{page:1,q:'',status:'all',payment_status:'waiting'});goAdminSection('#adCenter');load=window.loadAdminAdCenter;

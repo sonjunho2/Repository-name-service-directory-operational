@@ -882,14 +882,15 @@ function adminPageParams(req){
   const offset=(page-1)*limit;
   return {page,limit,offset};
 }
-async function adminPagedJson(req,res,sql,countSql,params=[]){
+async function adminPagedJson(req,res,sql,countSql,params=[],extraPayload={}){
   try{
     res.setHeader('Cache-Control','no-store');
     const {page,limit,offset}=adminPageParams(req);
     const rows=await q(sql+` LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
     const cnt=await q(countSql,params);
     const total=Number(cnt.rows[0]?.count||0);
-    res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows});
+    const extra=typeof extraPayload==='function'?await extraPayload():extraPayload;
+    res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows,...(extra||{})});
   }catch(e){
     console.error('admin paged api failed',e);
     res.status(500).json({ok:false,error:e.message||'admin_api_failed'});
@@ -1014,10 +1015,10 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
   const qText=String(req.query.q||'').trim().slice(0,100);
   const type=String(req.query.type||'').trim();
   const status=String(req.query.status||'').trim();
-  const orderBy={latest:'i.id DESC',oldest:'i.id ASC',status:"CASE WHEN i.status='new' THEN 0 WHEN i.status='approved' THEN 1 ELSE 2 END,i.id DESC",type:'i.type ASC,i.id DESC'}[String(req.query.sort||'latest')]||'i.id DESC';
+  const orderBy={latest:'i.id DESC',oldest:'i.id ASC',waiting:"CASE WHEN COALESCE(i.status,'new')='new' THEN 0 ELSE 1 END,i.id DESC",company:'LOWER(i.company_name) ASC,i.id DESC',status:"CASE WHEN COALESCE(i.status,'new')='new' THEN 0 WHEN i.status='approved' THEN 1 ELSE 2 END,i.id DESC",type:'i.type ASC,i.id DESC'}[String(req.query.sort||'latest')]||'i.id DESC';
   if(qText){params.push(`%${qText}%`);where.push(`(i.company_name ILIKE $${params.length} OR i.name ILIKE $${params.length} OR i.phone ILIKE $${params.length} OR i.content ILIKE $${params.length} OR i.kakao ILIKE $${params.length} OR i.email ILIKE $${params.length} OR i.category ILIKE $${params.length} OR i.region ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
   if(['apply','ad'].includes(type)){params.push(type);where.push(`i.type=$${params.length}`);}
-  if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`i.status=$${params.length}`);}
+  if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(status==='new'?`COALESCE(i.status,'new')=$${params.length}`:`i.status=$${params.length}`);}
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
   const fromSql=` FROM inquiries i
   LEFT JOIN users u ON u.id=i.user_id
@@ -1052,7 +1053,15 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
   CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(image_v.image_data,'')) IS NOT NULL THEN true ELSE false END has_main_image_data,
   CASE WHEN COALESCE(i.banner_image_data,'')<>'' THEN true ELSE false END has_banner_image_data,
   CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(image_v.image_data,'')) IS NOT NULL THEN true ELSE false END has_image_data
-  ${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+  ${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params,type==='apply'?async()=>{
+    const result=await q(`SELECT COUNT(*)::int total,
+      COUNT(*) FILTER(WHERE COALESCE(status,'new')='new')::int waiting,
+      COUNT(*) FILTER(WHERE status='approved')::int approved,
+      COUNT(*) FILTER(WHERE status='rejected')::int rejected,
+      COUNT(*) FILTER(WHERE status='cancelled')::int cancelled
+      FROM inquiries WHERE type='apply'`);
+    return {summary:result.rows[0]||{total:0,waiting:0,approved:0,rejected:0,cancelled:0}};
+  }:{});
 });
 app.get('/admin/api/payments',admin,async(req,res)=>{
   try{
@@ -1368,7 +1377,7 @@ app.post('/admin/reports/:id/reject',admin,async(req,res)=>runAdminAction(req,re
   const row=r.rows[0];
   await logAdmin(req,'신고 기각','report',row.id,`${row.type}:${row.target_id} / ${memo}`);
 }));
-app.post('/admin/inquiries/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#inquiries',async()=>{const r=await q("UPDATE inquiries SET status=$1 WHERE id=$2 AND status='new' RETURNING id,type",['rejected',req.params.id]); const x=r.rows[0]; if(!x)throw new Error('반려할 문의를 찾을 수 없거나 이미 처리되었습니다.'); const label=x.type==='apply'?'입점신청 반려':'광고문의 반려'; await logAdmin(req,label,'inquiry',req.params.id,label);}));
+app.post('/admin/inquiries/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#inquiries',async()=>{const r=await q("UPDATE inquiries SET status=$1 WHERE id=$2 AND type='apply' AND status='new' RETURNING id",['rejected',req.params.id]); const x=r.rows[0]; if(!x)throw new Error('반려할 입점신청을 찾을 수 없거나 이미 처리되었습니다.'); await logAdmin(req,'입점신청 반려','inquiry',req.params.id,'입점신청 반려');}));
 const sendAdminInquiryImage=async(req,res)=>{const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('이미지가 없습니다.');const r=await q(`SELECT COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(iv.image_data,'')) image_data FROM inquiries i LEFT JOIN LATERAL (SELECT v.image_data FROM vendors v WHERE v.id=i.vendor_id OR (i.vendor_id IS NULL AND v.name=i.company_name) ORDER BY v.id DESC LIMIT 1) iv ON true WHERE i.id=$1`,[id]);const data=r.rows[0]?.image_data;if(!data)return res.status(404).send('이미지가 없습니다.');const m=String(data).match(/^data:(.+);base64,(.+)$/);if(!m)return res.status(400).send('이미지 형식 오류');res.setHeader('Content-Type',m[1]);res.setHeader('Cache-Control','private, max-age=86400');res.send(Buffer.from(m[2],'base64'));};
 app.get('/admin/inquiries/:id/image',admin,sendAdminInquiryImage);
 app.get('/admin/inquiry-image/:id/:kind',admin,sendAdminInquiryImage);
