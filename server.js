@@ -1240,18 +1240,27 @@ app.get('/admin/api/vendor-update-requests',admin,async(req,res)=>{
   const params=[];const where=[];
   const qText=String(req.query.q||'').trim().slice(0,100);
   const status=String(req.query.status||'').trim();
-  if(qText){params.push(`%${qText}%`);where.push(`(r.name ILIKE $${params.length} OR v.name ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length} OR r.phone ILIKE $${params.length} OR r.region ILIKE $${params.length} OR r.category ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.category ILIKE $${params.length} OR r.description ILIKE $${params.length} OR r.admin_memo ILIKE $${params.length} OR CAST(r.vendor_id AS text) ILIKE $${params.length})`);}
+  const change=String(req.query.change||'all').trim();
+  if(qText){params.push(`%${qText}%`);where.push(`(CAST(r.id AS text) ILIKE $${params.length} OR r.name ILIKE $${params.length} OR v.name ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length} OR r.phone ILIKE $${params.length} OR r.region ILIKE $${params.length} OR r.category ILIKE $${params.length} OR v.region ILIKE $${params.length} OR v.category ILIKE $${params.length} OR r.description ILIKE $${params.length} OR r.admin_memo ILIKE $${params.length} OR CAST(r.vendor_id AS text) ILIKE $${params.length})`);}
   if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`r.status=$${params.length}`);}
-  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
   const fromSql=' FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id';
   const changedSql=`((COALESCE(r.name,'') IS DISTINCT FROM COALESCE(v.name,''))::int+(COALESCE(r.category,'') IS DISTINCT FROM COALESCE(v.category,''))::int+(COALESCE(r.region,'') IS DISTINCT FROM COALESCE(v.region,''))::int+(COALESCE(r.phone,'') IS DISTINCT FROM COALESCE(v.phone,''))::int+(COALESCE(r.kakao_url,'') IS DISTINCT FROM COALESCE(v.kakao_url,''))::int+(COALESCE(r.business_hours,'') IS DISTINCT FROM COALESCE(v.business_hours,''))::int+(COALESCE(r.tags,'') IS DISTINCT FROM COALESCE(v.tags,''))::int+(COALESCE(r.description,'') IS DISTINCT FROM COALESCE(v.description,''))::int+(COALESCE(r.sns_url,'') IS DISTINCT FROM COALESCE(v.sns_url,''))::int+(COALESCE(r.line_url,'') IS DISTINCT FROM COALESCE(v.line_url,''))::int+(COALESCE(r.telegram_url,'') IS DISTINCT FROM COALESCE(v.telegram_url,''))::int+(COALESCE(r.holiday_info,'') IS DISTINCT FROM COALESCE(v.holiday_info,''))::int+(COALESCE(r.image_data,'')<>'')::int)`;
+  if(change==='changed')where.push(`${changedSql}>0`);
+  else if(change==='many')where.push(`${changedSql}>=5`);
+  else if(change==='image')where.push(`COALESCE(r.image_data,'')<>''`);
+  else if(change==='none')where.push(`${changedSql}=0`);
+  const finalWhereSql=where.length?' WHERE '+where.join(' AND '):'';
+  const orderBy={latest:'r.created_at DESC,r.id DESC',oldest:'r.created_at ASC,r.id ASC',waiting:"CASE WHEN r.status='new' THEN 0 ELSE 1 END,r.created_at DESC,r.id DESC",changes:'changed_count DESC,r.created_at DESC,r.id DESC',vendor:"COALESCE(v.name,r.name,'') ASC,r.id DESC",processed:'r.processed_at DESC NULLS LAST,r.id DESC'}[String(req.query.sort||'latest')]||'r.created_at DESC,r.id DESC';
   try{
     const {page,limit,offset}=adminPageParams(req);res.setHeader('Cache-Control','no-store');
     const select=`SELECT r.id,r.user_id,r.vendor_id,r.name,r.category,r.region,r.phone,r.kakao_url,r.business_hours,r.tags,r.description,r.sns_url,r.line_url,r.telegram_url,r.holiday_info,r.status,r.admin_memo,r.created_at,r.processed_at,u.username,u.nickname,
+      u.status user_status,COALESCE(u.is_vendor,false) user_is_vendor,u.vendor_id linked_vendor_id,
+      CASE WHEN v.id IS NOT NULL THEN true ELSE false END vendor_exists,CASE WHEN u.id IS NOT NULL THEN true ELSE false END user_exists,
+      CASE WHEN u.id IS NOT NULL AND u.vendor_id IS NOT NULL AND u.vendor_id=r.vendor_id THEN true ELSE false END link_matches_vendor,
       CASE WHEN COALESCE(r.image_data,'')<>'' THEN true ELSE false END has_image_data,CASE WHEN COALESCE(v.image_data,'')<>'' THEN true ELSE false END current_has_image_data,
       v.name current_vendor_name,v.category current_category,v.region current_region,v.phone current_phone,v.kakao_url current_kakao_url,v.business_hours current_business_hours,v.tags current_tags,v.description current_description,v.sns_url current_sns_url,v.line_url current_line_url,v.telegram_url current_telegram_url,v.holiday_info current_holiday_info,${changedSql} changed_count${fromSql}`;
-    const rows=await q(`${select}${whereSql} ORDER BY r.id DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
-    const count=await q(`SELECT COUNT(*)${fromSql}${whereSql}`,params);const total=Number(count.rows[0]?.count||0);
+    const rows=await q(`${select}${finalWhereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const count=await q(`SELECT COUNT(*)${fromSql}${finalWhereSql}`,params);const total=Number(count.rows[0]?.count||0);
     const summary=(await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE status='new')::int waiting,COUNT(*) FILTER(WHERE status='approved')::int approved,COUNT(*) FILTER(WHERE status='rejected')::int rejected,COUNT(*) FILTER(WHERE changed_count>=5)::int many FROM (${select}) z`)).rows[0]||{};
     return res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows,summary:{total:Number(summary.total||0),waiting:Number(summary.waiting||0),approved:Number(summary.approved||0),rejected:Number(summary.rejected||0),many:Number(summary.many||0)}});
   }catch(e){console.error('admin vendor update requests api failed',e);return res.status(500).json({ok:false,error:e.message||'vendor_update_requests_load_failed'});}
