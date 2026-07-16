@@ -1266,34 +1266,25 @@ app.get('/admin/api/vendor-update-requests',admin,async(req,res)=>{
   }catch(e){console.error('admin vendor update requests api failed',e);return res.status(500).json({ok:false,error:e.message||'vendor_update_requests_load_failed'});}
 });
 app.get('/admin/api/ad-center',admin,async(req,res)=>{
-  const params=[];const where=[];
-  const qText=String(req.query.q||'').trim().slice(0,100);
-  const status=String(req.query.status||'').trim();
-  const paymentStatus=String(req.query.payment_status||'').trim();
-  const requestType=String(req.query.type||req.query.request_type||'').trim().slice(0,100);
-  const source=String(req.query.source||'').trim();
-  if(qText){params.push(`%${qText}%`);where.push(`(x.id::text ILIKE $${params.length} OR x.vendor_name ILIKE $${params.length} OR x.username ILIKE $${params.length} OR x.nickname ILIKE $${params.length} OR x.product_name ILIKE $${params.length} OR x.request_type ILIKE $${params.length} OR x.admin_memo ILIKE $${params.length} OR x.payment_txid ILIKE $${params.length} OR x.vendor_phone ILIKE $${params.length})`);}
-  if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(`x.status=$${params.length}`);}
-  if(['unpaid','waiting','paid','rejected'].includes(paymentStatus)){params.push(paymentStatus);where.push(`COALESCE(x.payment_status,'unpaid')=$${params.length}`);}
-  else if(paymentStatus==='expired'){where.push(`COALESCE(x.payment_status,'unpaid')='cancelled' AND COALESCE(x.admin_memo,'') ILIKE '%만료%'`);}
-  else if(paymentStatus==='cancelled'){where.push(`COALESCE(x.payment_status,'unpaid')='cancelled' AND COALESCE(x.admin_memo,'') NOT ILIKE '%만료%'`);}
-  if(requestType){params.push(requestType);where.push(`x.request_type=$${params.length}`);}
-  if(['ad_request','banner_request'].includes(source)){params.push(source);where.push(`x.source=$${params.length}`);}
-  const whereSql=where.length?' WHERE '+where.join(' AND '):'';
-  const baseSql=` FROM (
-    SELECT r.id,'ad_request'::text source,COALESCE(r.product_type,'recommended')::text request_type,r.user_id,r.vendor_id,
-      COALESCE(r.plan,r.product_type,'-')::text product_name,''::text product_sub,r.period::text period,r.content::text content,
-      r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
-      u.username,u.nickname,v.name vendor_name,v.phone vendor_phone,false has_image_data
-    FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id
-    UNION ALL
-    SELECT r.id,'banner_request'::text source,'banner'::text request_type,r.user_id,r.vendor_id,
-      '프리미엄배너 신청'::text product_name,COALESCE(r.title,'')::text product_sub,NULL::text period,NULL::text content,
-      r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
-      u.username,u.nickname,v.name vendor_name,v.phone vendor_phone,CASE WHEN COALESCE(r.image_data,'')<>'' THEN true ELSE false END has_image_data
-    FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id
-  ) x`;
-  return adminPagedJson(req,res,`SELECT x.*${baseSql}${whereSql} ORDER BY x.created_at DESC,x.id DESC`,`SELECT COUNT(*)${baseSql}${whereSql}`,params);
+  try{
+    res.setHeader('Cache-Control','no-store');await expirePendingPayments();
+    const {page,limit,offset}=adminPageParams(req),params=[],where=[];
+    const qText=String(req.query.q||'').trim().slice(0,100),kind=['ad','banner'].includes(req.query.kind)?req.query.kind:'all',state=['unpaid','waiting','approved','expired','rejected','cancelled','closed'].includes(req.query.state)?req.query.state:'all';
+    const orderBy={latest:'created_at DESC,id DESC',oldest:'created_at ASC,id ASC',waiting:"CASE WHEN effective_state='waiting' THEN 0 ELSE 1 END,created_at DESC,id DESC",deadline:'payment_expires_at ASC NULLS LAST,created_at DESC',amount:'krw_price DESC NULLS LAST,created_at DESC',vendor:"COALESCE(vendor_name,'') ASC,created_at DESC",processed:'processed_at DESC NULLS LAST,created_at DESC'}[String(req.query.sort||'latest')]||'created_at DESC,id DESC';
+    if(qText){params.push(`%${qText}%`);where.push(`(id::text ILIKE $${params.length} OR request_key ILIKE $${params.length} OR COALESCE(vendor_name,'') ILIKE $${params.length} OR vendor_id::text ILIKE $${params.length} OR COALESCE(username,'') ILIKE $${params.length} OR COALESCE(nickname,'') ILIKE $${params.length} OR COALESCE(product_name,'') ILIKE $${params.length} OR COALESCE(product_type,'') ILIKE $${params.length} OR COALESCE(banner_title,'') ILIKE $${params.length} OR COALESCE(payment_txid,'') ILIKE $${params.length} OR COALESCE(admin_memo,'') ILIKE $${params.length} OR COALESCE(content,'') ILIKE $${params.length})`);}
+    if(kind!=='all'){params.push(kind);where.push(`request_kind=$${params.length}`);}
+    if(state==='closed')where.push(`effective_state IN ('rejected','cancelled')`);else if(state!=='all'){params.push(state);where.push(`effective_state=$${params.length}`);}
+    const whereSql=where.length?' WHERE '+where.join(' AND '):'';
+    const combined=`WITH combined AS (
+      SELECT 'ad:'||r.id request_key,'ad'::text request_kind,r.id,r.user_id,r.vendor_id,u.username,u.nickname,v.name vendor_name,v.status vendor_status,r.created_at,r.processed_at,r.status,r.payment_status,r.payment_expires_at,r.krw_price,r.usdt_amount,r.paid_usdt_amount,r.payment_txid,r.admin_memo,COALESCE(r.product_type,'recommended') product_type,COALESCE(r.plan,r.product_type,'-') product_name,r.period::text period,r.content,NULL::text banner_title,NULL::text banner_subtitle,NULL::text banner_link_url,false has_image_data
+      FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id
+      UNION ALL
+      SELECT 'banner:'||r.id,'banner'::text,r.id,r.user_id,r.vendor_id,u.username,u.nickname,v.name,v.status,r.created_at,r.processed_at,r.status,r.payment_status,r.payment_expires_at,r.krw_price,r.usdt_amount,r.paid_usdt_amount,r.payment_txid,r.admin_memo,'banner'::text,'프리미엄배너'::text,NULL::text,NULL::text,r.title,r.subtitle,r.link_url,COALESCE(r.image_data,'')<>''
+      FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id
+    ), operational AS (SELECT combined.*,CASE WHEN status='approved' THEN 'approved' WHEN status='rejected' THEN 'rejected' WHEN status='cancelled' AND COALESCE(admin_memo,'') ILIKE '%만료%' THEN 'expired' WHEN status='cancelled' THEN 'cancelled' WHEN payment_status='expired' THEN 'expired' WHEN status='new' AND payment_status='waiting' THEN 'waiting' WHEN status='new' AND COALESCE(payment_status,'unpaid')='unpaid' THEN 'unpaid' ELSE COALESCE(payment_status,status,'unknown') END effective_state FROM combined)`;
+    const rows=await q(`${combined} SELECT * FROM operational${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]),count=await q(`${combined} SELECT COUNT(*) FROM operational${whereSql}`,params),total=Number(count.rows[0]?.count||0),summary=await q(`${combined} SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE effective_state='unpaid')::int unpaid,COUNT(*) FILTER(WHERE effective_state='waiting')::int waiting,COUNT(*) FILTER(WHERE effective_state='approved')::int approved,COUNT(*) FILTER(WHERE effective_state='expired')::int expired,COUNT(*) FILTER(WHERE effective_state IN ('rejected','cancelled'))::int closed FROM operational`);
+    return res.json({ok:true,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),rows:rows.rows,summary:summary.rows[0]||{}});
+  }catch(e){console.error('admin ad center api failed',e);return res.status(500).json({ok:false,error:e.message||'ad_center_load_failed'});}
 });
 
 
@@ -1393,6 +1384,7 @@ app.get('/admin/inquiry-image/:id/:kind',admin,sendAdminInquiryImage);
 app.get('/admin/vendor-requests/:id/image',admin,async(req,res)=>{const id=parseInt(req.params.id||0,10); if(!id)return res.status(404).send('이미지가 없습니다.'); const r=await q('SELECT image_data FROM vendor_update_requests WHERE id=$1',[id]); const data=r.rows[0]?.image_data; if(!data)return res.status(404).send('이미지가 없습니다.'); const m=String(data).match(/^data:(.+);base64,(.+)$/); if(!m)return res.status(400).send('이미지 형식 오류'); res.setHeader('Content-Type',m[1]); res.setHeader('Cache-Control','private, max-age=86400'); res.send(Buffer.from(m[2],'base64'));});
 app.get('/admin/vendors/:id/image',admin,async(req,res)=>{const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('이미지가 없습니다.');const r=await q('SELECT image_data FROM vendors WHERE id=$1',[id]);const data=r.rows[0]?.image_data;if(!data)return res.status(404).send('이미지가 없습니다.');const m=String(data).match(/^data:(.+);base64,(.+)$/);if(!m)return res.status(400).send('이미지 형식 오류');res.setHeader('Content-Type',m[1]);res.setHeader('Cache-Control','private, max-age=86400');res.send(Buffer.from(m[2],'base64'));});
 app.get('/admin/banners/:id/image',admin,async(req,res)=>{const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('이미지가 없습니다.');const r=await q('SELECT CASE WHEN b.vendor_id IS NULL THEN b.image_data ELSE COALESCE(v.image_data,b.image_data) END image_data FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.id=$1',[id]);const data=r.rows[0]?.image_data;if(!data)return res.status(404).send('이미지가 없습니다.');const m=String(data).match(/^data:(.+);base64,(.+)$/);if(!m)return res.status(400).send('이미지 형식 오류');res.setHeader('Content-Type',m[1]);res.setHeader('Cache-Control','private, max-age=86400');res.send(Buffer.from(m[2],'base64'));});
+app.get('/admin/banner-requests/:id/image',admin,async(req,res)=>{const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('이미지가 없습니다.');const r=await q('SELECT image_data FROM vendor_banner_requests WHERE id=$1',[id]);const data=r.rows[0]?.image_data;if(!data)return res.status(404).send('이미지가 없습니다.');const m=String(data).match(/^data:(.+);base64,(.+)$/);if(!m)return res.status(400).send('이미지 형식 오류');res.setHeader('Content-Type',m[1]);res.setHeader('Cache-Control','private, max-age=86400');res.send(Buffer.from(m[2],'base64'));});
 app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
   const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]);
   const x=r.rows[0];
@@ -1891,7 +1883,7 @@ app.post('/vendor-dashboard/banner-request',login,async(req,res)=>{
     ]
   );
 
-  await adminNotify('banner_request','프리미엄배너 결제요청',`${vendor.name||'업체'} 프리미엄배너 신청이 접수되었습니다. ${Number(price||0).toLocaleString()}원 / ${usdt} USDT`,'/admin#bannerRequests');
+  await adminNotify('banner_request','프리미엄배너 결제요청',`${vendor.name||'업체'} 프리미엄배너 신청이 접수되었습니다. ${Number(price||0).toLocaleString()}원 / ${usdt} USDT`,'/admin#adCenter');
   res.redirect('/vendor-dashboard?panel=banner&pay=banner&id='+inserted.rows[0].id);
 });
 
@@ -1938,7 +1930,7 @@ app.post('/vendor-dashboard/ad-request',login,async(req,res)=>{
   );
 
   const panel=productType==='renewal_banner'?'banner':'plan';
-  await adminNotify('ad_request','광고 결제요청',`${vendor.name||'업체'} ${productLabel} 신청이 접수되었습니다. ${Number(price||0).toLocaleString()}원 / ${usdt} USDT`,'/admin#adRequests');
+  await adminNotify('ad_request','광고 결제요청',`${vendor.name||'업체'} ${productLabel} 신청이 접수되었습니다. ${Number(price||0).toLocaleString()}원 / ${usdt} USDT`,'/admin#adCenter');
   res.redirect('/vendor-dashboard?panel='+panel+'&pay=ad&id='+inserted.rows[0].id);
 });
 
@@ -1946,11 +1938,11 @@ app.post('/vendor-dashboard/ad-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/login');
   await expirePendingPayments();
   const r=await q("UPDATE vendor_ad_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND vendor_id=$4 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now()) RETURNING id,plan,krw_price,usdt_amount",['waiting',req.params.id,req.session.user.id,req.session.user.vendor_id]);
-  if(r.rows[0])await adminNotify('payment_waiting','입금완료 알림',`${req.session.user.nickname||req.session.user.username||'업체'}님이 ${r.rows[0].plan||'광고 신청'} 입금완료를 눌렀습니다.`,'/admin#adRequests');
+  if(r.rows[0])await adminNotify('payment_waiting','입금완료 알림',`${req.session.user.nickname||req.session.user.username||'업체'}님이 ${r.rows[0].plan||'광고 신청'} 입금완료를 눌렀습니다.`,'/admin#adCenter');
   res.redirect('/vendor-dashboard');
 });
 
-app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>sendFail(req,res,400,'배너 신청은 입금확인 버튼으로 승인 처리됩니다.','/admin#bannerRequests'));
+app.post('/admin/banner-requests/:id/approve',admin,async(req,res)=>sendFail(req,res,400,'배너 신청은 입금확인 버튼으로 승인 처리됩니다.','/admin#adCenter'));
 
 
 
@@ -1959,7 +1951,7 @@ app.post('/vendor-dashboard/banner-request/:id/paid',login,async(req,res)=>{
   if(!req.session.user.is_vendor||!req.session.user.vendor_id)return res.redirect('/login');
   await expirePendingPayments();
   const r=await q("UPDATE vendor_banner_requests SET payment_status=$1 WHERE id=$2 AND user_id=$3 AND vendor_id=$4 AND status='new' AND payment_status='unpaid' AND (payment_expires_at IS NULL OR payment_expires_at>=now()) RETURNING id,title,krw_price,usdt_amount",['waiting',req.params.id,req.session.user.id,req.session.user.vendor_id]);
-  if(r.rows[0])await adminNotify('payment_waiting','입금완료 알림',`${req.session.user.nickname||req.session.user.username||'업체'}님이 프리미엄배너 입금완료를 눌렀습니다.`,'/admin#bannerRequests');
+  if(r.rows[0])await adminNotify('payment_waiting','입금완료 알림',`${req.session.user.nickname||req.session.user.username||'업체'}님이 프리미엄배너 입금완료를 눌렀습니다.`,'/admin#adCenter');
   res.redirect('/vendor-dashboard?panel=banner');
 });
 
@@ -1986,7 +1978,7 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
     const x=claimed.rows[0];
     if(!x){
       await client.query('ROLLBACK');
-      return sendOk(req,res,'/admin#bannerRequests');
+      return sendOk(req,res,'/admin#adCenter');
     }
 
     const v=await client.query('SELECT * FROM vendors WHERE id=$1',[x.vendor_id]);
@@ -1996,7 +1988,7 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
     if(expire)expire.setHours(0,0,0,0);
     if(!expire||Number.isNaN(expire.getTime())||expire<today){
       await client.query('ROLLBACK');
-      return sendFail(req,res,400,'광고기간이 있는 업체만 프리미엄배너를 승인할 수 있습니다.','/admin#bannerRequests');
+      return sendFail(req,res,400,'광고기간이 있는 업체만 프리미엄배너를 승인할 수 있습니다.','/admin#adCenter');
     }
     const until=vendor.expire_at;
 
@@ -2019,7 +2011,7 @@ app.post('/admin/banner-requests/:id/payment-confirm',admin,async(req,res)=>{
       await client.query('INSERT INTO notifications(user_id,role_target,type,title,message,link_url) VALUES($1,$2,$3,$4,$5,$6)',[x.user_id,'user','payment_confirmed','프리미엄배너 결제완료','프리미엄배너 입금확인이 완료되어 배너가 적용되었습니다.','/vendor-dashboard?panel=payments']);
     }
     await client.query('COMMIT');
-    return sendOk(req,res,'/admin#bannerRequests');
+    return sendOk(req,res,'/admin#adCenter');
   }catch(e){
     try{await client.query('ROLLBACK');}catch(_){}
     console.error('banner payment confirm failed',e.message);
@@ -2040,7 +2032,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
     const x=claimed.rows[0];
     if(!x){
       await client.query('ROLLBACK');
-      return sendOk(req,res,'/admin#adRequests');
+      return sendOk(req,res,'/admin#adCenter');
     }
 
     const payMeta=buildPaymentConfirmMeta(req.body,x);
@@ -2070,7 +2062,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
     }
     if(!vendorUpdate?.rows?.[0]){
       await client.query('ROLLBACK');
-      return sendFail(req,res,404,'vendor_not_found','/admin#adRequests');
+      return sendFail(req,res,404,'vendor_not_found','/admin#adCenter');
     }
 
     const paymentProduct=productType==='renewal_banner'?'banner':(productType==='renewal_general'?'general':'recommended');
@@ -2080,7 +2072,7 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
       await client.query('INSERT INTO notifications(user_id,role_target,type,title,message,link_url) VALUES($1,$2,$3,$4,$5,$6)',[x.user_id,'user','payment_confirmed','광고 결제완료',`${x.plan||'광고 신청'} 입금확인이 완료되어 광고가 적용되었습니다.`,'/vendor-dashboard?panel=payments']);
     }
     await client.query('COMMIT');
-    return sendOk(req,res,'/admin#adRequests');
+    return sendOk(req,res,'/admin#adCenter');
   }catch(e){
     try{await client.query('ROLLBACK');}catch(_){}
     console.error('ad payment confirm failed',e.message);
@@ -2089,11 +2081,11 @@ app.post('/admin/ad-requests/:id/payment-confirm',admin,async(req,res)=>{
     client.release();
   }
 });
-app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#bannerRequests',async()=>{const r=await q("UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id,user_id",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 배너 신청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'request_rejected','프리미엄배너 신청 반려',(req.body.admin_memo||'프리미엄배너 신청이 반려되었습니다.').slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||'');}));
+app.post('/admin/banner-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#adCenter',async()=>{const r=await q("UPDATE vendor_banner_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id,user_id",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 배너 신청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'request_rejected','프리미엄배너 신청 반려',(req.body.admin_memo||'프리미엄배너 신청이 반려되었습니다.').slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'배너신청 반려','banner_request',req.params.id,req.body.admin_memo||'');}));
 
-app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>sendFail(req,res,400,'광고 신청은 입금확인 버튼으로 승인 처리됩니다.','/admin#adRequests'));
+app.post('/admin/ad-requests/:id/approve',admin,async(req,res)=>sendFail(req,res,400,'광고 신청은 입금확인 버튼으로 승인 처리됩니다.','/admin#adCenter'));
 
-app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#adRequests',async()=>{const r=await q("UPDATE vendor_ad_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id,user_id,plan",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 광고 신청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'request_rejected','광고 신청 반려',(req.body.admin_memo||`${r.rows[0].plan||'광고 신청'}이 반려되었습니다.`).slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'상품/광고신청 반려','ad_request',req.params.id,req.body.admin_memo||'');}));
+app.post('/admin/ad-requests/:id/reject',admin,async(req,res)=>runAdminAction(req,res,'/admin#adCenter',async()=>{const r=await q("UPDATE vendor_ad_requests SET status=$1,payment_status=$2,admin_memo=$3,processed_at=now() WHERE id=$4 AND status='new' RETURNING id,user_id,plan",['rejected','rejected',(req.body.admin_memo||'').slice(0,500),req.params.id]); if(!r.rows[0])throw new Error('반려할 광고 신청을 찾을 수 없거나 이미 처리되었습니다.'); await userNotify(r.rows[0].user_id,'request_rejected','광고 신청 반려',(req.body.admin_memo||`${r.rows[0].plan||'광고 신청'}이 반려되었습니다.`).slice(0,500),'/vendor-dashboard?panel=history'); await logAdmin(req,'상품/광고신청 반려','ad_request',req.params.id,req.body.admin_memo||'');}));
 
 app.post('/admin/vendor-requests/:id/approve',admin,async(req,res)=>{
   const client=await pool.connect();
@@ -2237,16 +2229,16 @@ app.post('/admin/users/:id/unlink-vendor',admin,async(req,res)=>runAdminAction(r
 
 app.post('/admin/banner-requests/:id/cancel',admin,async(req,res)=>{
   const cancelled=await q("UPDATE vendor_banner_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new' RETURNING id",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
-  if(!cancelled.rows[0])return sendFail(req,res,409,'already_processed','/admin#bannerRequests');
+  if(!cancelled.rows[0])return sendFail(req,res,409,'already_processed','/admin#adCenter');
   await logAdmin(req,'배너신청 취소','banner_request',req.params.id,req.body.admin_memo||'관리자 취소');
-  return sendOk(req,res,'/admin#bannerRequests');
+  return sendOk(req,res,'/admin#adCenter');
 });
 
 app.post('/admin/ad-requests/:id/cancel',admin,async(req,res)=>{
   const cancelled=await q("UPDATE vendor_ad_requests SET status='cancelled',payment_status='cancelled',admin_memo=$1,processed_at=now() WHERE id=$2 AND status='new' RETURNING id",[(req.body.admin_memo||'관리자 취소').slice(0,500),req.params.id]);
-  if(!cancelled.rows[0])return sendFail(req,res,409,'already_processed','/admin#adRequests');
+  if(!cancelled.rows[0])return sendFail(req,res,409,'already_processed','/admin#adCenter');
   await logAdmin(req,'상품/광고신청 취소','ad_request',req.params.id,req.body.admin_memo||'관리자 취소');
-  return sendOk(req,res,'/admin#adRequests');
+  return sendOk(req,res,'/admin#adCenter');
 });
 
 app.get('/admin/backup.json',admin,async(req,res)=>{
