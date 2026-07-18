@@ -665,6 +665,11 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
   </div>
 
   <div id="settings-basic" class="settings-panel active">
+    <div class="settings-safe-notice">
+      <b>운영 설정 안내</b>
+      <span>브랜딩과 업종/지역은 메인 화면 표시에만 반영됩니다. 광고 결제, 승인, 만기 계산 로직은 별도로 유지됩니다.</span>
+    </div>
+
     <form method="post" action="/admin/settings/options" enctype="multipart/form-data" class="settings-form">
       <input type="hidden" name="settings_section" value="basic">
 
@@ -2250,84 +2255,6 @@ function makeButton(label,disabled,active,onClick){
   });
 })();
 </script>
-
-<script>
-(function(){
-  if(window.__adminStableUiV24)return;
-  window.__adminStableUiV24=true;
-
-  function normalizeLoadingPager(pager, unit){
-    if(!pager)return;
-    var text=(pager.textContent||'').trim();
-    if(text.indexOf('불러오는 중입니다')===-1)return;
-    var panel=pager.closest('.admin-panel');
-    var table=panel&&panel.querySelector('table');
-    var rowCount=table?Math.max(0,table.querySelectorAll('tr').length-1):0;
-    var span=pager.querySelector('span')||pager;
-    if(rowCount>0){
-      span.textContent='현재 표시된 '+rowCount+unit+' 기준으로 표시 중입니다.';
-    }else{
-      span.textContent='표시할 데이터가 없습니다.';
-    }
-  }
-
-  function normalizeAllLoadingPagers(){
-    normalizeLoadingPager(document.querySelector('.server-vendor-pager'),'개 업체');
-    normalizeLoadingPager(document.querySelector('.server-user-pager'),'명');
-    normalizeLoadingPager(document.querySelector('.server-inquiry-pager'),'건');
-    normalizeLoadingPager(document.querySelector('.server-payment-pager'),'건');
-    normalizeLoadingPager(document.querySelector('.server-report-pager'),'건');
-  }
-
-  function ensureSettingsSafeNotice(){
-    var basic=document.getElementById('settings-basic');
-    if(basic&&!basic.querySelector('.settings-safe-notice')){
-      var notice=document.createElement('div');
-      notice.className='settings-safe-notice';
-      notice.innerHTML='<b>운영 설정 안내</b><span>브랜딩과 업종/지역은 메인 화면 표시에만 반영됩니다. 광고 결제, 승인, 만기 계산 로직은 별도로 유지됩니다.</span>';
-      basic.insertBefore(notice,basic.firstElementChild);
-    }
-  }
-
-  function bindFaviconPreviewFallback(){
-    if(document.querySelector('.brand-unified-preview-card'))return;
-    document.querySelectorAll('input[type="file"][name="site_logo"],input[type="file"][name="site_favicon"]').forEach(function(input){
-      if(input.dataset.v24PreviewBound)return;
-      input.dataset.v24PreviewBound='1';
-      input.addEventListener('change',function(){
-        var file=input.files&&input.files[0];
-        if(!file)return;
-        var url=URL.createObjectURL(file);
-        var card=input.name==='site_logo'
-          ? document.querySelector('.brand-logo-preview')?.closest('.brand-preview-card')
-          : document.querySelector('.brand-favicon-preview')?.closest('.brand-preview-card');
-        if(!card)return;
-        var img=card.querySelector('img');
-        if(!img){
-          img=document.createElement('img');
-          img.className=input.name==='site_logo'?'brand-logo-preview':'brand-favicon-preview';
-          var empty=card.querySelector('.brand-empty-preview');
-          if(empty)empty.remove();
-          card.appendChild(img);
-        }
-        img.src=url;
-      });
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded',function(){
-    ensureSettingsSafeNotice();
-    bindFaviconPreviewFallback();
-    setTimeout(normalizeAllLoadingPagers,2500);
-    setTimeout(normalizeAllLoadingPagers,5000);
-  });
-  window.addEventListener('hashchange',function(){
-    setTimeout(function(){ensureSettingsSafeNotice();bindFaviconPreviewFallback();normalizeAllLoadingPagers();},800);
-    setTimeout(normalizeAllLoadingPagers,3000);
-  });
-})();
-</script>
-
 
 <script>
 (function(){
