@@ -998,14 +998,14 @@
 </section><section id="settings" class="panel admin-panel">
   <h2>환경설정</h2>
 
-  <div class="settings-tabs">
-    <button type="button" class="settings-tab active" data-settings-tab="basic">기본설정</button>
-    <button type="button" class="settings-tab" data-settings-tab="payment">결제·광고설정</button>
-    <button type="button" class="settings-tab" data-settings-tab="admin">관리자 계정관리</button>
-    <button type="button" class="settings-tab" data-settings-tab="data">데이터 관리</button>
+  <div class="settings-tabs" role="tablist" aria-label="환경설정 메뉴">
+    <button type="button" id="settingsTab-basic" class="settings-tab active" role="tab" data-settings-tab="basic" aria-controls="settings-basic" aria-selected="true" tabindex="0">기본설정</button>
+    <button type="button" id="settingsTab-payment" class="settings-tab" role="tab" data-settings-tab="payment" aria-controls="settings-payment" aria-selected="false" tabindex="-1">결제·광고설정</button>
+    <button type="button" id="settingsTab-admin" class="settings-tab" role="tab" data-settings-tab="admin" aria-controls="settings-admin" aria-selected="false" tabindex="-1">관리자 계정관리</button>
+    <button type="button" id="settingsTab-data" class="settings-tab" role="tab" data-settings-tab="data" aria-controls="settings-data" aria-selected="false" tabindex="-1">데이터 관리</button>
   </div>
 
-  <div id="settings-basic" class="settings-panel active">
+  <div id="settings-basic" class="settings-panel active" role="tabpanel" aria-labelledby="settingsTab-basic" aria-hidden="false">
     <div class="settings-safe-notice">
       <b>운영 설정 안내</b>
       <span>브랜딩과 업종/지역은 메인 화면 표시에만 반영됩니다. 광고 결제, 승인, 만기 계산 로직은 별도로 유지됩니다.</span>
@@ -1085,7 +1085,7 @@
     </form>
   </div>
 
-  <div id="settings-payment" class="settings-panel">
+  <div id="settings-payment" class="settings-panel" role="tabpanel" aria-labelledby="settingsTab-payment" aria-hidden="true">
     <form method="post" action="/admin/settings/options" class="settings-form">
       <input type="hidden" name="settings_section" value="payment">
 
@@ -1190,7 +1190,7 @@
     </form>
   </div>
 
-  <div id="settings-admin" class="settings-panel">
+  <div id="settings-admin" class="settings-panel" role="tabpanel" aria-labelledby="settingsTab-admin" aria-hidden="true">
       <div class="settings-box admin-accounts-box">
         <h3 class="settings-section-title">관리자 계정 관리</h3>
         <div class="admin-account-summary" id="adminAccountSummary"><div><b>전체 관리자</b><strong data-admin-account-summary="total">0</strong></div><div><b>사용중</b><strong data-admin-account-summary="active">0</strong></div><div><b>사용중지</b><strong data-admin-account-summary="suspended">0</strong></div></div>
@@ -1210,7 +1210,7 @@
     <div id="adminPasswordResultModal" class="admin-password-result-modal" hidden><div class="admin-password-result-card"><h3>관리자 비밀번호 설정 완료</h3><div><b>관리자 아이디</b><strong data-admin-password-result="username"></strong></div><div><b>설정된 비밀번호</b><code data-admin-password-result="password"></code></div><p>이 비밀번호는 현재 화면에서만 한 번 표시됩니다. 닫은 후에는 다시 확인할 수 없습니다.</p><div class="admin-password-tools"><button type="button" data-admin-password-result-copy>비밀번호 복사</button><button type="button" data-admin-password-result-close>확인</button></div></div></div>
   </div>
 
-  <div id="settings-data" class="settings-panel">
+  <div id="settings-data" class="settings-panel" role="tabpanel" aria-labelledby="settingsTab-data" aria-hidden="true">
     <div class="data-management-grid">
       <section class="data-management-card">
         <span class="data-status-badge available">사용 가능</span>
@@ -1356,15 +1356,6 @@
 </div>
 <script>function showAdminPanel(id){if(id==='adRequests'||id==='bannerRequests'){var legacyKind=id==='adRequests'?'ad':'banner';id='adCenter';var legacySelect=document.getElementById('adPaymentKind');if(legacySelect)legacySelect.value=legacyKind;window.setAdminListState?.('adCenter',{page:1,kind:legacyKind});}document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));const p=document.getElementById(id);if(p){p.classList.add('active')}const boardOperationPanels=['boardPosts','notices','reviews','reports','adInquiries'];const sidebarId=boardOperationPanels.includes(id)?'boardPosts':id;document.querySelectorAll('[data-panel]').forEach(a=>a.classList.toggle('active',a.dataset.panel===sidebarId));if(typeof window.syncBoardOperationTabs==='function')window.syncBoardOperationTabs(id);}document.querySelectorAll('[data-panel]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();showAdminPanel(a.dataset.panel);history.replaceState(null,'','#'+a.dataset.panel)}));function applyIntegratedReady(){}
 function updateReportAlert(){const el=document.getElementById('pendingReportCount');if(el)el.textContent=document.querySelectorAll('.report-row[data-status="new"]').length;}
-document.querySelectorAll('.settings-tab').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.settings-panel').forEach(x=>x.classList.remove('active'));
-    btn.classList.add('active');
-    const target=document.getElementById('settings-'+btn.dataset.settingsTab);
-    if(target)target.classList.add('active');
-  });
-});
 (function(){
   function getAdminMenuPanel(panelId){if(panelId==='revenue')return'adCenter';if(['notices','reviews','reports','adInquiries'].includes(panelId))return'boardPosts';return panelId;}
   var originalShow=showAdminPanel;
@@ -3445,7 +3436,7 @@ function makeButton(label,disabled,active,onClick){
   async function copyText(value){if(!value){toastMessage('먼저 비밀번호를 입력하거나 생성해주세요.','bad');return false;}try{if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(value);else throw new Error('clipboard_unavailable');}catch(e){var area=document.createElement('textarea');area.value=value;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();var ok=document.execCommand('copy');area.remove();if(!ok){toastMessage('비밀번호를 복사하지 못했습니다.','bad');return false;}}toastMessage('비밀번호를 복사했습니다.','ok');return true;}
   function showPasswordResult(username,password){resultUsername=String(username||'');resultPassword=String(password||'');if(!resultModal)return;resultModal.querySelector('[data-admin-password-result="username"]').textContent=resultUsername;resultModal.querySelector('[data-admin-password-result="password"]').textContent=resultPassword;resultModal.hidden=false;document.body.style.overflow='hidden';}
   function closePasswordResult(){if(!resultModal)return;resultModal.hidden=true;resultModal.querySelector('[data-admin-password-result="username"]').textContent='';resultModal.querySelector('[data-admin-password-result="password"]').textContent='';resultUsername='';resultPassword='';document.body.style.overflow='';}
-  document.addEventListener('click',function(e){var toggle=e.target.closest('[data-admin-password-toggle]');if(toggle){var form=toggle.closest('form'),input=form?.elements[toggle.dataset.adminPasswordToggle];if(input){var visible=input.type==='text';input.type=visible?'password':'text';toggle.textContent=visible?'보기':'숨기기';toggle.setAttribute('aria-label',(input.placeholder||'비밀번호')+' '+(visible?'보기':'숨기기'));}return;}var generate=e.target.closest('[data-admin-password-generate]');if(generate){var form=generate.closest('form'),password=generatePassword(),a=generate.dataset.adminPasswordGenerate==='create'?'password':'new_password',b=generate.dataset.adminPasswordGenerate==='create'?'password_confirm':'new_password_confirm';form.elements[a].value=password;form.elements[b].value=password;form.elements[a].type='text';form.elements[b].type='text';form.querySelectorAll('[data-admin-password-toggle="'+a+'"],[data-admin-password-toggle="'+b+'"]').forEach(function(button){button.textContent='숨기기';});return;}var copy=e.target.closest('[data-admin-password-copy]');if(copy){copyText(copy.closest('form')?.elements[copy.dataset.adminPasswordCopy]?.value||'');return;}if(e.target.closest('[data-admin-password-result-copy]')){copyText(resultPassword);return;}if(e.target.closest('[data-admin-password-result-close]')||e.target===resultModal){closePasswordResult();return;}var logSettings=e.target.closest('[data-admin-log-navigate="settings"]');if(logSettings){showAdminPanel('settings');history.replaceState(null,'','#settings');window.activateAdminSettingsTab?.('admin');setTimeout(loadAdminAccounts,0);return;}var manage=e.target.closest('[data-admin-account-manage]');if(manage){openModal(manage.dataset.adminAccountManage);return;}if(e.target.closest('[data-admin-account-close]')||e.target===modal)closeModal();var tab=e.target.closest('.settings-tab[data-settings-tab="admin"]');if(tab)setTimeout(loadAdminAccounts,0);});
+  document.addEventListener('click',function(e){var toggle=e.target.closest('[data-admin-password-toggle]');if(toggle){var form=toggle.closest('form'),input=form?.elements[toggle.dataset.adminPasswordToggle];if(input){var visible=input.type==='text';input.type=visible?'password':'text';toggle.textContent=visible?'보기':'숨기기';toggle.setAttribute('aria-label',(input.placeholder||'비밀번호')+' '+(visible?'보기':'숨기기'));}return;}var generate=e.target.closest('[data-admin-password-generate]');if(generate){var form=generate.closest('form'),password=generatePassword(),a=generate.dataset.adminPasswordGenerate==='create'?'password':'new_password',b=generate.dataset.adminPasswordGenerate==='create'?'password_confirm':'new_password_confirm';form.elements[a].value=password;form.elements[b].value=password;form.elements[a].type='text';form.elements[b].type='text';form.querySelectorAll('[data-admin-password-toggle="'+a+'"],[data-admin-password-toggle="'+b+'"]').forEach(function(button){button.textContent='숨기기';});return;}var copy=e.target.closest('[data-admin-password-copy]');if(copy){copyText(copy.closest('form')?.elements[copy.dataset.adminPasswordCopy]?.value||'');return;}if(e.target.closest('[data-admin-password-result-copy]')){copyText(resultPassword);return;}if(e.target.closest('[data-admin-password-result-close]')||e.target===resultModal){closePasswordResult();return;}var logSettings=e.target.closest('[data-admin-log-navigate="settings"]');if(logSettings){showAdminPanel('settings');history.replaceState(null,'','#settings');window.activateAdminSettingsTab?.('admin');return;}var manage=e.target.closest('[data-admin-account-manage]');if(manage){openModal(manage.dataset.adminAccountManage);return;}if(e.target.closest('[data-admin-account-close]')||e.target===modal)closeModal();});
   document.addEventListener('submit',async function(e){var form=e.target.closest('[data-admin-account-form]');if(!form)return;e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();if(form.dataset.adminAccountSubmitting==='1')return;var kind=form.dataset.adminAccountForm,id=managedId?.value||'',plainUsername=kind==='create'?String(form.elements.username?.value||''):kind==='password'?String(rows.get(String(id))?.username||''):'',plainPassword=kind==='create'?String(form.elements.password?.value||''):kind==='password'?String(form.elements.new_password?.value||''):'';if(kind!=='create'&&!id){toastMessage('관리자 계정을 다시 선택해주세요.','bad');return;}if(kind==='delete'){var confirmInput=form.elements.confirm_text;if(String(confirmInput?.value||'').trim()!=='관리자삭제'){toastMessage('확인 문구에 관리자삭제를 정확히 입력해주세요.','bad');confirmInput?.focus();return;}if(!confirm('이 관리자 계정을 삭제할까요? 이 작업은 되돌릴 수 없습니다.'))return;}form.dataset.adminAccountSubmitting='1';var button=e.submitter||form.querySelector('button[type="submit"],button:not([type])');if(button)button.disabled=true;try{var url=kind==='create'?'/admin/settings/admin-accounts/create':'/admin/settings/admin-accounts/'+encodeURIComponent(id)+'/'+kind;form.action=url;var res=await fetch(url,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'fetch'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'request_failed');if(kind==='create'){form.reset();form.querySelectorAll('input[name="password"],input[name="password_confirm"]').forEach(function(input){input.type='password';});form.querySelectorAll('[data-admin-password-toggle]').forEach(function(button){button.textContent='보기';});}else closeModal();var refreshed=await loadAdminAccounts(true);if((kind==='create'||kind==='password')&&plainPassword)showPasswordResult(plainUsername,plainPassword);plainUsername='';plainPassword='';if(!refreshed){toastMessage('작업은 완료됐지만 관리자 목록을 갱신하지 못했습니다.','bad');return;}toastMessage(kind==='create'?'관리자를 추가했습니다.':kind==='delete'?'관리자를 삭제했습니다.':kind==='update'?'관리자 정보를 수정했습니다.':kind==='password'?'관리자 비밀번호를 변경했습니다.':'관리자 상태를 변경했습니다.','ok');}catch(err){toastMessage(message(err.message),'bad');}finally{plainUsername='';plainPassword='';form.dataset.adminAccountSubmitting='0';if(button)button.disabled=false;}},true);
 })();
 </script>
@@ -3454,57 +3445,83 @@ function makeButton(label,disabled,active,onClick){
 (function(){
   if(window.__adminSettingsTabRestoreV1)return;
   window.__adminSettingsTabRestoreV1=true;
+
   var STORAGE_KEY='adminSettingsActiveTab';
+  var SETTINGS_SELECTOR='#settings .settings-tab[data-settings-tab]';
+  var PANEL_SELECTOR='#settings .settings-panel';
 
   function normalizeTab(key){
     key=String(key||'').replace(/^settings-/,'').trim();
     return ['basic','payment','admin','data'].includes(key)?key:'basic';
   }
-  function activateSettingsTab(key){
+  function savedTab(){
+    try{return normalizeTab(sessionStorage.getItem(STORAGE_KEY)||'basic');}
+    catch(_error){return 'basic';}
+  }
+  function activateSettingsTab(key,options){
     key=normalizeTab(key);
-    document.querySelectorAll('.settings-tab[data-settings-tab]').forEach(function(btn){
-      btn.classList.toggle('active',btn.getAttribute('data-settings-tab')===key);
+    options=options||{};
+
+    document.querySelectorAll(SETTINGS_SELECTOR).forEach(function(button){
+      var active=button.dataset.settingsTab===key;
+      button.classList.toggle('active',active);
+      button.setAttribute('aria-selected',String(active));
+      button.tabIndex=active?0:-1;
     });
-    document.querySelectorAll('.settings-panel').forEach(function(panel){
-      panel.classList.toggle('active',panel.id==='settings-'+key);
+    document.querySelectorAll(PANEL_SELECTOR).forEach(function(settingsPanel){
+      var active=settingsPanel.id==='settings-'+key;
+      settingsPanel.classList.toggle('active',active);
+      settingsPanel.setAttribute('aria-hidden',String(!active));
     });
-    try{sessionStorage.setItem(STORAGE_KEY,key);}catch(e){}
-    if(key==='admin'&&typeof window.loadAdminAccounts==='function')window.loadAdminAccounts();
+    try{sessionStorage.setItem(STORAGE_KEY,key);}catch(_error){}
+
+    if(key==='admin'&&options.load!==false&&typeof window.loadAdminAccounts==='function'){
+      window.loadAdminAccounts();
+    }
+    return key;
   }
   function restoreSettingsTab(){
     var settingsPanel=document.getElementById('settings');
     if(location.hash!=='#settings'&&!(settingsPanel&&settingsPanel.classList.contains('active')))return;
-    var key='basic';
-    try{key=sessionStorage.getItem(STORAGE_KEY)||'basic';}catch(e){}
-    activateSettingsTab(key);
+    activateSettingsTab(savedTab());
   }
+
   window.activateAdminSettingsTab=activateSettingsTab;
 
-  document.addEventListener('click',function(e){
-    var btn=e.target&&e.target.closest&&e.target.closest('.settings-tab[data-settings-tab]');
-    if(!btn)return;
-    activateSettingsTab(btn.getAttribute('data-settings-tab'));
-  });
-  document.addEventListener('submit',function(e){
-    var form=e.target;
-    if(!form||!form.closest('#settings'))return;
-    var key='';
-    var section=form.querySelector('input[name="settings_section"]');
-    if(section&&section.value)key=section.value;
-    else{
-      var panel=form.closest('.settings-panel');
-      if(panel&&panel.id)key=panel.id.replace('settings-','');
+  document.addEventListener('click',function(event){
+    var tab=event.target&&event.target.closest&&event.target.closest(SETTINGS_SELECTOR);
+    if(tab){
+      event.preventDefault();
+      activateSettingsTab(tab.dataset.settingsTab);
+      return;
     }
-    key=normalizeTab(key);
-    try{sessionStorage.setItem(STORAGE_KEY,key);}catch(err){}
+    var settingsLink=event.target&&event.target.closest&&event.target.closest('[data-panel="settings"]');
+    if(settingsLink)restoreSettingsTab();
+  });
+  document.addEventListener('submit',function(event){
+    var settingsForm=event.target;
+    if(!settingsForm||!settingsForm.closest('#settings')||settingsForm.matches('[data-admin-account-form]'))return;
+    var key='';
+    var section=settingsForm.querySelector('input[name="settings_section"]');
+    if(section&&section.value)key=section.value;
+    if(!key){
+      var settingsPanel=settingsForm.closest('.settings-panel');
+      if(settingsPanel&&settingsPanel.id)key=settingsPanel.id;
+    }
+    if(!key){
+      var activeTab=document.querySelector(SETTINGS_SELECTOR+'.active');
+      if(activeTab)key=activeTab.dataset.settingsTab;
+    }
+    try{sessionStorage.setItem(STORAGE_KEY,normalizeTab(key));}catch(_error){}
   },true);
-  document.addEventListener('DOMContentLoaded',function(){
-    setTimeout(restoreSettingsTab,0);
-    setTimeout(restoreSettingsTab,250);
-  });
   window.addEventListener('hashchange',function(){
-    if(location.hash==='#settings')setTimeout(restoreSettingsTab,0);
+    if(location.hash==='#settings')restoreSettingsTab();
   });
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',restoreSettingsTab,{once:true});
+  }else{
+    restoreSettingsTab();
+  }
 })();
 </script>
 
