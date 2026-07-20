@@ -2180,7 +2180,7 @@ app.post('/admin/delete/users/:id',admin,async(req,res)=>runAdminAction(req,res,
   await logAdmin(req,'회원 삭제','user',userId,u.rows[0].username||'');
 }));
 
-app.post('/admin/link-user-vendor',admin,async(req,res)=>{
+app.post('/admin/link-user-vendor',admin,upload.none(),async(req,res)=>{
   const userId=parseInt(req.body.user_id||0,10);
   const vendorId=parseInt(req.body.vendor_id||0,10);
   if(!userId||!vendorId){
