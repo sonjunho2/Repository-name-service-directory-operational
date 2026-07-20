@@ -938,10 +938,97 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
 </div>
 <div id="paymentHistoryPager" class="server-payment-pager">
 </div>
-</section><section id="adminLogs" class="panel admin-panel"><h2>관리자 로그</h2>
-<div id="adminLogSummaryGrid" class="admin-log-summary-grid"><button type="button" data-admin-log-card="all"><b>전체 로그</b><strong data-admin-log-summary="total">0</strong></button><button type="button" data-admin-log-card="today"><b>오늘 작업</b><strong data-admin-log-summary="today">0</strong></button><button type="button" data-admin-log-card="week"><b>최근 7일</b><strong data-admin-log-summary="last7Days">0</strong></button><button type="button" data-admin-log-card="vendor"><b>업체 관련</b><strong data-admin-log-summary="vendorActions">0</strong></button><button type="button" data-admin-log-card="user"><b>회원 관련</b><strong data-admin-log-summary="userActions">0</strong></button><button type="button" data-admin-log-card="finance"><b>결제·광고 관련</b><strong data-admin-log-summary="paymentAdActions">0</strong></button></div>
-<div class="admin-log-filter"><input id="adminLogSearch" placeholder="로그 ID / 관리자 / 작업 / 대상 / 메모 검색"><select id="adminLogAdminFilter"><option value="all">전체 관리자</option></select><select id="adminLogActionFilter"><option value="all">전체 작업</option></select><select id="adminLogTargetFilter"><option value="all">전체 대상</option></select><input id="adminLogDateFrom" type="date" aria-label="시작일"><input id="adminLogDateTo" type="date" aria-label="종료일"><select id="adminLogSort"><option value="latest">최신 작업순</option><option value="oldest">오래된 작업순</option><option value="admin">관리자순</option><option value="action">작업명순</option><option value="target">대상 유형순</option></select><button type="button" id="adminLogFilterReset">초기화</button></div>
-<div class="admin-log-table-wrap"><table id="adminLogManagementTable"><colgroup><col style="width:85px"><col style="width:175px"><col style="width:150px"><col style="width:210px"><col style="width:190px"><col style="width:430px"><col style="width:90px"></colgroup><thead><tr><th>로그 ID</th><th>작업시간</th><th>관리자</th><th>작업</th><th>대상</th><th>메모</th><th>상세</th></tr></thead><tbody id="adminLogTableBody"><tr class="loading-row"><td colspan="7">관리자 로그를 불러오는 중입니다.</td></tr></tbody></table></div><div id="adminLogPager" class="server-admin-log-pager"></div></section><section id="settings" class="panel admin-panel">
+</section><section id="adminLogs" class="panel admin-panel">
+<h2>관리자 로그</h2>
+<p class="settings-help">관리자 계정에서 수행한 주요 작업과 대상, 처리내용을 감사 로그로 조회합니다.</p>
+<div id="adminLogSummaryGrid" class="admin-log-summary-grid">
+<button type="button" class="active" data-admin-log-card="all">
+<b>전체 로그</b>
+<strong data-admin-log-summary="total">0</strong>
+</button>
+<button type="button" data-admin-log-card="today">
+<b>오늘 작업</b>
+<strong data-admin-log-summary="today">0</strong>
+</button>
+<button type="button" data-admin-log-card="week">
+<b>최근 7일</b>
+<strong data-admin-log-summary="last7Days">0</strong>
+</button>
+<button type="button" data-admin-log-card="vendor">
+<b>업체 관련</b>
+<strong data-admin-log-summary="vendorActions">0</strong>
+</button>
+<button type="button" data-admin-log-card="user">
+<b>회원 관련</b>
+<strong data-admin-log-summary="userActions">0</strong>
+</button>
+<button type="button" data-admin-log-card="finance">
+<b>결제·광고 관련</b>
+<strong data-admin-log-summary="paymentAdActions">0</strong>
+</button>
+</div>
+<div class="admin-log-filter">
+<input id="adminLogSearch" placeholder="로그 ID, 관리자, 작업, 대상 ID·이름, 메모 검색">
+<select id="adminLogAdminFilter">
+<option value="all">전체 관리자</option>
+</select>
+<select id="adminLogActionFilter">
+<option value="all">전체 작업</option>
+</select>
+<select id="adminLogTargetFilter">
+<option value="all">전체 대상</option>
+</select>
+<input id="adminLogDateFrom" type="date" aria-label="시작일">
+<input id="adminLogDateTo" type="date" aria-label="종료일">
+<select id="adminLogSort">
+<option value="latest">최신 작업순</option>
+<option value="oldest">오래된 작업순</option>
+<option value="admin">관리자순</option>
+<option value="action">작업명순</option>
+<option value="target">대상 유형순</option>
+</select>
+<button type="button" id="adminLogFilterReset">초기화</button>
+</div>
+<div class="admin-log-table-wrap">
+<table id="adminLogManagementTable" class="admin-log-management-table">
+<colgroup>
+<col class="admin-log-col-id">
+<col class="admin-log-col-admin">
+<col class="admin-log-col-action">
+<col class="admin-log-col-memo">
+<col class="admin-log-col-detail">
+</colgroup>
+<thead>
+<tr>
+<th>로그 / 작업시간</th>
+<th>관리자</th>
+<th>작업 / 대상</th>
+<th>메모</th>
+<th>상세</th>
+</tr>
+</thead>
+<tbody id="adminLogTableBody">
+<tr class="loading-row">
+<td colspan="5">관리자 로그를 불러오는 중입니다.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="adminLogPager" class="server-admin-log-pager">
+</div>
+<div id="adminLogDetailModal" class="admin-log-detail-modal" hidden>
+<div class="admin-log-detail-modal-card" role="dialog" aria-modal="true" aria-labelledby="adminLogDetailModalTitle">
+<div class="admin-log-detail-modal-head">
+<div>
+<h3 id="adminLogDetailModalTitle">관리자 로그 상세</h3>
+<p>선택한 감사 로그의 전체 내용을 확인합니다.</p>
+</div>
+<button type="button" id="closeAdminLogDetailModal" aria-label="관리자 로그 상세 닫기">닫기</button>
+</div>
+<div id="adminLogDetailModalBody" class="admin-log-detail-modal-body"></div>
+</div>
+</div>
+</section><section id="settings" class="panel admin-panel">
   <h2>환경설정</h2>
 
   <div class="settings-tabs">
@@ -2855,27 +2942,81 @@ function makeButton(label,disabled,active,onClick){
 
 
 <style>
-#adminLogs .admin-log-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin:0 0 16px}#adminLogs .admin-log-summary-grid>button{appearance:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;width:100%;height:auto!important;min-height:82px;padding:12px 14px!important;box-sizing:border-box;border:1px solid #29324f!important;border-radius:14px!important;background:#070b15!important;box-shadow:none!important;color:#dfe9ff!important;text-align:left}#adminLogs .admin-log-summary-grid>button b{color:#9ca8c8;font-size:13px}#adminLogs .admin-log-summary-grid>button strong{color:#10d9ff;font-size:25px}#adminLogs .admin-log-summary-grid>button.active{background:#111a2d!important;border-color:#10d9ff!important}#adminLogs .admin-log-filter{display:grid;grid-template-columns:minmax(260px,1.8fr) minmax(140px,.9fr) minmax(160px,1fr) minmax(140px,.9fr) 145px 145px minmax(145px,.9fr) 90px;gap:8px;margin-bottom:14px;align-items:center}.admin-log-table-wrap{width:100%;overflow-x:auto;border:1px solid #29324f;border-radius:14px}#adminLogManagementTable{min-width:1350px;table-layout:fixed;margin:0}#adminLogManagementTable th,#adminLogManagementTable td{white-space:normal;vertical-align:top;overflow-wrap:anywhere}#adminLogManagementTable small{display:block;margin-top:5px;color:#9ca8c8}.admin-log-action-badge{display:inline-flex;padding:5px 8px;border:1px solid #33405f;border-radius:8px;background:#17233b;font-size:12px;font-weight:900}.admin-log-action-badge.vendor{border-color:#1fe087}.admin-log-action-badge.user{border-color:#10d9ff}.admin-log-action-badge.finance{border-color:#ffdc4d}.admin-log-memo-clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;line-height:1.5}.admin-log-detail-row[hidden]{display:none!important}.admin-log-detail-row>td{padding:0!important}.admin-log-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;background:#0b1221}.admin-log-detail-grid p{line-height:1.6}.admin-log-detail-grid pre{margin:8px 0 0;white-space:pre-wrap;word-break:break-word;font:inherit;color:#dfe9ff}.server-admin-log-pager{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:14px}@media(max-width:1200px){#adminLogs .admin-log-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}#adminLogs .admin-log-filter{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:760px){#adminLogs .admin-log-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#adminLogs .admin-log-filter,.admin-log-detail-grid{grid-template-columns:1fr}}@media(max-width:480px){#adminLogs .admin-log-summary-grid{grid-template-columns:1fr}}
+#adminLogs .admin-log-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin:0 0 16px}
+#adminLogs .admin-log-summary-grid>button{appearance:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;width:100%;height:auto!important;min-height:82px;padding:12px 14px!important;box-sizing:border-box;border:1px solid #29324f!important;border-radius:14px!important;background:#070b15!important;box-shadow:none!important;color:#dfe9ff!important;text-align:left}
+#adminLogs .admin-log-summary-grid>button b{color:#9ca8c8;font-size:13px}
+#adminLogs .admin-log-summary-grid>button strong{color:#10d9ff;font-size:25px}
+#adminLogs .admin-log-summary-grid>button.active{background:#111a2d!important;border-color:#10d9ff!important}
+#adminLogs .admin-log-filter{display:grid;grid-template-columns:minmax(260px,1.8fr) minmax(140px,.9fr) minmax(160px,1fr) minmax(140px,.9fr) 145px 145px minmax(145px,.9fr) 90px;gap:8px;margin-bottom:14px;align-items:center}
+.admin-log-table-wrap{width:100%;max-width:100%;overflow-x:auto;border:1px solid #29324f;border-radius:14px}
+#adminLogManagementTable{width:100%!important;min-width:1050px;table-layout:fixed;margin:0!important}
+#adminLogManagementTable .admin-log-col-id{width:145px}
+#adminLogManagementTable .admin-log-col-admin{width:190px}
+#adminLogManagementTable .admin-log-col-action{width:280px}
+#adminLogManagementTable .admin-log-col-memo{width:360px}
+#adminLogManagementTable .admin-log-col-detail{width:110px}
+#adminLogManagementTable th,#adminLogManagementTable td{white-space:normal;vertical-align:middle;overflow-wrap:anywhere}
+.admin-log-id,.admin-log-date,.admin-log-admin-meta,.admin-log-target-meta{display:block}
+.admin-log-id{font-weight:900;color:#dfe9ff}
+.admin-log-date,.admin-log-admin-meta,.admin-log-target-meta{margin-top:6px;color:#9ca8c8;font-size:12px;line-height:1.45}
+.admin-log-action-badge{display:inline-flex;padding:5px 8px;border:1px solid #33405f;border-radius:8px;background:#17233b;font-size:12px;font-weight:900}
+.admin-log-action-badge.vendor{border-color:#1fe087}
+.admin-log-action-badge.user{border-color:#10d9ff}
+.admin-log-action-badge.finance{border-color:#ffdc4d}
+.admin-log-memo-clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;line-height:1.5}
+.admin-log-detail-modal[hidden]{display:none!important}
+.admin-log-detail-modal{position:fixed;inset:0;z-index:10020;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(2,5,12,.78)}
+.admin-log-detail-modal-card{width:min(820px,100%);max-height:88vh;overflow:auto;border:1px solid #29324f;border-radius:16px;background:#0b1221;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.admin-log-detail-modal-head{position:sticky;top:0;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid #29324f;background:#0b1221}
+.admin-log-detail-modal-head h3,.admin-log-detail-modal-head p{margin:0}
+.admin-log-detail-modal-head p{margin-top:5px;color:#9ca8c8;font-size:13px}
+.admin-log-detail-modal-body{padding:20px}
+.admin-log-detail-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.admin-log-detail-section{min-width:0;padding:14px;border:1px solid #29324f;border-radius:12px;background:#070b15}
+.admin-log-detail-section.wide{grid-column:1/-1}
+.admin-log-detail-section dl{display:grid;grid-template-columns:90px minmax(0,1fr);gap:8px 12px;margin:12px 0 0}
+.admin-log-detail-section dt{color:#9ca8c8}
+.admin-log-detail-section dd{min-width:0;margin:0;overflow-wrap:anywhere}
+.admin-log-detail-section pre{margin:12px 0 0;white-space:pre-wrap;word-break:break-word;font:inherit;color:#dfe9ff}
+.admin-log-detail-section button{margin-top:12px}
+.server-admin-log-pager{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:14px}
+@media(max-width:1200px){#adminLogs .admin-log-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#adminLogs .admin-log-filter{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:760px){#adminLogs .admin-log-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+#adminLogs .admin-log-filter,.admin-log-detail-sections{grid-template-columns:1fr}
+.admin-log-detail-section.wide{grid-column:auto}
+.admin-log-detail-modal{padding:10px}
+}
+@media(max-width:480px){#adminLogs .admin-log-summary-grid{grid-template-columns:1fr}
+}
+
 </style><script>
 (function(){
   if(window.__adminLogManagementV1)return;
   window.__adminLogManagementV1=true;
-  var page=Number(window.getAdminListState?.('adminLogs').page||1),busy=false,timer=null,group=window.getAdminListState?.('adminLogs').group||'';
+  var page=Number(window.getAdminListState?.('adminLogs').page||1),busy=false,timer=null,group=window.getAdminListState?.('adminLogs').group||'',adminLogsById=new Map(),bodyOverflow='';
   function e(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function value(id,f){return document.getElementById(id)?.value||f||'';}
   function dt(v,full){if(!v)return '-';var d=new Date(v);if(isNaN(d.getTime()))return '-';return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+(full?':'+String(d.getSeconds()).padStart(2,'0'):'');}
   function day(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   function query(p){var saved=window.getAdminListState?.('adminLogs')||{},x=new URLSearchParams({page:String(p),limit:'20',sort:value('adminLogSort',saved.sort||'latest')}),q=value('adminLogSearch').trim(),admin=value('adminLogAdminFilter',saved.admin||'all'),action=value('adminLogActionFilter',saved.action||'all'),target=value('adminLogTargetFilter',saved.target||saved.target_type||'all'),from=value('adminLogDateFrom'),to=value('adminLogDateTo');if(q)x.set('q',q);if(admin!=='all')x.set('admin',admin);if(action!=='all')x.set('action',action);if(target!=='all')x.set('target',target);if(group)x.set('group',group);if(from)x.set('date_from',from);if(to)x.set('date_to',to);return x;}
-  function row(l){var admin=l.admin_username||l.admin_nickname||'알 수 없는 관리자',nav=l.can_navigate?'<button type="button" data-admin-log-navigate="'+e(l.destination_panel)+'" data-target-id="'+e(l.target_id)+'">관련 화면</button>':'<span class="admin-log-no-link">이동 없음</span>';return '<tr class="admin-log-row"><td>'+e(l.id)+'</td><td>'+e(dt(l.created_at,false))+'</td><td><b>'+e(admin)+'</b>'+(l.admin_id?'<small>ID '+e(l.admin_id)+'</small>':'')+'</td><td><span class="admin-log-action-badge '+e(l.log_group||'other')+'">'+e(l.action||'-')+'</span></td><td>'+e(l.target_type||'-')+(l.target_id?'<small>#'+e(l.target_id)+'</small>':'')+'</td><td><div class="admin-log-memo-clamp">'+e(l.memo||'-')+'</div></td><td><button type="button" data-admin-log-detail="'+e(l.id)+'">상세</button></td></tr><tr class="admin-log-detail-row" data-detail-for="'+e(l.id)+'" hidden><td colspan="7"><div class="admin-log-detail-grid"><div><b>로그 정보</b><p>로그 ID '+e(l.id)+'<br>작업시간 '+e(dt(l.created_at,true))+'<br>관리자 ID '+e(l.admin_id||'-')+'<br>관리자 '+e(admin)+'</p></div><div><b>작업 대상</b><p>작업 '+e(l.action||'-')+'<br>대상 유형 '+e(l.target_type||'-')+'<br>대상 ID '+e(l.target_id||'-')+'<br>존재 여부 '+e(l.target_exists==null?'확인하지 않음':l.target_exists?'존재':'없음')+'</p>'+nav+'</div><div><b>메모 원문</b><pre>'+e(l.memo||'-')+'</pre></div></div></td></tr>';}
+  function row(l){var username=l.admin_username||'삭제되었거나 확인할 수 없는 관리자',nickname=l.admin_nickname?'<span class="admin-log-admin-meta">닉네임 '+e(l.admin_nickname)+'</span>':'';return '<tr class="admin-log-row"><td><span class="admin-log-id">#'+e(l.id)+'</span><span class="admin-log-date">'+e(dt(l.created_at,false))+'</span></td><td><b>'+e(username)+'</b>'+nickname+'<span class="admin-log-admin-meta">관리자 ID '+e(l.admin_id||'-')+'</span></td><td><span class="admin-log-action-badge '+e(l.log_group||'other')+'">'+e(l.action||'-')+'</span><span class="admin-log-target-meta">'+e(l.target_type||'-')+(l.target_id?' #'+e(l.target_id):'')+'</span></td><td><div class="admin-log-memo-clamp" title="'+e(l.memo||'메모 없음')+'">'+e(l.memo||'메모 없음')+'</div></td><td><button type="button" data-admin-log-detail="'+e(l.id)+'">상세</button></td></tr>';}
+  function detail(l){var username=l.admin_username||'삭제되었거나 확인할 수 없는 관리자',nav=l.can_navigate?'<button type="button" data-admin-log-navigate="'+e(l.destination_panel)+'" data-target-id="'+e(l.target_id)+'">관련 화면</button>':'<span class="admin-log-no-link">이동 없음</span>';return '<div class="admin-log-detail-sections"><section class="admin-log-detail-section"><b>로그 정보</b><dl><dt>로그 ID</dt><dd>#'+e(l.id)+'</dd><dt>작업시간</dt><dd>'+e(dt(l.created_at,true))+'</dd></dl></section><section class="admin-log-detail-section"><b>관리자 정보</b><dl><dt>관리자 ID</dt><dd>'+e(l.admin_id||'-')+'</dd><dt>아이디</dt><dd>'+e(username)+'</dd><dt>닉네임</dt><dd>'+e(l.admin_nickname||'-')+'</dd></dl></section><section class="admin-log-detail-section"><b>작업·대상 정보</b><dl><dt>작업</dt><dd>'+e(l.action||'-')+'</dd><dt>대상 유형</dt><dd>'+e(l.target_type||'-')+'</dd><dt>대상 ID</dt><dd>'+e(l.target_id||'-')+'</dd></dl>'+nav+'</section><section class="admin-log-detail-section wide"><b>메모 원문</b><pre>'+e(l.memo||'메모 없음')+'</pre></section></div>';}
+  function openModal(l){var modal=document.getElementById('adminLogDetailModal'),body=document.getElementById('adminLogDetailModalBody');if(!l||!modal||!body){if(typeof toast==='function')toast('로그 정보를 찾지 못했습니다.','bad');return;}body.innerHTML=detail(l);document.getElementById('adminLogDetailModalTitle').textContent='관리자 로그 #'+l.id;bodyOverflow=document.body.style.overflow;modal.hidden=false;modal.querySelector('.admin-log-detail-modal-card').scrollTop=0;document.body.style.overflow='hidden';}
+  function closeModal(){var modal=document.getElementById('adminLogDetailModal'),body=document.getElementById('adminLogDetailModalBody');if(!modal||modal.hidden)return;modal.hidden=true;if(body)body.innerHTML='';document.getElementById('adminLogDetailModalTitle').textContent='관리자 로그 상세';document.body.style.overflow=bodyOverflow;}
+  function syncCards(key){document.querySelectorAll('#adminLogSummaryGrid [data-admin-log-card]').forEach(function(card){var active=card.dataset.adminLogCard===key;card.classList.toggle('active',active);card.setAttribute('aria-pressed',String(active));});}
+  function currentCard(){var from=value('adminLogDateFrom'),to=value('adminLogDateTo'),today=new Date(),todayText=day(today),first=new Date(today);first.setDate(first.getDate()-6);if(group)return group;if(value('adminLogSearch').trim()||value('adminLogAdminFilter','all')!=='all'||value('adminLogActionFilter','all')!=='all'||value('adminLogTargetFilter','all')!=='all'||value('adminLogSort','latest')!=='latest')return '';if(from===todayText&&to===todayText)return 'today';if(from===day(first)&&to===todayText)return 'week';if(!from&&!to)return 'all';return '';}
   function summary(s){Object.keys(s||{}).forEach(function(k){var x=document.querySelector('#adminLogs [data-admin-log-summary="'+k+'"]');if(x)x.textContent=Number(s[k]||0).toLocaleString('ko-KR');});}
   function syncOptions(id,items,first){var select=document.getElementById(id);if(!select)return;var stateKey={adminLogAdminFilter:'admin',adminLogActionFilter:'action',adminLogTargetFilter:'target'}[id],saved=window.getAdminListState?.('adminLogs')?.[stateKey],current=select.value&&select.value!=='all'?select.value:saved,values=new Set(items||[]);select.replaceChildren();var base=document.createElement('option');base.value='all';base.textContent=first;select.appendChild(base);(items||[]).forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;select.appendChild(o);});select.value=values.has(current)?current:'all';}
-  function pager(data){var root=document.getElementById('adminLogPager');if(!root)return;root.innerHTML='';var cur=Number(data.page||1),pages=Math.max(1,Number(data.totalPages||1));function add(t,p,d,a){var b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=d;if(a)b.className='active';b.onclick=function(){load(p);};root.appendChild(b);}add('이전',cur-1,cur<=1);for(var n=Math.max(1,cur-2);n<=Math.min(pages,cur+2);n++)add(String(n),n,false,n===cur);add('다음',cur+1,cur>=pages);var i=document.createElement('span');i.className='server-admin-log-info';i.textContent='전체 '+Number(data.total||0).toLocaleString('ko-KR')+'건 · '+cur+' / '+pages+' 페이지';root.appendChild(i);}
-  async function load(next){if(busy){clearTimeout(timer);timer=setTimeout(function(){load(next);},100);return false;}var body=document.getElementById('adminLogTableBody');if(!body)return false;var from=value('adminLogDateFrom'),to=value('adminLogDateTo');if(from&&to&&from>to){if(typeof toast==='function')toast('시작일은 종료일보다 늦을 수 없습니다.','bad');return false;}page=Math.max(1,Number(next||window.getAdminListState?.('adminLogs').page||1));busy=true;body.innerHTML='<tr class="loading-row"><td colspan="7">관리자 로그를 불러오는 중입니다.</td></tr>';try{var res=await fetch('/admin/api/logs?'+query(page),{headers:{Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(page>Math.max(1,Number(data.totalPages||1))){busy=false;return load(data.totalPages);}body.innerHTML=(data.rows||[]).length?data.rows.map(row).join(''):'<tr><td colspan="7">검색 결과가 없습니다.</td></tr>';summary(data.summary);syncOptions('adminLogAdminFilter',data.filterOptions?.admins,'전체 관리자');syncOptions('adminLogActionFilter',data.filterOptions?.actions,'전체 작업');syncOptions('adminLogTargetFilter',data.filterOptions?.targetTypes,'전체 대상');pager(data);window.setAdminListState?.('adminLogs',{page:page,q:value('adminLogSearch'),admin:value('adminLogAdminFilter','all'),action:value('adminLogActionFilter','all'),target:value('adminLogTargetFilter','all'),group:group,dateFrom:from,dateTo:to,sort:value('adminLogSort','latest')});busy=false;return true;}catch(err){body.innerHTML='<tr><td colspan="7">관리자 로그를 불러오지 못했습니다.</td></tr>';if(typeof toast==='function')toast('관리자 로그를 불러오지 못했습니다.','bad');busy=false;return false;}}
-  window.loadAdminLogs=load;window.restoreAdminListControls?.('adminLogs');
-  document.getElementById('adminLogSearch')?.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(function(){load(1);},300);});['adminLogAdminFilter','adminLogActionFilter','adminLogTargetFilter','adminLogDateFrom','adminLogDateTo','adminLogSort'].forEach(function(id){document.getElementById(id)?.addEventListener('change',function(){group='';load(1);});});
-  document.getElementById('adminLogFilterReset')?.addEventListener('click',function(){['adminLogSearch','adminLogDateFrom','adminLogDateTo'].forEach(function(id){document.getElementById(id).value='';});['adminLogAdminFilter','adminLogActionFilter','adminLogTargetFilter'].forEach(function(id){document.getElementById(id).value='all';});document.getElementById('adminLogSort').value='latest';group='';document.querySelectorAll('#adminLogSummaryGrid button').forEach(function(x){x.classList.remove('active');});load(1);});
-  document.getElementById('adminLogSummaryGrid')?.addEventListener('click',function(ev){var b=ev.target.closest('[data-admin-log-card]');if(!b)return;var key=b.dataset.adminLogCard,today=new Date();group='';adminLogActionFilter.value='all';adminLogTargetFilter.value='all';if(key==='all'){adminLogSearch.value='';adminLogAdminFilter.value='all';adminLogDateFrom.value='';adminLogDateTo.value='';}else if(key==='today'){adminLogDateFrom.value=day(today);adminLogDateTo.value=day(today);}else if(key==='week'){var first=new Date(today);first.setDate(first.getDate()-6);adminLogDateFrom.value=day(first);adminLogDateTo.value=day(today);}else{adminLogDateFrom.value='';adminLogDateTo.value='';if(['vendor','user','finance'].includes(key))group=key;}this.querySelectorAll('button').forEach(function(x){x.classList.toggle('active',x===b);});load(1);});
-  document.getElementById('adminLogTableBody')?.addEventListener('click',function(ev){var d=ev.target.closest('[data-admin-log-detail]');if(d){var target=d.closest('tr').nextElementSibling,opening=target?.hidden;document.querySelectorAll('#adminLogTableBody .admin-log-detail-row').forEach(function(x){x.hidden=true;});if(target)target.hidden=!opening;return;}var nav=ev.target.closest('[data-admin-log-navigate]');if(!nav)return;var panel=nav.dataset.adminLogNavigate,id=nav.dataset.targetId,map={vendors:['vendorSearch','loadAdminVendors'],users:['userSearch','loadAdminUsers'],reviews:['reviewSearch','loadAdminReviews'],reports:['reportSearch','loadAdminReports'],notices:['noticeSearch','loadAdminNotices'],banners:['bannerSearch','loadAdminBanners'],inquiries:['inquirySearch','loadAdminInquiries'],vendorRequests:['vendorRequestSearch','loadAdminVendorRequests'],adCenter:['adPaymentSearch','loadAdminAdCenter'],boardPosts:['boardPostSearch','loadAdminBoardPosts'],boardComments:['boardCommentSearch','loadAdminBoardComments'],adInquiries:['adInquirySearch','loadAdminAdInquiries']},cfg=map[panel];if(!cfg||!document.getElementById(panel))return;window.saveActiveAdminListState?.('adminLogs',page);showAdminPanel(panel);history.replaceState(null,'','#'+panel);var search=document.getElementById(cfg[0]);if(search)search.value=id;window.setAdminListState?.(panel,{page:1,q:id});if(typeof window[cfg[1]]==='function')window[cfg[1]](1);});
+  function pager(data){var root=document.getElementById('adminLogPager');if(!root)return;root.innerHTML='';var cur=Number(data.page||1),pages=Math.max(1,Number(data.totalPages||1));function add(t,p,d,a){var b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=d;if(a)b.className='active';b.onclick=function(){load(p);};root.appendChild(b);}add('처음',1,cur<=1);add('이전',cur-1,cur<=1);for(var n=Math.max(1,cur-2);n<=Math.min(pages,cur+2);n++)add(String(n),n,false,n===cur);add('다음',cur+1,cur>=pages);add('마지막',pages,cur>=pages);var i=document.createElement('span');i.className='server-admin-log-info';i.textContent='전체 '+Number(data.total||0).toLocaleString('ko-KR')+'건 · '+cur+' / '+pages+' 페이지';root.appendChild(i);}
+  async function load(next){if(busy){clearTimeout(timer);timer=setTimeout(function(){load(next);},100);return false;}var body=document.getElementById('adminLogTableBody');if(!body)return false;var from=value('adminLogDateFrom'),to=value('adminLogDateTo');if(from&&to&&from>to){if(typeof toast==='function')toast('시작일은 종료일보다 늦을 수 없습니다.','bad');return false;}page=Math.max(1,Number(next||window.getAdminListState?.('adminLogs').page||1));busy=true;body.innerHTML='<tr class="loading-row"><td colspan="5">관리자 로그를 불러오는 중입니다.</td></tr>';try{var res=await fetch('/admin/api/logs?'+query(page),{headers:{Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(page>Math.max(1,Number(data.totalPages||1))){busy=false;return load(data.totalPages);}adminLogsById.clear();(data.rows||[]).forEach(function(l){adminLogsById.set(String(l.id),l);});body.innerHTML=(data.rows||[]).length?data.rows.map(row).join(''):'<tr><td colspan="5">검색 결과가 없습니다.</td></tr>';summary(data.summary);syncOptions('adminLogAdminFilter',data.filterOptions?.admins,'전체 관리자');syncOptions('adminLogActionFilter',data.filterOptions?.actions,'전체 작업');syncOptions('adminLogTargetFilter',data.filterOptions?.targetTypes,'전체 대상');pager(data);window.setAdminListState?.('adminLogs',{page:page,q:value('adminLogSearch'),admin:value('adminLogAdminFilter','all'),action:value('adminLogActionFilter','all'),target:value('adminLogTargetFilter','all'),group:group,dateFrom:from,dateTo:to,sort:value('adminLogSort','latest')});busy=false;return true;}catch(err){adminLogsById.clear();body.innerHTML='<tr><td colspan="5">관리자 로그를 불러오지 못했습니다.</td></tr>';if(typeof toast==='function')toast('관리자 로그를 불러오지 못했습니다.','bad');busy=false;return false;}}
+  window.loadAdminLogs=load;window.restoreAdminListControls?.('adminLogs');syncCards(currentCard());
+  document.getElementById('adminLogSearch')?.addEventListener('input',function(){clearTimeout(timer);syncCards('');timer=setTimeout(function(){load(1);},300);});['adminLogAdminFilter','adminLogActionFilter','adminLogTargetFilter','adminLogDateFrom','adminLogDateTo','adminLogSort'].forEach(function(id){document.getElementById(id)?.addEventListener('change',function(){clearTimeout(timer);group='';syncCards(currentCard());load(1);});});
+  document.getElementById('adminLogFilterReset')?.addEventListener('click',function(){clearTimeout(timer);['adminLogSearch','adminLogDateFrom','adminLogDateTo'].forEach(function(id){document.getElementById(id).value='';});['adminLogAdminFilter','adminLogActionFilter','adminLogTargetFilter'].forEach(function(id){document.getElementById(id).value='all';});document.getElementById('adminLogSort').value='latest';group='';syncCards('all');load(1);});
+  document.getElementById('adminLogSummaryGrid')?.addEventListener('click',function(ev){var b=ev.target.closest('[data-admin-log-card]');if(!b)return;clearTimeout(timer);var key=b.dataset.adminLogCard,today=new Date();group='';adminLogActionFilter.value='all';adminLogTargetFilter.value='all';if(key==='all'){adminLogSearch.value='';adminLogAdminFilter.value='all';adminLogDateFrom.value='';adminLogDateTo.value='';}else if(key==='today'){adminLogDateFrom.value=day(today);adminLogDateTo.value=day(today);}else if(key==='week'){var first=new Date(today);first.setDate(first.getDate()-6);adminLogDateFrom.value=day(first);adminLogDateTo.value=day(today);}else{adminLogDateFrom.value='';adminLogDateTo.value='';if(['vendor','user','finance'].includes(key))group=key;}syncCards(key);load(1);});
+  document.getElementById('adminLogs')?.addEventListener('click',function(ev){var d=ev.target.closest('[data-admin-log-detail]');if(d){openModal(adminLogsById.get(d.dataset.adminLogDetail));return;}if(ev.target===document.getElementById('adminLogDetailModal')||ev.target.closest('#closeAdminLogDetailModal')){closeModal();return;}var nav=ev.target.closest('[data-admin-log-navigate]');if(!nav)return;var panel=nav.dataset.adminLogNavigate,id=nav.dataset.targetId,map={vendors:['vendorSearch','loadAdminVendors'],users:['userSearch','loadAdminUsers'],reviews:['reviewSearch','loadAdminReviews'],reports:['reportSearch','loadAdminReports'],notices:['noticeSearch','loadAdminNotices'],banners:['bannerSearch','loadAdminBanners'],inquiries:['inquirySearch','loadAdminInquiries'],vendorRequests:['vendorRequestSearch','loadAdminVendorRequests'],adCenter:['adPaymentSearch','loadAdminAdCenter'],boardPosts:['boardPostSearch','loadAdminBoardPosts'],boardComments:['boardCommentSearch','loadAdminBoardComments'],adInquiries:['adInquirySearch','loadAdminAdInquiries']},cfg=map[panel];closeModal();if(panel==='settings')return;if(!cfg||!document.getElementById(panel))return;window.saveActiveAdminListState?.('adminLogs',page);showAdminPanel(panel);history.replaceState(null,'','#'+panel);var search=document.getElementById(cfg[0]);if(search)search.value=id;window.setAdminListState?.(panel,{page:1,q:id});if(typeof window[cfg[1]]==='function')window[cfg[1]](1);});
+  document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&!document.getElementById('adminLogDetailModal')?.hidden)closeModal();});
   if(document.getElementById('adminLogs')?.classList.contains('active'))load(page);
 })();
 </script>
