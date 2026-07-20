@@ -205,6 +205,7 @@
 .vendor-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;align-items:flex-start;justify-content:center;padding:32px 18px;overflow:auto}
 .vendor-modal.active{display:flex}
 #vendorImagePreview.active{display:flex}
+#bannerImagePreview.active{display:flex}
 .vendor-modal-box{width:min(1180px,100%);background:#101525;border:1px solid #29324f;border-radius:18px;padding:22px;box-shadow:0 20px 70px rgba(0,0,0,.45)}
 .vendor-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px}
 .vendor-modal-head h3{margin:0;font-size:22px}
@@ -473,8 +474,8 @@
 <p class="settings-help">현재 사이트에 등록된 관리자 배너와 업체연동 배너의 이미지, 노출상태와 기간을 관리합니다.<br>업체연동 배너의 내용은 연결된 업체정보를 사용합니다.</p>
 <div id="bannerSummaryGrid" class="banner-summary-grid">
 <div class="banner-summary-card"><span>전체 배너</span><strong data-banner-summary="total">0</strong></div><div class="banner-summary-card"><span>노출중</span><strong data-banner-summary="active">0</strong></div><div class="banner-summary-card"><span>비노출</span><strong data-banner-summary="hidden">0</strong></div><div class="banner-summary-card"><span>관리자 배너</span><strong data-banner-summary="direct">0</strong></div><div class="banner-summary-card"><span>업체연동</span><strong data-banner-summary="vendor">0</strong></div></div>
-<div class="banner-toolbar"><button type="button" id="openBannerCreateModal">관리자 배너 등록</button></div>
-<div id="bannerManagementModal" class="banner-management-modal" hidden><div class="banner-management-modal-card"><div class="banner-management-modal-head"><h3 id="bannerManagementModalTitle">관리자 배너 등록</h3><button type="button" id="closeBannerManagementModal">닫기</button></div>
+<div class="banner-toolbar"><button type="button" id="openBannerCreateModal" aria-controls="bannerManagementModal" aria-expanded="false">관리자 배너 등록</button></div>
+<div id="bannerManagementModal" class="banner-management-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="bannerManagementModalTitle" hidden><div class="banner-management-modal-card"><div class="banner-management-modal-head"><h3 id="bannerManagementModalTitle">관리자 배너 등록</h3><button type="button" id="closeBannerManagementModal">닫기</button></div>
 <form id="bannerForm" method="post" action="/admin/banner" enctype="multipart/form-data" class="banner-management-form"><input type="hidden" name="id"><input type="hidden" name="subtitle"><input type="hidden" name="position" value="premium"><label class="admin-field"><span>배너 제목</span><input name="title" required></label><label class="admin-field"><span>클릭 링크 URL</span><input name="link_url"></label><label class="admin-field"><span>노출 순서</span><input name="sort_order" type="number" value="0"></label><label class="banner-active-field"><input type="checkbox" name="is_active" checked>노출 사용</label><label class="admin-field file-field"><span>배너 이미지</span><input type="file" name="image" accept="image/*"></label><div class="img-preview" id="bannerImagePreview"><img alt="배너 이미지 미리보기"><div><b>배너 이미지 미리보기</b><span>선택한 이미지가 표시됩니다.</span></div></div><div class="form-actions"><button id="bannerSubmitBtn">배너 등록</button><button type="button" id="cancelBannerEdit" class="cancel-edit">닫기</button></div></form></div></div>
 <div class="banner-admin-filter"><input id="bannerSearch" placeholder="배너 ID, 배너명, 업체명 검색"><select id="bannerTypeFilter"><option value="all">전체 배너</option><option value="direct">관리자 배너</option><option value="vendor">업체연동 배너</option></select><select id="bannerStatusFilter"><option value="all">전체 상태</option><option value="active">노출중</option><option value="hidden">비노출</option><option value="expired">만료</option><option value="warning">점검필요</option></select><button type="button" id="bannerFilterReset">초기화</button></div>
 <div class="banner-table-wrap"><table id="bannerManagementTable"><colgroup><col style="width:70px"><col style="width:120px"><col style="width:240px"><col style="width:160px"><col style="width:150px"><col style="width:170px"><col style="width:190px"></colgroup><thead><tr><th>ID</th><th>구분</th><th>배너명 / 업체</th><th>대표 이미지</th><th>노출상태</th><th>노출기간</th><th>관리</th></tr></thead><tbody id="bannerTableBody"><tr><td colspan="7">배너목록을 불러오는 중입니다.</td></tr></tbody></table></div><div id="bannerPager" class="server-banner-pager"></div></section><section id="users" class="panel admin-panel"><h2>일반회원</h2>
@@ -2457,7 +2458,6 @@ function makeButton(label,disabled,active,onClick){
       }
       var needsListRefresh=(
         formId==='vendorForm' ||
-        formId==='bannerForm' ||
         !!form.closest('#users') ||
         !!form.closest('#notices') ||
         !!form.closest('#reviews') ||
@@ -2877,21 +2877,316 @@ function makeButton(label,disabled,active,onClick){
 </script>
 <script>
 (function(){
-  if(window.__adminBannerManagementV1)return;window.__adminBannerManagementV1=true;
-  var busy=false,timer=null,page=Number(window.getAdminListState?.('banners').page||1),rows=new Map(),objectUrl='';
-  var modal=document.getElementById('bannerManagementModal'),modalTitle=document.getElementById('bannerManagementModalTitle'),bodyOverflow='';
-  function e(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}function dt(v){if(!v)return '기간 없음';return String(v).slice(0,10);}function val(id,f){return document.getElementById(id)?.value||f;}function query(p){var x=new URLSearchParams({page:String(p),limit:'20'}),q=val('bannerSearch','').trim(),type=val('bannerTypeFilter','all'),status=val('bannerStatusFilter','all');if(q)x.set('q',q);if(type!=='all')x.set('type',type);if(status!=='all')x.set('status',status);return x;}
-  function statusText(v){return {active:'노출중',hidden:'비노출',expired:'만료',no_image:'이미지 없음',vendor_hidden:'업체 비노출',no_ad:'광고기간 없음'}[v]||'상태확인';}
-  function toggleForm(b){return '<form method="post" action="/admin/banner"><input type="hidden" name="id" value="'+e(b.banner_id)+'"><input type="hidden" name="title" value="'+e(b.title||'')+'"><input type="hidden" name="subtitle" value="'+e(b.subtitle||'')+'"><input type="hidden" name="link_url" value="'+e(b.link_url||'')+'"><input type="hidden" name="position" value="'+e(b.position||'premium')+'"><input type="hidden" name="sort_order" value="'+e(b.sort_order||0)+'">'+(b.is_active?'':'<input type="hidden" name="is_active" value="on">')+'<button type="submit">'+(b.is_active?'숨김':'노출')+'</button></form>';}
-  function row(b){var direct=b.source_type==='direct',displayStatus=direct?(b.is_active?'active':'hidden'):b.display_status,imageUrl=b.image_exists?(direct?'/admin/banners/'+b.banner_id+'/image':'/admin/vendors/'+b.vendor_id+'/image'):'',preview=imageUrl?'<button type="button" class="image-preview-btn banner-image-btn" data-src="'+e(imageUrl)+'" data-title="'+e(direct?(b.title||'배너'):(b.vendor_name||'업체')+' 대표 이미지')+'">'+(direct?'배너 이미지 보기':'업체 이미지 보기')+'</button>':'<span class="banner-image-state missing">이미지 없음</span>',period=direct?'상시':dt(b.vendor_banner_until||b.vendor_expire_at),manage=direct?'<button type="button" data-banner-edit="'+e(b.banner_id)+'">수정</button>'+toggleForm(b)+'<form method="post" action="/admin/delete/banners/'+e(b.banner_id)+'" data-confirm="이 관리자 배너를 삭제할까요?"><button class="reject-btn">삭제</button></form>':'<button type="button" class="edit-vendor-btn" data-id="'+e(b.vendor_id)+'">업체 수정</button>';return '<tr><td>'+e(b.display_id)+'</td><td><span class="banner-source-badge '+e(b.source_type)+'">'+(direct?'관리자 배너':'업체연동')+'</span></td><td><b>'+e(direct?b.title:(b.vendor_name||b.title)||'-')+'</b></td><td>'+preview+'</td><td><span class="banner-display-badge '+e(displayStatus)+'">'+statusText(displayStatus)+'</span></td><td>'+e(period)+'</td><td><div class="banner-action-list">'+manage+'</div></td></tr>';}
-  function summary(s){Object.keys(s||{}).forEach(function(k){var x=document.querySelector('[data-banner-summary="'+k+'"]');if(x)x.textContent=Number(s[k]||0).toLocaleString('ko-KR');});}function pager(data){var root=document.getElementById('bannerPager');root.innerHTML='';var cur=Number(data.page||1),pages=Math.max(1,Number(data.totalPages||1));function add(t,p,d,a){var b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=d;if(a)b.className='active';b.onclick=function(){load(p);};root.appendChild(b);}add('이전',cur-1,cur<=1);for(var n=Math.max(1,cur-2);n<=Math.min(pages,cur+2);n++)add(String(n),n,false,n===cur);add('다음',cur+1,cur>=pages);var i=document.createElement('span');i.textContent='총 '+Number(data.total||0)+'건';root.appendChild(i);}
-  async function load(next){if(busy){clearTimeout(timer);timer=setTimeout(function(){load(next);},100);return;}var body=document.getElementById('bannerTableBody');if(!body)return;page=Math.max(1,Number(next||window.getAdminListState?.('banners').page||1));window.saveActiveAdminListState?.('banners',page);busy=true;body.innerHTML='<tr><td colspan="7">배너목록을 불러오는 중입니다.</td></tr>';try{var res=await fetch('/admin/api/banners?'+query(page),{headers:{Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(page>Math.max(1,Number(data.totalPages||1))){busy=false;window.normalizeAdminListPage?.('banners',data,load);return;}rows.clear();(data.rows||[]).forEach(function(b){if(b.banner_id)rows.set(String(b.banner_id),b);});summary(data.summary);body.innerHTML=(data.rows||[]).length?data.rows.map(row).join(''):'<tr><td colspan="7">조건에 맞는 배너가 없습니다.</td></tr>';pager(data);}catch(err){body.innerHTML='<tr><td colspan="7">배너목록을 불러오지 못했습니다.</td></tr>';if(typeof toast==='function')toast('배너목록을 불러오지 못했습니다.','bad');}finally{busy=false;}}
-  function reset(){var f=document.getElementById('bannerForm');f.reset();f.elements.id.value='';f.elements.is_active.checked=true;f.dataset.submitting='0';document.getElementById('bannerSubmitBtn').textContent='배너 등록';document.getElementById('bannerSubmitBtn').disabled=false;modalTitle.textContent='관리자 배너 등록';var p=document.getElementById('bannerImagePreview');p.style.display='none';p.querySelector('img').removeAttribute('src');if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl='';}}
-  function openModal(b){reset();if(b){var f=document.getElementById('bannerForm');f.elements.id.value=b.banner_id;f.elements.title.value=b.title||'';f.elements.link_url.value=b.link_url||'';f.elements.sort_order.value=b.sort_order||0;f.elements.is_active.checked=!!b.is_active;modalTitle.textContent='관리자 배너 수정';document.getElementById('bannerSubmitBtn').textContent='배너 수정 저장';if(b.image_exists){var p=document.getElementById('bannerImagePreview');p.querySelector('img').src='/admin/banners/'+b.banner_id+'/image';p.style.display='flex';}}bodyOverflow=document.body.style.overflow;modal.hidden=false;document.body.style.overflow='hidden';}
-  function closeModal(){modal.hidden=true;document.body.style.overflow=bodyOverflow;reset();}
-  window.loadAdminBanners=load;window.restoreAdminListControls?.('banners');document.getElementById('bannerSearch')?.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(function(){load(1);},300);});['bannerTypeFilter','bannerStatusFilter'].forEach(function(id){document.getElementById(id)?.addEventListener('change',function(){load(1);});});document.getElementById('bannerFilterReset')?.addEventListener('click',function(){document.getElementById('bannerSearch').value='';document.getElementById('bannerTypeFilter').value='all';document.getElementById('bannerStatusFilter').value='all';load(1);});document.getElementById('openBannerCreateModal')?.addEventListener('click',function(){openModal();});document.getElementById('closeBannerManagementModal')?.addEventListener('click',closeModal);document.getElementById('cancelBannerEdit')?.addEventListener('click',closeModal);modal?.addEventListener('click',function(ev){if(ev.target===modal)closeModal();});document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&!modal.hidden)closeModal();});document.querySelector('#bannerForm input[name="image"]')?.addEventListener('change',function(){var file=this.files?.[0];if(!file)return;if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=URL.createObjectURL(file);var p=document.getElementById('bannerImagePreview');p.querySelector('img').src=objectUrl;p.style.display='flex';});
-  document.getElementById('banners')?.addEventListener('click',function(ev){var edit=ev.target.closest('[data-banner-edit]');if(!edit)return;var b=rows.get(edit.dataset.bannerEdit);if(b&&b.source_type==='direct')openModal(b);});
-  document.getElementById('banners')?.addEventListener('submit',async function(ev){var form=ev.target;if(!form.matches('#bannerForm,.banner-action-list form'))return;ev.preventDefault();if(form.dataset.submitting==='1'||(form.dataset.confirm&&!confirm(form.dataset.confirm)))return;form.dataset.submitting='1';var btn=ev.submitter||form.querySelector('button');if(btn)btn.disabled=true;try{var res=await fetch(form.action,{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{'X-Requested-With':'fetch',Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'처리하지 못했습니다.');if(form.id==='bannerForm')closeModal();await load(page);if(typeof toast==='function')toast('배너 작업을 완료했습니다.','ok');}catch(err){if(typeof toast==='function')toast(err.message,'bad');else alert(err.message);}finally{form.dataset.submitting='0';if(btn)btn.disabled=false;}});
+  if(window.__adminBannerEditorV2)return;
+  window.__adminBannerEditorV2=true;
+
+  var panel=document.getElementById('banners');
+  var modal=document.getElementById('bannerManagementModal');
+  var form=document.getElementById('bannerForm');
+  var openButton=document.getElementById('openBannerCreateModal');
+  var closeButton=document.getElementById('closeBannerManagementModal');
+  var cancelButton=document.getElementById('cancelBannerEdit');
+  var modalTitle=document.getElementById('bannerManagementModalTitle');
+  var submitButton=document.getElementById('bannerSubmitBtn');
+  var imageInput=form&&form.elements.image;
+  var preview=document.getElementById('bannerImagePreview');
+  var previewImage=preview&&preview.querySelector('img');
+  var previewText=preview&&preview.querySelector('span');
+  var modalCard=modal&&modal.querySelector('.banner-management-modal-card');
+  var busy=false;
+  var timer=null;
+  var page=Number(window.getAdminListState?.('banners').page||1);
+  var bannersById=new Map();
+  var bannerPreviewObjectUrl='';
+  var previousBodyOverflow='';
+  var returnFocus=null;
+
+  if(!panel||!modal||!form)return;
+
+  function escapeHtml(value){
+    return String(value==null?'':value).replace(/[&<>"']/g,function(character){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character];
+    });
+  }
+  function dateText(value){return value?String(value).slice(0,10):'기간 없음';}
+  function controlValue(id,fallback){
+    var control=document.getElementById(id);
+    return control&&control.value||fallback;
+  }
+  function query(currentPage){
+    var params=new URLSearchParams({page:String(currentPage),limit:'20'});
+    var search=controlValue('bannerSearch','').trim();
+    var type=controlValue('bannerTypeFilter','all');
+    var status=controlValue('bannerStatusFilter','all');
+    if(search)params.set('q',search);
+    if(type!=='all')params.set('type',type);
+    if(status!=='all')params.set('status',status);
+    return params;
+  }
+  function statusText(value){
+    return {active:'노출중',hidden:'비노출',expired:'만료',no_image:'이미지 없음',vendor_hidden:'업체 비노출',no_ad:'광고기간 없음'}[value]||'상태확인';
+  }
+  function toggleForm(banner){
+    return '<form method="post" action="/admin/banner"><input type="hidden" name="id" value="'+escapeHtml(banner.banner_id)+'"><input type="hidden" name="title" value="'+escapeHtml(banner.title||'')+'"><input type="hidden" name="subtitle" value="'+escapeHtml(banner.subtitle||'')+'"><input type="hidden" name="link_url" value="'+escapeHtml(banner.link_url||'')+'"><input type="hidden" name="position" value="'+escapeHtml(banner.position||'premium')+'"><input type="hidden" name="sort_order" value="'+escapeHtml(banner.sort_order||0)+'">'+(banner.is_active?'':'<input type="hidden" name="is_active" value="on">')+'<button type="submit">'+(banner.is_active?'숨김':'노출')+'</button></form>';
+  }
+  function row(banner){
+    var direct=banner.source_type==='direct';
+    var displayStatus=direct?(banner.is_active?'active':'hidden'):banner.display_status;
+    var imageUrl=banner.image_exists?(direct?'/admin/banners/'+banner.banner_id+'/image':'/admin/vendors/'+banner.vendor_id+'/image'):'';
+    var previewButton=imageUrl?'<button type="button" class="image-preview-btn banner-image-btn" data-src="'+escapeHtml(imageUrl)+'" data-title="'+escapeHtml(direct?(banner.title||'배너'):(banner.vendor_name||'업체')+' 대표 이미지')+'">'+(direct?'배너 이미지 보기':'업체 이미지 보기')+'</button>':'<span class="banner-image-state missing">이미지 없음</span>';
+    var period=direct?'상시':dateText(banner.vendor_banner_until||banner.vendor_expire_at);
+    var manage=direct?'<button type="button" data-banner-edit="'+escapeHtml(banner.banner_id)+'">수정</button>'+toggleForm(banner)+'<form method="post" action="/admin/delete/banners/'+escapeHtml(banner.banner_id)+'" data-confirm="이 관리자 배너를 삭제할까요?"><button class="reject-btn">삭제</button></form>':'<button type="button" class="edit-vendor-btn" data-id="'+escapeHtml(banner.vendor_id)+'">업체 수정</button>';
+    return '<tr><td>'+escapeHtml(banner.display_id)+'</td><td><span class="banner-source-badge '+escapeHtml(banner.source_type)+'">'+(direct?'관리자 배너':'업체연동')+'</span></td><td><b>'+escapeHtml(direct?banner.title:(banner.vendor_name||banner.title)||'-')+'</b></td><td>'+previewButton+'</td><td><span class="banner-display-badge '+escapeHtml(displayStatus)+'">'+statusText(displayStatus)+'</span></td><td>'+escapeHtml(period)+'</td><td><div class="banner-action-list">'+manage+'</div></td></tr>';
+  }
+  function renderSummary(summary){
+    Object.keys(summary||{}).forEach(function(key){
+      var element=document.querySelector('[data-banner-summary="'+key+'"]');
+      if(element)element.textContent=Number(summary[key]||0).toLocaleString('ko-KR');
+    });
+  }
+  function renderPager(data){
+    var root=document.getElementById('bannerPager');
+    if(!root)return;
+    root.innerHTML='';
+    var current=Number(data.page||1);
+    var pages=Math.max(1,Number(data.totalPages||1));
+    function add(label,target,disabled,active){
+      var button=document.createElement('button');
+      button.type='button';
+      button.textContent=label;
+      button.disabled=disabled;
+      if(active)button.className='active';
+      button.onclick=function(){loadBanners(target);};
+      root.appendChild(button);
+    }
+    add('이전',current-1,current<=1);
+    for(var number=Math.max(1,current-2);number<=Math.min(pages,current+2);number++)add(String(number),number,false,number===current);
+    add('다음',current+1,current>=pages);
+    var info=document.createElement('span');
+    info.textContent='총 '+Number(data.total||0)+'건';
+    root.appendChild(info);
+  }
+  async function loadBanners(nextPage,silent){
+    if(busy){
+      if(silent)return false;
+      clearTimeout(timer);
+      timer=setTimeout(function(){loadBanners(nextPage);},100);
+      return false;
+    }
+    var body=document.getElementById('bannerTableBody');
+    if(!body)return false;
+    page=Math.max(1,Number(nextPage||window.getAdminListState?.('banners').page||1));
+    window.saveActiveAdminListState?.('banners',page);
+    busy=true;
+    body.innerHTML='<tr><td colspan="7">배너목록을 불러오는 중입니다.</td></tr>';
+    try{
+      var response=await fetch('/admin/api/banners?'+query(page),{headers:{Accept:'application/json'}});
+      var data=await response.json();
+      if(!response.ok||!data.ok)throw new Error(data.error||'load_failed');
+      if(page>Math.max(1,Number(data.totalPages||1))){
+        busy=false;
+        window.normalizeAdminListPage?.('banners',data,loadBanners);
+        return true;
+      }
+      bannersById.clear();
+      (data.rows||[]).forEach(function(banner){
+        if(banner.banner_id)bannersById.set(String(banner.banner_id),banner);
+      });
+      renderSummary(data.summary);
+      body.innerHTML=(data.rows||[]).length?data.rows.map(row).join(''):'<tr><td colspan="7">조건에 맞는 배너가 없습니다.</td></tr>';
+      renderPager(data);
+      return true;
+    }catch(error){
+      bannersById.clear();
+      body.innerHTML='<tr><td colspan="7">배너목록을 불러오지 못했습니다.</td></tr>';
+      if(!silent&&typeof toast==='function')toast('배너목록을 불러오지 못했습니다.','bad');
+      return false;
+    }finally{
+      busy=false;
+    }
+  }
+  function revokePreviewUrl(){
+    if(bannerPreviewObjectUrl){
+      URL.revokeObjectURL(bannerPreviewObjectUrl);
+      bannerPreviewObjectUrl='';
+    }
+  }
+  function setPreview(src,message){
+    if(!preview)return;
+    if(src){
+      if(previewImage)previewImage.src=src;
+      if(previewText)previewText.textContent=message||'현재 등록된 배너 이미지입니다. 새 파일을 선택하면 교체됩니다.';
+      preview.classList.add('active');
+    }else{
+      if(previewImage)previewImage.removeAttribute('src');
+      if(previewText)previewText.textContent='선택한 이미지가 표시됩니다.';
+      preview.classList.remove('active');
+    }
+  }
+  function resetEditor(){
+    revokePreviewUrl();
+    form.reset();
+    form.elements.id.value='';
+    form.elements.title.value='';
+    form.elements.link_url.value='';
+    form.elements.sort_order.value='0';
+    form.elements.is_active.checked=true;
+    form.elements.position.value='premium';
+    if(imageInput)try{imageInput.value='';}catch(_error){}
+    form.dataset.bannerSubmitting='0';
+    modalTitle.textContent='관리자 배너 등록';
+    submitButton.disabled=false;
+    submitButton.classList.remove('ajax-loading');
+    submitButton.textContent='배너 등록';
+    if(modalCard)modalCard.scrollTop=0;
+    setPreview('');
+  }
+  function openEditor(banner,opener){
+    resetEditor();
+    returnFocus=opener||document.activeElement;
+    if(banner){
+      if(banner.source_type!=='direct')return;
+      form.elements.id.value=banner.banner_id||'';
+      form.elements.title.value=banner.title||'';
+      form.elements.subtitle.value=banner.subtitle||'';
+      form.elements.link_url.value=banner.link_url||'';
+      form.elements.sort_order.value=banner.sort_order||0;
+      form.elements.is_active.checked=!!banner.is_active;
+      form.elements.position.value=banner.position||'premium';
+      modalTitle.textContent='관리자 배너 수정';
+      submitButton.textContent='배너 수정 저장';
+      if(banner.image_exists)setPreview('/admin/banners/'+encodeURIComponent(banner.banner_id)+'/image');
+    }
+    previousBodyOverflow=document.body.style.overflow;
+    modal.hidden=false;
+    modal.setAttribute('aria-hidden','false');
+    openButton.setAttribute('aria-expanded','true');
+    document.body.style.overflow='hidden';
+    setTimeout(function(){form.elements.title.focus();},0);
+  }
+  function closeEditor(){
+    if(modal.hidden)return;
+    modal.hidden=true;
+    modal.setAttribute('aria-hidden','true');
+    openButton.setAttribute('aria-expanded','false');
+    document.body.style.overflow=previousBodyOverflow;
+    resetEditor();
+    var focusTarget=returnFocus;
+    returnFocus=null;
+    if(focusTarget&&document.contains(focusTarget))focusTarget.focus();
+  }
+  async function parseJsonResponse(response){
+    var contentType=String(response.headers.get('content-type')||'').toLowerCase();
+    if(!contentType.includes('application/json'))throw new Error(response.redirected?'서버가 JSON 대신 HTML redirect를 반환했습니다.':'서버가 JSON이 아닌 응답을 반환했습니다.');
+    var data=null;
+    try{data=await response.json();}catch(_error){throw new Error('서버 JSON 응답을 확인하지 못했습니다.');}
+    if(!response.ok||!data||data.ok===false)throw new Error(data&&data.error||('HTTP '+response.status));
+    return data;
+  }
+  async function refreshAfterMutation(){
+    var state=window.getAdminListState?window.getAdminListState('banners'):{};
+    var currentPage=Math.max(1,Number(state.page||page||1)||1);
+    window.saveActiveAdminListState?.('banners',currentPage);
+    window.setAdminListState?.('banners',{page:currentPage});
+    if(typeof window.loadAdminBanners==='function')return (await window.loadAdminBanners(currentPage,true))!==false;
+    if(typeof window.reloadAdminPanelList==='function')return (await window.reloadAdminPanelList('banners'))!==false;
+    return false;
+  }
+
+  window.loadAdminBanners=loadBanners;
+  window.restoreAdminListControls?.('banners');
+
+  document.getElementById('bannerSearch')?.addEventListener('input',function(){
+    clearTimeout(timer);
+    timer=setTimeout(function(){loadBanners(1);},300);
+  });
+  ['bannerTypeFilter','bannerStatusFilter'].forEach(function(id){
+    document.getElementById(id)?.addEventListener('change',function(){loadBanners(1);});
+  });
+  document.getElementById('bannerFilterReset')?.addEventListener('click',function(){
+    document.getElementById('bannerSearch').value='';
+    document.getElementById('bannerTypeFilter').value='all';
+    document.getElementById('bannerStatusFilter').value='all';
+    loadBanners(1);
+  });
+  openButton.addEventListener('click',function(){openEditor(null,openButton);});
+  closeButton.addEventListener('click',closeEditor);
+  cancelButton.addEventListener('click',closeEditor);
+  modal.addEventListener('click',function(event){if(event.target===modal)closeEditor();});
+  document.addEventListener('keydown',function(event){if(event.key==='Escape'&&!modal.hidden)closeEditor();});
+  imageInput.addEventListener('change',function(){
+    var file=imageInput.files&&imageInput.files[0];
+    if(!file)return;
+    revokePreviewUrl();
+    bannerPreviewObjectUrl=URL.createObjectURL(file);
+    setPreview(bannerPreviewObjectUrl,'새로 선택한 배너 이미지입니다.');
+  });
+  panel.addEventListener('click',function(event){
+    var editButton=event.target.closest('[data-banner-edit]');
+    if(!editButton)return;
+    var banner=bannersById.get(String(editButton.dataset.bannerEdit));
+    if(banner&&banner.source_type==='direct')openEditor(banner,editButton);
+  });
+  form.addEventListener('submit',async function(event){
+    event.preventDefault();
+    event.stopPropagation();
+    if(event.stopImmediatePropagation)event.stopImmediatePropagation();
+    if(form.dataset.bannerSubmitting==='1'||(form.reportValidity&&!form.reportValidity()))return;
+    form.dataset.bannerSubmitting='1';
+    var oldText=submitButton.textContent;
+    submitButton.disabled=true;
+    submitButton.classList.add('ajax-loading');
+    submitButton.textContent='저장 중...';
+    try{
+      var response=await fetch('/admin/banner',{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{'X-Requested-With':'fetch',Accept:'application/json'}});
+      await parseJsonResponse(response);
+      var refreshed=false;
+      try{refreshed=await refreshAfterMutation();}catch(_refreshError){}
+      closeEditor();
+      if(typeof toast==='function'){
+        if(refreshed)toast('배너 정보가 저장되었습니다.','ok');
+        else toast('배너는 저장되었지만 목록을 다시 불러오지 못했습니다.','bad');
+      }
+    }catch(error){
+      if(typeof toast==='function')toast('배너 정보를 저장하지 못했습니다.','bad',error.message||'잠시 후 다시 시도해주세요.');
+      else alert(error.message||'배너 정보를 저장하지 못했습니다.');
+    }finally{
+      form.dataset.bannerSubmitting='0';
+      if(!modal.hidden){
+        submitButton.disabled=false;
+        submitButton.classList.remove('ajax-loading');
+        submitButton.textContent=oldText;
+      }
+    }
+  });
+  panel.addEventListener('submit',async function(event){
+    var actionForm=event.target;
+    if(actionForm===form||!actionForm.matches('.banner-action-list form'))return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(actionForm.dataset.submitting==='1')return;
+    if(actionForm.dataset.confirm&&!confirm(actionForm.dataset.confirm))return;
+    actionForm.dataset.submitting='1';
+    var button=event.submitter||actionForm.querySelector('button');
+    var oldText=button&&button.textContent;
+    if(button)button.disabled=true;
+    try{
+      var response=await fetch(actionForm.action,{method:'POST',body:new FormData(actionForm),credentials:'same-origin',headers:{'X-Requested-With':'fetch',Accept:'application/json'}});
+      await parseJsonResponse(response);
+      var refreshed=false;
+      try{refreshed=await refreshAfterMutation();}catch(_refreshError){}
+      if(typeof toast==='function'){
+        if(refreshed)toast('배너 작업을 완료했습니다.','ok');
+        else toast('배너 작업은 완료되었지만 목록을 다시 불러오지 못했습니다.','bad');
+      }
+    }catch(error){
+      if(typeof toast==='function')toast(error.message||'배너 작업을 완료하지 못했습니다.','bad');
+      else alert(error.message||'배너 작업을 완료하지 못했습니다.');
+    }finally{
+      actionForm.dataset.submitting='0';
+      if(button){button.disabled=false;button.textContent=oldText;}
+    }
+  });
 })();
 </script>
 
