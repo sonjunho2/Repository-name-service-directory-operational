@@ -390,18 +390,18 @@
   <div class="vendor-summary-card"><b>비노출</b><strong data-vendor-summary="hiddenOrExpired">0</strong></div>
 </div>
 <div class="vendor-toolbar">
-  <button type="button" data-user-vendor-link-open>업체회원 연결</button>
+  <button type="button" data-user-vendor-link-open aria-controls="userVendorLinkModal" aria-expanded="false">업체회원 연결</button>
   <button type="button" id="openVendorCreateModal" class="vendor-add-open" aria-controls="vendorModal" aria-expanded="false">업체 등록</button>
 </div>
 
-<div id="userVendorLinkModal" class="user-vendor-link-modal" hidden>
+<div id="userVendorLinkModal" class="user-vendor-link-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="userVendorLinkModalTitle" hidden>
   <div class="user-vendor-link-modal-card">
-    <div class="user-vendor-link-modal-head"><h3>업체회원 연결</h3><button type="button" data-user-vendor-link-close>닫기</button></div>
+    <div class="user-vendor-link-modal-head"><h3 id="userVendorLinkModalTitle">업체회원 연결</h3><button type="button" data-user-vendor-link-close>닫기</button></div>
     <p class="settings-help">연결되지 않은 일반회원과 업체를 선택해 업체회원으로 전환합니다.</p>
-    <form method="post" action="/admin/link-user-vendor">
+    <form id="userVendorLinkForm" method="post" action="/admin/link-user-vendor">
       <select name="user_id" required><option value="">회원 선택</option><% users.filter(u=>u.role!=='admin'&&!u.is_vendor&&!u.vendor_id).forEach(u=>{%><option value="<%=u.id%>"><%=u.username%> / <%=u.nickname%></option><%})%></select>
       <select name="vendor_id" required><option value="">업체 선택</option><% for(const v of vendors){%><option value="<%=v.id%>" <%=v.linked_username?'disabled':''%>><%=v.name%> / <%=v.region%> / <%=v.category%> <%=v.linked_username?'(연결됨: '+v.linked_username+')':''%></option><%}%></select>
-      <button>업체회원으로 연결</button>
+      <button id="userVendorLinkSubmit" type="submit">업체회원으로 연결</button>
     </form>
   </div>
 </div>
@@ -2649,52 +2649,79 @@ function makeButton(label,disabled,active,onClick){
 (function(){
   if(window.__adminUserVendorLinkModalV1)return;
   window.__adminUserVendorLinkModalV1=true;
-  function closeUserVendorLinkModal(){var modal=document.getElementById('userVendorLinkModal'),form=modal?.querySelector('form');if(!modal)return;if(form){form.reset();form.dataset.submitting='0';}modal.hidden=true;document.body.style.overflow='';}
-  function openUserVendorLinkModal(){var modal=document.getElementById('userVendorLinkModal');if(!modal)return;modal.hidden=false;document.body.style.overflow='hidden';}
-  window.closeUserVendorLinkModal=closeUserVendorLinkModal;
 
-  async function submitVendorLink(form){
-    if(form.dataset.submitting==='1')return;
-    if(!confirm('선택한 회원을 이 업체의 업체회원으로 연결할까요? 연결 후 해당 회원은 업체 대시보드를 사용할 수 있습니다.'))return;
-    var userOption=form.elements.user_id.selectedOptions[0],vendorOption=form.elements.vendor_id.selectedOptions[0],fd=new FormData(form);
-    var btn=form.querySelector('button');
-    var old=btn?btn.textContent:'';
-    form.dataset.submitting='1';if(btn){btn.disabled=true;btn.textContent='연결중...';}
-    try{
-      var res=await fetch('/admin/link-user-vendor',{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'fetch'}});
-      var data=null;
-      try{data=await res.json();}catch(e){}
-      if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
-      toast('업체회원으로 연결되었습니다.','ok');
-      window.saveActiveAdminListState?.('users',window.getAdminListState?.('users').page||1);
-      if(typeof window.reloadAdminPanelList==='function')await window.reloadAdminPanelList('users');
-      if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(window.getAdminListState?.('vendors').page||1);
-      if(typeof window.loadDashboardSummary==='function')window.loadDashboardSummary();
-      userOption?.remove();vendorOption?.remove();
-      closeUserVendorLinkModal();
-    }catch(e){
-      toast('업체회원 연결 실패: '+(e.message||'오류'),'bad');
-    }finally{
-      form.dataset.submitting='0';if(btn){btn.disabled=false;btn.textContent=old;}
-    }
+  var modal=document.getElementById('userVendorLinkModal');
+  var form=document.getElementById('userVendorLinkForm');
+  var openButton=document.querySelector('[data-user-vendor-link-open]');
+  var closeButton=document.querySelector('[data-user-vendor-link-close]');
+  var submitButton=document.getElementById('userVendorLinkSubmit');
+  var userSelect=form&&form.elements.user_id;
+  var vendorSelect=form&&form.elements.vendor_id;
+  var bodyOverflow='';
+  var returnFocus=null;
+  if(!modal||!form||!openButton||!closeButton||!submitButton||!userSelect||!vendorSelect)return;
+
+  function resetVendorLinkForm(){
+    form.reset();userSelect.value='';vendorSelect.value='';form.dataset.submitting='0';
+    submitButton.disabled=false;submitButton.classList.remove('ajax-loading');submitButton.textContent='업체회원으로 연결';
   }
-
-  document.addEventListener('submit',function(e){
-    var form=e.target;
-    if(form && form.getAttribute('action')==='/admin/link-user-vendor'){
-      e.preventDefault();
-      e.stopPropagation();
-      submitVendorLink(form);
-    }
-  },true);
-
-  document.addEventListener('click',function(e){if(e.target.closest('[data-user-vendor-link-open]')){openUserVendorLinkModal();return;}if(e.target.closest('[data-user-vendor-link-close]')||e.target===document.getElementById('userVendorLinkModal'))closeUserVendorLinkModal();});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!document.getElementById('userVendorLinkModal')?.hidden)closeUserVendorLinkModal();});
-
-  document.addEventListener('DOMContentLoaded',function(){
-    var form=document.querySelector('form[action="/admin/link-user-vendor"]'),userSelect=form?.elements.user_id;
-    if(userSelect)Array.from(userSelect.options).forEach(function(option){if(option.textContent.includes('(업체회원)'))option.disabled=true;});
-  });
+  function syncSelectAvailability(){
+    [[userSelect,'연결 가능한 일반회원이 없습니다.'],[vendorSelect,'연결 가능한 업체가 없습니다.']].forEach(function(entry){
+      var select=entry[0],old=select.querySelector('option[data-link-empty]');if(old)old.remove();
+      if(!Array.from(select.options).some(function(option){return option.value&&!option.disabled;})){
+        var option=document.createElement('option');option.value='';option.disabled=true;option.dataset.linkEmpty='1';option.textContent=entry[1];select.appendChild(option);
+      }
+    });
+  }
+  function markLinkedOptions(userValue,vendorValue){
+    [[userSelect,userValue],[vendorSelect,vendorValue]].forEach(function(entry){var option=Array.from(entry[0].options).find(function(item){return item.value===String(entry[1]);});if(option){option.disabled=true;if(!option.textContent.includes('(연결 완료)'))option.textContent+=' (연결 완료)';}});
+    syncSelectAvailability();
+  }
+  function openUserVendorLinkModal(opener){
+    returnFocus=opener||document.activeElement;resetVendorLinkForm();syncSelectAvailability();bodyOverflow=document.body.style.overflow;
+    modal.hidden=false;modal.setAttribute('aria-hidden','false');openButton.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';userSelect.focus();
+  }
+  function closeUserVendorLinkModal(options){
+    options=options||{};if(modal.hidden)return;if(!options.force&&form.dataset.submitting==='1')return;
+    modal.hidden=true;modal.setAttribute('aria-hidden','true');openButton.setAttribute('aria-expanded','false');document.body.style.overflow=bodyOverflow;resetVendorLinkForm();
+    var focusTarget=returnFocus;returnFocus=null;if(focusTarget&&document.contains(focusTarget))focusTarget.focus();
+  }
+  async function readJsonResponse(response){
+    var type=String(response.headers.get('content-type')||'').toLowerCase();
+    if(!type.includes('application/json'))throw new Error(response.redirected?'서버가 JSON 대신 HTML redirect를 반환했습니다.':'서버가 JSON이 아닌 응답을 반환했습니다.');
+    var data=null;try{data=await response.json();}catch(_error){throw new Error('서버 응답을 해석하지 못했습니다.');}
+    if(!response.ok||!data||data.ok===false)throw new Error(data&&data.error||('HTTP '+response.status));return data;
+  }
+  async function refreshAfterLink(){
+    var usersPage=Math.max(1,Number(window.getAdminListState?.('users').page||1)||1),vendorsPage=Math.max(1,Number(window.getAdminListState?.('vendors').page||1)||1);
+    window.saveActiveAdminListState?.('users',usersPage);window.saveActiveAdminListState?.('vendors',vendorsPage);
+    var result={users:true,vendors:true,dashboard:true};
+    try{if(typeof window.loadAdminUsers==='function')result.users=(await window.loadAdminUsers(usersPage,true))!==false;else result.users=false;}catch(_error){result.users=false;}
+    try{if(typeof window.loadAdminVendors==='function')result.vendors=(await window.loadAdminVendors(vendorsPage))!==false;else result.vendors=false;}catch(_error){result.vendors=false;}
+    try{if(typeof window.loadDashboardSummary==='function')await window.loadDashboardSummary();else result.dashboard=false;}catch(_error){result.dashboard=false;}
+    return result;
+  }
+  async function submitVendorLink(){
+    if(form.dataset.submitting==='1'||(form.reportValidity&&!form.reportValidity()))return;
+    var userOption=userSelect.selectedOptions[0],vendorOption=vendorSelect.selectedOptions[0];
+    if(!userSelect.value||!vendorSelect.value||!userOption||!vendorOption)return;
+    if(userOption.disabled||vendorOption.disabled){toast('선택한 회원 또는 업체는 연결할 수 없습니다. 목록을 다시 확인해주세요.','bad');return;}
+    if(!confirm('선택한 회원과 업체를 업체회원으로 연결할까요? 연결 후 해당 회원은 업체 대표정보를 사용할 수 있습니다.'))return;
+    var userValue=userSelect.value,vendorValue=vendorSelect.value,oldText=submitButton.textContent;
+    form.dataset.submitting='1';submitButton.disabled=true;submitButton.classList.add('ajax-loading');submitButton.textContent='연결 중...';
+    try{
+      var response=await fetch('/admin/link-user-vendor',{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'fetch'}});
+      await readJsonResponse(response);markLinkedOptions(userValue,vendorValue);
+      var refreshed=await refreshAfterLink();closeUserVendorLinkModal({force:true});
+      var failed=[];if(!refreshed.users)failed.push('일반회원목록');if(!refreshed.vendors)failed.push('업체목록');if(!refreshed.dashboard)failed.push('Dashboard');
+      if(failed.length)toast('업체회원 연결은 완료되었지만 일부 관리목록을 다시 불러오지 못했습니다.','bad',failed.join(', '));else toast('업체회원으로 연결했습니다.','ok');
+    }catch(error){toast('업체회원 연결에 실패했습니다.','bad',error.message||'잠시 후 다시 시도해주세요.');}
+    finally{form.dataset.submitting='0';if(!modal.hidden){submitButton.disabled=false;submitButton.classList.remove('ajax-loading');submitButton.textContent=oldText;}}
+  }
+  document.addEventListener('submit',function(event){if(event.target!==form)return;event.preventDefault();event.stopPropagation();if(event.stopImmediatePropagation)event.stopImmediatePropagation();submitVendorLink();},true);
+  document.addEventListener('click',function(event){var open=event.target.closest('[data-user-vendor-link-open]');if(open===openButton){event.preventDefault();openUserVendorLinkModal(openButton);return;}if(event.target.closest('[data-user-vendor-link-close]')===closeButton){closeUserVendorLinkModal();return;}if(event.target===modal)closeUserVendorLinkModal();});
+  document.addEventListener('keydown',function(event){if(event.key==='Escape'&&!modal.hidden)closeUserVendorLinkModal();});
+  syncSelectAvailability();
 })();
 </script>
 
