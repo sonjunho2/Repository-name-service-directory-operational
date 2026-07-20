@@ -500,7 +500,7 @@
   </table>
 </div>
 <div id="userPager" class="server-user-pager"></div>
-<div id="userManagementModal" class="user-management-modal" hidden><div class="user-management-modal-card"><div class="user-management-modal-head"><h3>일반회원 관리</h3><button type="button" data-user-modal-close>닫기</button></div><form id="userManagementForm"><input type="hidden" name="id"><label class="user-management-field"><span>아이디</span><input name="username" readonly></label><label class="user-management-field"><span>닉네임</span><input name="nickname" required maxlength="50"></label><label class="user-management-field"><span>상태</span><select name="status"><option value="active">정상</option><option value="blocked">차단</option><option value="suspended">정지</option><option value="inactive">비활성</option></select></label><label class="user-management-field"><span>새 비밀번호</span><input name="password" type="password" minlength="6" autocomplete="new-password" placeholder="입력하지 않으면 기존 비밀번호 유지"></label><button type="submit" class="user-management-save">저장</button></form><div class="user-management-danger"><button type="button" class="user-delete-btn">일반회원 삭제</button></div></div></div>
+<div id="userManagementModal" class="user-management-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="userManagementModalTitle" hidden><div class="user-management-modal-card"><div class="user-management-modal-head"><h3 id="userManagementModalTitle">일반회원 관리</h3><button type="button" data-user-modal-close>닫기</button></div><form id="userManagementForm"><input type="hidden" name="id"><label class="user-management-field"><span>아이디</span><input name="username" readonly></label><label class="user-management-field"><span>닉네임</span><input name="nickname" required maxlength="50"></label><label class="user-management-field"><span>상태</span><select name="status"><option value="active">정상</option><option value="blocked">차단</option><option value="suspended">정지</option><option value="inactive">비활성</option></select></label><label class="user-management-field"><span>새 비밀번호</span><input name="password" type="password" minlength="6" autocomplete="new-password" placeholder="입력하지 않으면 기존 비밀번호 유지"></label><button type="submit" class="user-management-save">저장</button></form><div class="user-management-danger"><button type="button" class="user-delete-btn">일반회원 삭제</button></div></div></div>
 </section><section id="notices" class="panel admin-panel">
 <h2>공지사항 관리</h2>
 <p class="settings-help">공지사항을 등록하고 상단고정 여부와 게시 내용을 관리합니다.</p>
@@ -2003,11 +2003,11 @@ function makeButton(label,disabled,active,onClick){
     return table;
   }
   function renderSummary(summary){document.querySelectorAll('#userSummaryGrid [data-user-summary]').forEach(function(el){el.textContent=Number(summary?.[el.dataset.userSummary]||0).toLocaleString('ko-KR');});}
-  async function loadUsers(page){
+  async function loadUsers(page,silent){
     page=page||Number(window.getAdminListState?.('users').page||1);
-    if(loading){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(function(){loadUsers(page);},100);return;}
+    if(loading){if(silent)return false;clearTimeout(userSearchTimer);userSearchTimer=setTimeout(function(){loadUsers(page);},100);return false;}
     var table=usersTable();
-    if(!table)return;
+    if(!table)return false;
     var pager=ensurePager(table);
     userServerPage=Math.max(1,page||1);
     window.saveActiveAdminListState?.('users',userServerPage);
@@ -2019,7 +2019,7 @@ function makeButton(label,disabled,active,onClick){
       var res=await fetch('/admin/api/users?'+userQuery(userServerPage).toString(),{credentials:'same-origin',headers:{'Accept':'application/json'}});
       var data=await res.json();
       if(!data.ok)throw new Error(data.error||'회원목록 로드 실패');
-      if(userServerPage>Math.max(1,Number(data.totalPages||1))){loading=false;window.normalizeAdminListPage?.('users',data,loadUsers);return;}
+      if(userServerPage>Math.max(1,Number(data.totalPages||1))){loading=false;return window.normalizeAdminListPage?.('users',data,loadUsers);}
       var body=document.getElementById('userTableBody');
       if(!body)throw new Error('회원 테이블 본문을 찾을 수 없습니다.');
       usersById.clear();(data.rows||[]).forEach(function(u){usersById.set(String(u.id),u);});
@@ -2027,82 +2027,179 @@ function makeButton(label,disabled,active,onClick){
       renderSummary(data.summary||{});
       if(pager)renderPager(pager,data);
       loadOk=true;
+      return true;
     }catch(e){
       if(pager)pager.innerHTML='<span class="server-user-info">회원목록을 불러오지 못했습니다: '+esc(e.message||'오류')+'</span>';
     }finally{
       if(!loadOk)showTableMessage(table,'회원목록을 불러오지 못했습니다.','loading-row');
       loading=false;
     }
+    return loadOk;
   }
   window.loadAdminUsers=loadUsers;
-  function refreshUserRelated(){if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(window.getAdminListState?.('vendors').page||1);if(typeof window.loadDashboardSummary==='function')window.loadDashboardSummary();}
-  function closeUserModal(){var modal=document.getElementById('userManagementModal'),form=document.getElementById('userManagementForm');if(!modal||!form)return;modal.hidden=true;form.reset();form.dataset.submitting='0';document.body.style.overflow='';}
-  function openUserModal(id){var u=usersById.get(String(id)),modal=document.getElementById('userManagementModal'),form=document.getElementById('userManagementForm');if(!u||!modal||!form)return;form.elements.id.value=u.id;form.elements.username.value=u.username||'';form.elements.nickname.value=u.nickname||'';form.elements.status.value=u.status||'active';form.elements.password.value='';modal.hidden=false;document.body.style.overflow='hidden';}
-  async function saveUser(form){
-    window.saveActiveAdminListState?.('users',userServerPage);
-    if(form.dataset.submitting==='1')return;
-    var id=form.elements.id.value,btn=form.querySelector('button[type="submit"]');
-    var fd=new FormData();
-    fd.append('nickname',form.elements.nickname.value||'');
-    fd.append('status',form.elements.status.value||'active');
-    fd.append('password',form.elements.password.value||'');
+  function refreshUserRelated(){
+    if(typeof window.loadAdminVendors==='function')window.loadAdminVendors(window.getAdminListState?.('vendors').page||1);
+    if(typeof window.loadDashboardSummary==='function')window.loadDashboardSummary();
+  }
+  var panel=usersPanel();
+  var modal=document.getElementById('userManagementModal');
+  var form=document.getElementById('userManagementForm');
+  var modalTitle=document.getElementById('userManagementModalTitle');
+  var closeButton=modal&&modal.querySelector('[data-user-modal-close]');
+  var saveButton=form&&form.querySelector('.user-management-save');
+  var deleteButton=modal&&modal.querySelector('.user-delete-btn');
+  var bodyOverflow='';
+  var returnFocus=null;
 
-    var old=btn.textContent;
+  if(!panel||!modal||!form)return;
+
+  function resetUserEditor(){
+    form.reset();
+    form.elements.id.value='';
+    form.elements.password.value='';
+    form.dataset.submitting='0';
+    form.querySelectorAll('[aria-invalid="true"]').forEach(function(field){field.removeAttribute('aria-invalid');});
+    if(saveButton){
+      saveButton.disabled=false;
+      saveButton.classList.remove('ajax-loading');
+      saveButton.textContent='저장';
+    }
+    if(deleteButton){
+      deleteButton.dataset.submitting='0';
+      deleteButton.disabled=false;
+      deleteButton.classList.remove('ajax-loading');
+      deleteButton.textContent='일반회원 삭제';
+    }
+    if(modalTitle)modalTitle.textContent='일반회원 관리';
+  }
+  function openUserModal(id,opener){
+    var user=usersById.get(String(id));
+    if(!user)return;
+    resetUserEditor();
+    returnFocus=opener||document.activeElement;
+    form.elements.id.value=user.id;
+    form.elements.username.value=user.username||'';
+    form.elements.nickname.value=user.nickname||'';
+    form.elements.status.value=user.status||'active';
+    form.elements.password.value='';
+    bodyOverflow=document.body.style.overflow;
+    modal.hidden=false;
+    modal.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+    setTimeout(function(){form.elements.nickname.focus();},0);
+  }
+  function closeUserModal(options){
+    options=options||{};
+    if(modal.hidden)return;
+    if(!options.force&&(form.dataset.submitting==='1'||deleteButton.dataset.submitting==='1'))return;
+    modal.hidden=true;
+    modal.setAttribute('aria-hidden','true');
+    document.body.style.overflow=bodyOverflow;
+    resetUserEditor();
+    var focusTarget=returnFocus;
+    returnFocus=null;
+    if(focusTarget&&document.contains(focusTarget))focusTarget.focus();
+  }
+  async function readJsonResponse(response){
+    var contentType=String(response.headers.get('content-type')||'').toLowerCase();
+    if(!contentType.includes('application/json')){
+      throw new Error(response.redirected?'서버가 JSON 대신 HTML redirect를 반환했습니다.':'서버가 JSON이 아닌 응답을 반환했습니다.');
+    }
+    var data=null;
+    try{data=await response.json();}catch(_error){throw new Error('서버 응답을 해석하지 못했습니다.');}
+    if(!response.ok||!data||data.ok===false)throw new Error(data&&data.error||('HTTP '+response.status));
+    return data;
+  }
+  async function refreshUsersAfterMutation(){
+    var state=window.getAdminListState?window.getAdminListState('users'):{};
+    var currentPage=Math.max(1,Number(state.page||userServerPage||1)||1);
+    window.saveActiveAdminListState?.('users',currentPage);
+    window.setAdminListState?.('users',{page:currentPage});
+    return (await loadUsers(currentPage,true))!==false;
+  }
+  async function saveUser(){
+    if(form.dataset.submitting==='1'||deleteButton.dataset.submitting==='1')return;
+    if(form.reportValidity&&!form.reportValidity())return;
+    var id=String(form.elements.id.value||'');
+    if(!id){toast('회원을 다시 선택해주세요.','bad');return;}
+    window.saveActiveAdminListState?.('users',userServerPage);
+    var oldText=saveButton.textContent;
+    var fields=new FormData();
+    fields.append('nickname',form.elements.nickname.value||'');
+    fields.append('status',form.elements.status.value||'active');
+    fields.append('password',form.elements.password.value||'');
     form.dataset.submitting='1';
-    btn.disabled=true;
-    btn.textContent='저장중...';
+    saveButton.disabled=true;
+    saveButton.classList.add('ajax-loading');
+    saveButton.textContent='저장 중...';
     try{
-      var res=await fetch('/admin/users/'+encodeURIComponent(id)+'/update',{method:'POST',body:fd,credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json'}});
-      var data=null;
-      try{data=await res.json();}catch(e){}
-      if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
-      form.elements.password.value='';closeUserModal();
-      await loadUsers(userServerPage);
+      var response=await fetch('/admin/users/'+encodeURIComponent(id)+'/update',{method:'POST',body:fields,credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json'}});
+      await readJsonResponse(response);
+      form.elements.password.value='';
+      var refreshed=false;
+      try{refreshed=await refreshUsersAfterMutation();}catch(_refreshError){}
       refreshUserRelated();
-      toast('회원 정보가 저장되었습니다.','ok');
-    }catch(e){
-      toast('저장 실패: '+(e.message||'오류'),'bad');
+      closeUserModal({force:true});
+      if(refreshed)toast('회원 정보가 저장되었습니다.','ok');
+      else toast('회원 정보는 저장되었지만 회원목록을 다시 불러오지 못했습니다.','bad');
+    }catch(error){
+      toast('회원 정보를 저장하지 못했습니다.','bad',error.message||'잠시 후 다시 시도해주세요.');
     }finally{
       form.dataset.submitting='0';
-      btn.disabled=false;
-      btn.textContent=old;
+      if(!modal.hidden){
+        saveButton.disabled=false;
+        saveButton.classList.remove('ajax-loading');
+        saveButton.textContent=oldText;
+      }
     }
   }
-  async function deleteUser(btn){
-    window.saveActiveAdminListState?.('users',userServerPage);
-    var form=document.getElementById('userManagementForm'),id=form?.elements.id.value;
-    if(!id||btn.dataset.submitting==='1')return;
+  async function deleteUser(){
+    var id=String(form.elements.id.value||'');
+    if(!id||form.dataset.submitting==='1'||deleteButton.dataset.submitting==='1')return;
     if(!confirm('이 일반회원 계정을 삭제할까요?\n작성한 게시글·후기 등의 작성자 정보가 변경될 수 있습니다.'))return;
-    var old=btn.textContent;
-    btn.dataset.submitting='1';
-    btn.disabled=true;
-    btn.textContent='삭제중...';
+    window.saveActiveAdminListState?.('users',userServerPage);
+    var oldText=deleteButton.textContent;
+    deleteButton.dataset.submitting='1';
+    deleteButton.disabled=true;
+    deleteButton.classList.add('ajax-loading');
+    deleteButton.textContent='삭제 중...';
     try{
-      var res=await fetch('/admin/delete/users/'+encodeURIComponent(id),{method:'POST',body:new FormData(),credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json'}});
-      var data=null;
-      try{data=await res.json();}catch(e){}
-      if(!res.ok||data?.ok===false)throw new Error(data?.error||('HTTP '+res.status));
-      toast('회원이 삭제되었습니다.','warn');
-      closeUserModal();
-      await loadUsers(userServerPage);
+      var response=await fetch('/admin/delete/users/'+encodeURIComponent(id),{method:'POST',body:new FormData(),credentials:'same-origin',headers:{'X-Requested-With':'fetch','Accept':'application/json'}});
+      await readJsonResponse(response);
+      var refreshed=false;
+      try{refreshed=await refreshUsersAfterMutation();}catch(_refreshError){}
       refreshUserRelated();
-    }catch(e){
-      toast('삭제 실패: '+(e.message||'오류'),'bad');
-      btn.disabled=false;
-      btn.textContent=old;
+      closeUserModal({force:true});
+      if(refreshed)toast('회원을 삭제했습니다.','warn');
+      else toast('회원은 삭제했지만 회원목록을 다시 불러오지 못했습니다.','bad');
+    }catch(error){
+      toast('회원을 삭제하지 못했습니다.','bad',error.message||'잠시 후 다시 시도해주세요.');
     }finally{
-      btn.dataset.submitting='0';
+      deleteButton.dataset.submitting='0';
+      if(!modal.hidden){
+        deleteButton.disabled=false;
+        deleteButton.classList.remove('ajax-loading');
+        deleteButton.textContent=oldText;
+      }
     }
   }
-  document.addEventListener('click',function(e){
-    var manage=e.target.closest('.user-manage-btn');if(manage){e.preventDefault();openUserModal(manage.dataset.id);return;}
-    if(e.target.closest('[data-user-modal-close]')){closeUserModal();return;}
-    var del=e.target.closest('.user-delete-btn');
-    if(del){e.preventDefault();e.stopPropagation();deleteUser(del);return;}
-    if(e.target===document.getElementById('userManagementModal'))closeUserModal();
+  document.addEventListener('click',function(event){
+    var manageButton=event.target.closest('.user-manage-btn');
+    if(manageButton){event.preventDefault();openUserModal(manageButton.dataset.id,manageButton);return;}
+    if(closeButton&&event.target.closest('[data-user-modal-close]')===closeButton){closeUserModal();return;}
+    if(deleteButton&&event.target.closest('.user-delete-btn')===deleteButton){event.preventDefault();event.stopPropagation();deleteUser();return;}
+    if(event.target===modal)closeUserModal();
   },true);
-  document.getElementById('userManagementForm')?.addEventListener('submit',function(e){e.preventDefault();e.stopPropagation();saveUser(this);});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!document.getElementById('userManagementModal')?.hidden)closeUserModal();});
+  form.addEventListener('submit',function(event){
+    event.preventDefault();
+    event.stopPropagation();
+    if(event.stopImmediatePropagation)event.stopImmediatePropagation();
+    saveUser();
+  });
+  document.addEventListener('keydown',function(event){
+    if(event.key==='Escape'&&!modal.hidden)closeUserModal();
+  });
+
 })();
 </script><script>
 (function(){
