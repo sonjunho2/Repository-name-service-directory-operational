@@ -845,10 +845,100 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
   <div class="ad-payment-table-wrap"><table id="adPaymentManagementTable" class="ad-payment-table"><thead><tr><th>요청 / 신청일</th><th>신청 구분</th><th>업체 / 신청자</th><th>상품 / 기간</th><th>요청 금액</th><th>결제기한</th><th>진행 상태</th><th>입금 정보</th><th>관리</th></tr></thead><tbody id="adPaymentTableBody"><tr><td colspan="9">광고·결제 신청을 불러오는 중입니다.</td></tr></tbody></table></div>
   <div id="adPaymentPager" class="server-ad-payment-pager"></div>
 </section>
-<section id="revenue" class="panel admin-panel"><h2>결제내역</h2>
-<div id="paymentSummaryGrid" class="payment-summary-grid"><button type="button" data-payment-card="today"><b>오늘 매출</b><strong data-payment-summary="todayKrw">0원</strong></button><button type="button" data-payment-card="week"><b>최근 7일 매출</b><strong data-payment-summary="last7DaysKrw">0원</strong></button><button type="button" data-payment-card="month"><b>이번달 매출</b><strong data-payment-summary="monthKrw">0원</strong></button><button type="button" class="active" data-payment-card="all"><b>누적 매출</b><strong data-payment-summary="totalKrw">0원</strong></button><button type="button" data-payment-card="count"><b>결제 건수</b><strong data-payment-summary="paymentCount">0건</strong></button><button type="button" data-payment-card="actual"><b>실제입금 USDT</b><strong data-payment-summary="totalActualUsdt">0.00</strong></button><button type="button" data-payment-card="different"><b>금액 차이</b><strong data-payment-summary="amountMismatchCount">0건</strong></button><button type="button" data-payment-card="missing"><b>실제입금 미입력</b><strong data-payment-summary="missingActualAmountCount">0건</strong></button></div>
-<div class="payment-history-filter"><input id="paymentHistorySearch" placeholder="결제 ID / 업체 / 회원 / TXID / 메모 검색"><select id="paymentProductFilter"><option value="all">전체 상품</option></select><select id="paymentSourceFilter"><option value="all">전체 신청경로</option></select><select id="paymentAmountFilter"><option value="all">전체 입금상태</option><option value="matched">요청·실제 금액 일치</option><option value="different">요청·실제 금액 차이</option><option value="missing">실제입금 미입력</option></select><input id="paymentDateFrom" type="date" aria-label="결제 시작일"><input id="paymentDateTo" type="date" aria-label="결제 종료일"><select id="paymentHistorySort"><option value="latest">최신 결제순</option><option value="oldest">오래된 결제순</option><option value="krw_desc">원화금액 높은순</option><option value="krw_asc">원화금액 낮은순</option><option value="usdt_desc">실제 USDT 높은순</option><option value="product">상품순</option><option value="vendor">업체명순</option></select><button type="button" id="paymentHistoryReset">초기화</button></div>
-<div class="payment-history-table-wrap"><table id="paymentHistoryTable"><colgroup><col style="width:65px"><col style="width:125px"><col style="width:125px"><col style="width:145px"><col style="width:125px"><col style="width:100px"><col style="width:105px"><col style="width:115px"><col style="width:155px"><col style="width:190px"></colgroup><thead><tr><th>결제 ID</th><th>결제일</th><th>상품</th><th>업체</th><th>회원</th><th>원화금액</th><th>요청 USDT</th><th>실제입금 USDT</th><th>TXID</th><th>메모</th></tr></thead><tbody id="paymentHistoryBody"><tr class="loading-row"><td colspan="10">결제내역을 불러오는 중입니다.</td></tr></tbody></table></div><div id="paymentHistoryPager" class="server-payment-pager"></div></section><section id="adminLogs" class="panel admin-panel"><h2>관리자 로그</h2>
+<section id="revenue" class="panel admin-panel">
+<h2>결제내역</h2>
+<p class="settings-help">입금확인이 완료된 결제의 상품, 금액, TXID와 처리 메모를 조회합니다.</p>
+<div id="paymentSummaryGrid" class="payment-summary-grid">
+<button type="button" data-payment-card="today">
+<b>오늘 매출</b>
+<strong data-payment-summary="todayKrw">0원</strong>
+</button>
+<button type="button" data-payment-card="week">
+<b>최근 7일 매출</b>
+<strong data-payment-summary="last7DaysKrw">0원</strong>
+</button>
+<button type="button" data-payment-card="month">
+<b>이번달 매출</b>
+<strong data-payment-summary="monthKrw">0원</strong>
+</button>
+<button type="button" class="active" data-payment-card="all">
+<b>누적 매출</b>
+<strong data-payment-summary="totalKrw">0원</strong>
+</button>
+<button type="button" data-payment-card="count">
+<b>결제 건수</b>
+<strong data-payment-summary="paymentCount">0건</strong>
+</button>
+<button type="button" data-payment-card="actual">
+<b>실제입금 USDT</b>
+<strong data-payment-summary="totalActualUsdt">0.00</strong>
+</button>
+<button type="button" data-payment-card="different">
+<b>금액 차이</b>
+<strong data-payment-summary="amountMismatchCount">0건</strong>
+</button>
+<button type="button" data-payment-card="missing">
+<b>실제입금 미입력</b>
+<strong data-payment-summary="missingActualAmountCount">0건</strong>
+</button>
+</div>
+<div class="payment-history-filter">
+<input id="paymentHistorySearch" placeholder="결제 ID / 상품 / 업체 / 회원 / TXID / 메모 검색">
+<select id="paymentProductFilter">
+<option value="all">전체 상품</option>
+</select>
+<select id="paymentSourceFilter">
+<option value="all">전체 신청경로</option>
+</select>
+<select id="paymentAmountFilter">
+<option value="all">전체 입금상태</option>
+<option value="matched">요청·실제 금액 일치</option>
+<option value="different">요청·실제 금액 차이</option>
+<option value="missing">실제입금 미입력</option>
+</select>
+<input id="paymentDateFrom" type="date" aria-label="결제 시작일">
+<input id="paymentDateTo" type="date" aria-label="결제 종료일">
+<select id="paymentHistorySort">
+<option value="latest">최신 결제순</option>
+<option value="oldest">오래된 결제순</option>
+<option value="krw_desc">원화금액 높은순</option>
+<option value="krw_asc">원화금액 낮은순</option>
+<option value="usdt_desc">실제 USDT 높은순</option>
+<option value="product">상품순</option>
+<option value="vendor">업체명순</option>
+</select>
+<button type="button" id="paymentHistoryReset">초기화</button>
+</div>
+<div class="payment-history-table-wrap">
+<table id="paymentHistoryTable" class="payment-history-management-table">
+<colgroup>
+<col class="payment-history-col-id">
+<col class="payment-history-col-product">
+<col class="payment-history-col-party">
+<col class="payment-history-col-krw">
+<col class="payment-history-col-usdt">
+<col class="payment-history-col-trace">
+</colgroup>
+<thead>
+<tr>
+<th>결제 / 결제일</th>
+<th>상품 / 신청경로</th>
+<th>업체 / 회원</th>
+<th>원화금액</th>
+<th>USDT 입금</th>
+<th>TXID / 메모</th>
+</tr>
+</thead>
+<tbody id="paymentHistoryBody">
+<tr class="loading-row">
+<td colspan="6">결제내역을 불러오는 중입니다.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="paymentHistoryPager" class="server-payment-pager">
+</div>
+</section><section id="adminLogs" class="panel admin-panel"><h2>관리자 로그</h2>
 <div id="adminLogSummaryGrid" class="admin-log-summary-grid"><button type="button" data-admin-log-card="all"><b>전체 로그</b><strong data-admin-log-summary="total">0</strong></button><button type="button" data-admin-log-card="today"><b>오늘 작업</b><strong data-admin-log-summary="today">0</strong></button><button type="button" data-admin-log-card="week"><b>최근 7일</b><strong data-admin-log-summary="last7Days">0</strong></button><button type="button" data-admin-log-card="vendor"><b>업체 관련</b><strong data-admin-log-summary="vendorActions">0</strong></button><button type="button" data-admin-log-card="user"><b>회원 관련</b><strong data-admin-log-summary="userActions">0</strong></button><button type="button" data-admin-log-card="finance"><b>결제·광고 관련</b><strong data-admin-log-summary="paymentAdActions">0</strong></button></div>
 <div class="admin-log-filter"><input id="adminLogSearch" placeholder="로그 ID / 관리자 / 작업 / 대상 / 메모 검색"><select id="adminLogAdminFilter"><option value="all">전체 관리자</option></select><select id="adminLogActionFilter"><option value="all">전체 작업</option></select><select id="adminLogTargetFilter"><option value="all">전체 대상</option></select><input id="adminLogDateFrom" type="date" aria-label="시작일"><input id="adminLogDateTo" type="date" aria-label="종료일"><select id="adminLogSort"><option value="latest">최신 작업순</option><option value="oldest">오래된 작업순</option><option value="admin">관리자순</option><option value="action">작업명순</option><option value="target">대상 유형순</option></select><button type="button" id="adminLogFilterReset">초기화</button></div>
 <div class="admin-log-table-wrap"><table id="adminLogManagementTable"><colgroup><col style="width:85px"><col style="width:175px"><col style="width:150px"><col style="width:210px"><col style="width:190px"><col style="width:430px"><col style="width:90px"></colgroup><thead><tr><th>로그 ID</th><th>작업시간</th><th>관리자</th><th>작업</th><th>대상</th><th>메모</th><th>상세</th></tr></thead><tbody id="adminLogTableBody"><tr class="loading-row"><td colspan="7">관리자 로그를 불러오는 중입니다.</td></tr></tbody></table></div><div id="adminLogPager" class="server-admin-log-pager"></div></section><section id="settings" class="panel admin-panel">
@@ -1143,6 +1233,18 @@ body>#adminNotificationCenter .admin-notify-list{max-height:calc(70vh - 110px)!i
     #boardComments .admin-board-filterbar.comments>*{min-width:0;height:42px}
     @media(max-width:1000px){#boardComments .admin-board-filterbar.comments{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){#boardComments .admin-board-filterbar.comments{grid-template-columns:1fr}}
+    body #revenue .payment-history-filter{grid-template-columns:minmax(260px,1.5fr) minmax(150px,.8fr) minmax(150px,.8fr) minmax(180px,.9fr) minmax(145px,.7fr) minmax(145px,.7fr) minmax(180px,.9fr) 100px!important;gap:10px;margin-bottom:16px}
+    body #revenue .payment-history-filter>*{min-width:0;height:42px}
+    body #revenue .payment-history-table-wrap{width:100%;max-width:100%;overflow-x:auto;border:1px solid #29324f;border-radius:14px}
+    body #revenue #paymentHistoryTable{width:100%;min-width:1120px;margin:0!important;table-layout:fixed}
+    body #revenue #paymentHistoryTable th,body #revenue #paymentHistoryTable td{white-space:normal!important;vertical-align:middle;overflow-wrap:anywhere}
+    .payment-history-col-id{width:145px}.payment-history-col-product{width:205px}.payment-history-col-party{width:230px}.payment-history-col-krw{width:140px}.payment-history-col-usdt{width:230px}.payment-history-col-trace{width:330px}
+    .payment-history-id{display:block;color:#fff;font-weight:900}.payment-history-date,.payment-history-source,.payment-history-member{display:block;margin-top:5px;color:#8f9ab8;font-size:12px;line-height:1.4}.payment-history-product{display:block;color:#fff}.payment-history-krw{font-size:16px;font-weight:900;color:#fff}
+    .payment-history-usdt{display:grid;gap:6px}.payment-history-usdt span{display:flex;justify-content:space-between;gap:12px}.payment-history-usdt b{color:#8f9ab8;font-size:12px}.payment-amount-state{display:inline-flex!important;justify-self:start;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:900}.payment-amount-state.matched{background:#103225;color:#69e6ad}.payment-amount-state.different{background:#3b1320;color:#ff9db6}.payment-amount-state.missing{background:#33280d;color:#ffd56a}
+    .payment-history-txid{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;color:#9ed8ff}body #revenue .payment-history-memo{display:-webkit-box;max-width:100%;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:8px;white-space:pre-line;line-height:1.5;color:#aeb9d5}
+    @media(max-width:1200px){body #revenue .payment-history-filter{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+    @media(max-width:800px){body #revenue .payment-history-filter{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+    @media(max-width:560px){body #revenue .payment-history-filter{grid-template-columns:1fr!important}}
     #adInquiries .ad-inquiry-table-wrap{width:100%;max-width:100%;overflow-x:auto;border:1px solid #29324f;border-radius:14px}
     #adInquiryManagementTable{width:100%;min-width:920px;margin:0!important;table-layout:fixed}
     #adInquiryManagementTable th,#adInquiryManagementTable td{white-space:normal!important;vertical-align:middle;overflow-wrap:anywhere}
@@ -2006,15 +2108,15 @@ function makeButton(label,disabled,active,onClick){
     function paymentDay(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
     function paymentNumber(v,digits){if(v===null||v===undefined||v==='')return '미입력';var n=Number(v);return Number.isFinite(n)?n.toLocaleString('ko-KR',{minimumFractionDigits:digits||0,maximumFractionDigits:digits==null?8:digits}):String(v);}
     function paymentQuery(p){var saved=window.getAdminListState?.('payments')||{},x=new URLSearchParams({page:String(p),limit:'20',sort:paymentValue('paymentHistorySort',saved.sort||'latest')}),q=paymentValue('paymentHistorySearch').trim(),product=paymentValue('paymentProductFilter',saved.product||'all'),source=paymentValue('paymentSourceFilter',saved.source||'all'),amount=paymentValue('paymentAmountFilter',saved.amountState||'all'),from=paymentValue('paymentDateFrom'),to=paymentValue('paymentDateTo');if(q)x.set('q',q);if(product!=='all')x.set('product',product);if(source!=='all')x.set('source',source);if(amount!=='all')x.set('amount_state',amount);if(from)x.set('date_from',from);if(to)x.set('date_to',to);return x;}
-    function paymentTxid(v){var s=String(v||'');if(!s)return '<span class="payment-muted">미입력</span>';var short=s.length>26?s.slice(0,12)+'…'+s.slice(-10):s;return '<span class="payment-history-txid-short" title="'+esc(s)+'">'+esc(short)+'</span>';}
-    function paymentRow(p){var actual=p.actual_paid_usdt,hasActual=actual!==null&&actual!==undefined&&actual!=='',requested=p.requested_usdt;return '<tr class="payment-history-row"><td>'+esc(p.id)+'</td><td>'+esc(paymentDate(p.display_paid_at||p.paid_at||p.created_at,false))+'</td><td><span class="payment-product-badge">'+esc(p.product_label||'-')+'</span><small>'+esc(p.source_label||'-')+'</small></td><td>'+esc(p.vendor_name||'삭제/미연결 업체')+(p.vendor_id?'<small>ID '+esc(p.vendor_id)+'</small>':'')+'</td><td>'+esc(p.username||'삭제/미연결 회원')+(p.user_id?'<small>ID '+esc(p.user_id)+'</small>':'')+'</td><td>'+esc(paymentNumber(p.krw_price))+'원</td><td>'+esc(paymentNumber(requested))+' USDT</td><td>'+(hasActual?'<b class="done">'+esc(paymentNumber(actual))+' USDT</b>':'<span class="payment-muted">미입력</span>')+'</td><td>'+paymentTxid(p.payment_txid)+'</td><td><div class="payment-history-memo">'+esc(p.clean_memo||'-')+'</div></td></tr>';}
+    function paymentTxid(v){var s=String(v||'');if(!s)return '<span class="payment-muted">TXID 미입력</span>';var short=s.length>26?s.slice(0,12)+'…'+s.slice(-10):s;return '<span class="payment-history-txid payment-history-txid-short" title="'+esc(s)+'">'+esc(short)+'</span>';}
+    function paymentRow(p){var actual=p.actual_paid_usdt,hasActual=actual!==null&&actual!==undefined&&actual!=='',requested=p.requested_usdt,hasRequested=requested!==null&&requested!==undefined&&requested!=='',difference=hasActual&&hasRequested?Math.abs(Number(actual)-Number(requested)):null,amountState=!hasActual?'missing':hasRequested&&difference<0.00000001?'matched':'different',amountLabel=amountState==='missing'?'실제입금 미입력':amountState==='matched'?'금액 일치':hasRequested?paymentNumber(difference)+' USDT 차이':'요청금액 미입력',memo=String(p.clean_memo||'').trim();return '<tr class="payment-history-row"><td><span class="payment-history-id">#'+esc(p.id)+'</span><span class="payment-history-date">'+esc(paymentDate(p.display_paid_at||p.paid_at||p.created_at,false))+'</span></td><td><span class="payment-history-product payment-product-badge">'+esc(p.product_label||'-')+'</span><span class="payment-history-source">'+esc(p.source_label||'-')+'</span></td><td><b>'+esc(p.vendor_name||'삭제/미연결 업체')+(p.vendor_id?' #'+esc(p.vendor_id):'')+'</b><span class="payment-history-member">'+esc(p.username||'삭제/미연결 회원')+(p.user_id?' · ID '+esc(p.user_id):'')+'</span></td><td><span class="payment-history-krw">'+esc(paymentNumber(p.krw_price))+'원</span></td><td><div class="payment-history-usdt"><span><b>요청</b>'+esc(paymentNumber(requested))+' USDT</span><span><b>실제</b>'+(hasActual?esc(paymentNumber(actual))+' USDT':'미입력')+'</span><span class="payment-amount-state '+amountState+'">'+esc(amountLabel)+'</span></div></td><td>'+paymentTxid(p.payment_txid)+'<div class="payment-history-memo" title="'+esc(memo||'메모 없음')+'">'+esc(memo||'메모 없음')+'</div></td></tr>';}
     function paymentSummary(s){var moneyKeys=new Set(['todayKrw','last7DaysKrw','monthKrw','totalKrw']),countKeys=new Set(['paymentCount','amountMismatchCount','missingActualAmountCount']);Object.keys(s||{}).forEach(function(k){var el=document.querySelector('#revenue [data-payment-summary="'+k+'"]');if(!el)return;el.textContent=moneyKeys.has(k)?Number(s[k]||0).toLocaleString('ko-KR')+'원':countKeys.has(k)?Number(s[k]||0).toLocaleString('ko-KR')+'건':Number(s[k]||0).toLocaleString('ko-KR',{maximumFractionDigits:8})+' USDT';});}
     function paymentOptions(id,items,label,key){var el=document.getElementById(id);if(!el)return;var saved=window.getAdminListState?.('payments')?.[key],current=el.value||'all';if(el.dataset.optionsReady!=='1'&&saved)current=saved;var values=new Set((items||[]).map(function(x){return x.value;}));el.replaceChildren();var first=document.createElement('option');first.value='all';first.textContent=label;el.appendChild(first);(items||[]).forEach(function(x){var o=document.createElement('option');o.value=x.value;o.textContent=x.label;el.appendChild(o);});el.value=values.has(current)?current:'all';el.dataset.optionsReady='1';}
     function paymentPager(data){var root=document.getElementById('paymentHistoryPager');if(!root)return;root.innerHTML='';var cur=Number(data.page||1),pages=Math.max(1,Number(data.totalPages||1));function add(t,p,d,a){var b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=d;if(a)b.className='active';b.onclick=function(){loadPayments(p);};root.appendChild(b);}add('이전',cur-1,cur<=1);for(var n=Math.max(1,cur-2);n<=Math.min(pages,cur+2);n++)add(String(n),n,false,n===cur);add('다음',cur+1,cur>=pages);var i=document.createElement('span');i.className='server-payment-info';i.textContent='전체 '+Number(data.total||0).toLocaleString('ko-KR')+'건 · '+cur+' / '+pages+' 페이지';root.appendChild(i);}
-    async function loadPayments(next){if(paymentLoading){clearTimeout(paymentTimer);paymentTimer=setTimeout(function(){loadPayments(next);},100);return false;}var body=document.getElementById('paymentHistoryBody');if(!body)return false;var from=paymentValue('paymentDateFrom'),to=paymentValue('paymentDateTo');if(from&&to&&from>to){if(typeof toast==='function')toast('시작일은 종료일보다 늦을 수 없습니다.','bad');return false;}paymentPage=Math.max(1,Number(next||window.getAdminListState?.('payments').page||1));var previous=body.innerHTML;paymentLoading=true;if(!body.querySelector('.payment-history-row'))body.innerHTML='<tr class="loading-row"><td colspan="10">결제내역을 불러오는 중입니다.</td></tr>';try{var res=await fetch('/admin/api/payments?'+paymentQuery(paymentPage),{headers:{Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(paymentPage>Math.max(1,Number(data.totalPages||1))){paymentLoading=false;return loadPayments(data.totalPages);}body.innerHTML=(data.rows||[]).length?data.rows.map(paymentRow).join(''):'<tr><td colspan="10">검색 결과가 없습니다.</td></tr>';paymentSummary(data.summary);paymentOptions('paymentProductFilter',data.filterOptions?.products,'전체 상품','product');paymentOptions('paymentSourceFilter',data.filterOptions?.sources,'전체 신청경로','source');paymentPager(data);window.setAdminListState?.('payments',{page:paymentPage,q:paymentValue('paymentHistorySearch'),product:paymentValue('paymentProductFilter','all'),source:paymentValue('paymentSourceFilter','all'),amountState:paymentValue('paymentAmountFilter','all'),dateFrom:from,dateTo:to,sort:paymentValue('paymentHistorySort','latest')});paymentLoading=false;return true;}catch(err){body.innerHTML=previous;if(typeof toast==='function')toast('결제내역을 불러오지 못했습니다.','bad');paymentLoading=false;return false;}}
+    async function loadPayments(next){if(paymentLoading){clearTimeout(paymentTimer);paymentTimer=setTimeout(function(){loadPayments(next);},100);return false;}var body=document.getElementById('paymentHistoryBody');if(!body)return false;var from=paymentValue('paymentDateFrom'),to=paymentValue('paymentDateTo');if(from&&to&&from>to){if(typeof toast==='function')toast('시작일은 종료일보다 늦을 수 없습니다.','bad');return false;}paymentPage=Math.max(1,Number(next||window.getAdminListState?.('payments').page||1));paymentLoading=true;if(!body.querySelector('.payment-history-row'))body.innerHTML='<tr class="loading-row"><td colspan="6">결제내역을 불러오는 중입니다.</td></tr>';try{var res=await fetch('/admin/api/payments?'+paymentQuery(paymentPage),{headers:{Accept:'application/json'}}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'load_failed');if(paymentPage>Math.max(1,Number(data.totalPages||1))){paymentLoading=false;return loadPayments(data.totalPages);}body.innerHTML=(data.rows||[]).length?data.rows.map(paymentRow).join(''):'<tr><td colspan="6">검색 결과가 없습니다.</td></tr>';paymentSummary(data.summary);paymentOptions('paymentProductFilter',data.filterOptions?.products,'전체 상품','product');paymentOptions('paymentSourceFilter',data.filterOptions?.sources,'전체 신청경로','source');paymentPager(data);window.setAdminListState?.('payments',{page:paymentPage,q:paymentValue('paymentHistorySearch'),product:paymentValue('paymentProductFilter','all'),source:paymentValue('paymentSourceFilter','all'),amountState:paymentValue('paymentAmountFilter','all'),dateFrom:from,dateTo:to,sort:paymentValue('paymentHistorySort','latest')});paymentLoading=false;return true;}catch(err){body.innerHTML='<tr><td colspan="6">결제내역을 불러오지 못했습니다.</td></tr>';if(typeof toast==='function')toast('결제내역을 불러오지 못했습니다.','bad');paymentLoading=false;return false;}}
     window.loadAdminPayments=loadPayments;window.restoreAdminListControls?.('payments');
     document.getElementById('paymentHistorySearch')?.addEventListener('input',function(){clearTimeout(paymentTimer);paymentTimer=setTimeout(function(){loadPayments(1);},300);});['paymentProductFilter','paymentSourceFilter','paymentAmountFilter','paymentDateFrom','paymentDateTo','paymentHistorySort'].forEach(function(id){document.getElementById(id)?.addEventListener('change',function(){loadPayments(1);});});
-    document.getElementById('paymentHistoryReset')?.addEventListener('click',function(){var resetState={page:1,q:'',product:'all',source:'all',amountState:'all',dateFrom:'',dateTo:'',sort:'latest'};document.getElementById('paymentHistorySearch').value='';document.getElementById('paymentProductFilter').value='all';document.getElementById('paymentSourceFilter').value='all';document.getElementById('paymentAmountFilter').value='all';document.getElementById('paymentDateFrom').value='';document.getElementById('paymentDateTo').value='';document.getElementById('paymentHistorySort').value='latest';window.setAdminListState?.('payments',resetState);document.querySelectorAll('#paymentSummaryGrid button').forEach(function(button){button.classList.toggle('active',button.dataset.paymentCard==='all');});loadPayments(1);});
+    document.getElementById('paymentHistoryReset')?.addEventListener('click',function(){clearTimeout(paymentTimer);var resetState={page:1,q:'',product:'all',source:'all',amountState:'all',dateFrom:'',dateTo:'',sort:'latest'};document.getElementById('paymentHistorySearch').value='';document.getElementById('paymentProductFilter').value='all';document.getElementById('paymentSourceFilter').value='all';document.getElementById('paymentAmountFilter').value='all';document.getElementById('paymentDateFrom').value='';document.getElementById('paymentDateTo').value='';document.getElementById('paymentHistorySort').value='latest';window.setAdminListState?.('payments',resetState);document.querySelectorAll('#paymentSummaryGrid button').forEach(function(button){button.classList.toggle('active',button.dataset.paymentCard==='all');});loadPayments(1);});
     document.getElementById('paymentSummaryGrid')?.addEventListener('click',function(ev){var b=ev.target.closest('[data-payment-card]');if(!b)return;var key=b.dataset.paymentCard,today=new Date(),from=document.getElementById('paymentDateFrom'),to=document.getElementById('paymentDateTo'),amount=document.getElementById('paymentAmountFilter');from.value='';to.value='';amount.value='all';if(key==='today'){from.value=paymentDay(today);to.value=paymentDay(today);}else if(key==='week'){var first=new Date(today);first.setDate(first.getDate()-6);from.value=paymentDay(first);to.value=paymentDay(today);}else if(key==='month'){from.value=paymentDay(new Date(today.getFullYear(),today.getMonth(),1));to.value=paymentDay(today);}else if(key==='actual')amount.value='exists';else if(key==='different')amount.value='different';else if(key==='missing')amount.value='missing';this.querySelectorAll('button').forEach(function(x){x.classList.toggle('active',x===b);});loadPayments(1);});
     if(document.getElementById('revenue')?.classList.contains('active'))loadPayments(paymentPage);
   }
