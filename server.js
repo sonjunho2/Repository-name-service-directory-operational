@@ -1411,8 +1411,9 @@ app.post('/admin/boards',admin,async(req,res)=>runAdminAction(req,res,'/admin#bo
   const title=String(req.body.title||'').trim().slice(0,100);if(!title)throw new Error('게시판 제목을 입력해주세요.');
   const slug=boardSlugSafe(req.body.slug,title),layoutType=boardLayoutType(req.body.layout_type),type=legacyBoardTypeForLayout(layoutType);
   const writeRole=['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member';
-  await q(`INSERT INTO board_categories(title,slug,description,type,layout_type,is_active,sort_order,write_role,comment_enabled,image_enabled) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[title,slug,String(req.body.description||'').trim().slice(0,500),type,layoutType,!!req.body.is_active,parseInt(req.body.sort_order||0,10)||0,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled]);
+  const created=await q(`INSERT INTO board_categories(title,slug,description,type,layout_type,is_active,sort_order,write_role,comment_enabled,image_enabled) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,title,slug,description,layout_type,is_active,sort_order,write_role,comment_enabled,image_enabled,created_at`,[title,slug,String(req.body.description||'').trim().slice(0,500),type,layoutType,!!req.body.is_active,parseInt(req.body.sort_order||0,10)||0,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled]);
   await logAdmin(req,'게시판 생성','board_category',slug,title);
+  return {board:{...created.rows[0],post_count:0}};
 }));
 app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
   const id=parseInt(req.params.id||0,10),title=String(req.body.title||'').trim().slice(0,100);if(!id||!title)throw new Error('게시판 정보를 확인해주세요.');
@@ -1429,8 +1430,11 @@ app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res
   const writeRole=['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member';
   const description=Object.prototype.hasOwnProperty.call(req.body,'description')?String(req.body.description||'').trim().slice(0,500):null;
   const sortOrder=Object.prototype.hasOwnProperty.call(req.body,'sort_order')?(parseInt(req.body.sort_order||0,10)||0):null;
-  const r=await q(`UPDATE board_categories SET title=$1,slug=$2,description=COALESCE($3,description),layout_type=$4,is_active=$5,sort_order=COALESCE($6,sort_order),write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id`,[title,slug,description,layoutType,!!req.body.is_active,sortOrder,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled,id]);
-  if(!r.rows[0])throw new Error('게시판을 찾을 수 없습니다.');await logAdmin(req,'게시판 수정','board_category',id,title);
+  const updated=await q(`UPDATE board_categories SET title=$1,slug=$2,description=COALESCE($3,description),layout_type=$4,is_active=$5,sort_order=COALESCE($6,sort_order),write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id,title,slug,description,layout_type,is_active,sort_order,write_role,comment_enabled,image_enabled,created_at`,[title,slug,description,layoutType,!!req.body.is_active,sortOrder,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled,id]);
+  if(!updated.rows[0])throw new Error('게시판을 찾을 수 없습니다.');
+  const updatedPostCount=await q('SELECT COUNT(*)::int count FROM board_posts WHERE board_id=$1',[id]);
+  await logAdmin(req,'게시판 수정','board_category',id,title);
+  return {board:{...updated.rows[0],post_count:Number(updatedPostCount.rows[0]?.count||0)}};
 }));
 app.post('/admin/boards/reorder',admin,async(req,res)=>{
   const ids=Array.isArray(req.body.ids)?req.body.ids.map(x=>parseInt(x,10)):[];
