@@ -204,6 +204,7 @@
 .vendor-add-open{height:42px!important;padding:0 22px!important}
 .vendor-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9999;align-items:flex-start;justify-content:center;padding:32px 18px;overflow:auto}
 .vendor-modal.active{display:flex}
+#vendorImagePreview.active{display:flex}
 .vendor-modal-box{width:min(1180px,100%);background:#101525;border:1px solid #29324f;border-radius:18px;padding:22px;box-shadow:0 20px 70px rgba(0,0,0,.45)}
 .vendor-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px}
 .vendor-modal-head h3{margin:0;font-size:22px}
@@ -389,7 +390,7 @@
 </div>
 <div class="vendor-toolbar">
   <button type="button" data-user-vendor-link-open>업체회원 연결</button>
-  <button type="button" id="openVendorCreateModal" class="vendor-add-open">업체 등록</button>
+  <button type="button" id="openVendorCreateModal" class="vendor-add-open" aria-controls="vendorModal" aria-expanded="false">업체 등록</button>
 </div>
 
 <div id="userVendorLinkModal" class="user-vendor-link-modal" hidden>
@@ -404,7 +405,7 @@
   </div>
 </div>
 
-<div id="vendorModal" class="vendor-modal">
+<div id="vendorModal" class="vendor-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="vendorModalTitle">
   <div class="vendor-modal-box">
     <div class="vendor-modal-head">
       <h3 id="vendorModalTitle">업체 등록</h3>
@@ -1352,7 +1353,7 @@
     <div class="admin-image-modal-body"><img id="adminImagePreviewImg" src="" alt="이미지 미리보기"></div>
   </div>
 </div>
-<script>function showAdminPanel(id){if(id==='adRequests'||id==='bannerRequests'){var legacyKind=id==='adRequests'?'ad':'banner';id='adCenter';var legacySelect=document.getElementById('adPaymentKind');if(legacySelect)legacySelect.value=legacyKind;window.setAdminListState?.('adCenter',{page:1,kind:legacyKind});}document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));const p=document.getElementById(id);if(p){p.classList.add('active')}const boardOperationPanels=['boardPosts','notices','reviews','reports','adInquiries'];const sidebarId=boardOperationPanels.includes(id)?'boardPosts':id;document.querySelectorAll('[data-panel]').forEach(a=>a.classList.toggle('active',a.dataset.panel===sidebarId));if(typeof window.syncBoardOperationTabs==='function')window.syncBoardOperationTabs(id);}document.querySelectorAll('[data-panel]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();showAdminPanel(a.dataset.panel);history.replaceState(null,'','#'+a.dataset.panel)}));function applyIntegratedReady(){}function showPreview(box,src,text){if(!box)return;const img=box.querySelector('img');const span=box.querySelector('span');if(src){img.src=src;box.style.display='flex';if(span)span.textContent=text||'선택한 이미지가 표시됩니다.';}else{box.style.display='none';if(img)img.removeAttribute('src');}}function bindPreview(input,box){if(!input)return;input.addEventListener('change',()=>{const f=input.files&&input.files[0];if(!f)return showPreview(box,null);showPreview(box,URL.createObjectURL(f),'새로 선택한 이미지입니다.');});}const vf=document.getElementById('vendorForm');bindPreview(vf?.image,document.getElementById('vendorImagePreview'));cancelVendorEdit.onclick=()=>{vf.reset();vf.id.value='';showPreview(document.getElementById('vendorImagePreview'),null);vendorSubmitBtn.textContent='업체 등록';cancelVendorEdit.style.display='none'};
+<script>function showAdminPanel(id){if(id==='adRequests'||id==='bannerRequests'){var legacyKind=id==='adRequests'?'ad':'banner';id='adCenter';var legacySelect=document.getElementById('adPaymentKind');if(legacySelect)legacySelect.value=legacyKind;window.setAdminListState?.('adCenter',{page:1,kind:legacyKind});}document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));const p=document.getElementById(id);if(p){p.classList.add('active')}const boardOperationPanels=['boardPosts','notices','reviews','reports','adInquiries'];const sidebarId=boardOperationPanels.includes(id)?'boardPosts':id;document.querySelectorAll('[data-panel]').forEach(a=>a.classList.toggle('active',a.dataset.panel===sidebarId));if(typeof window.syncBoardOperationTabs==='function')window.syncBoardOperationTabs(id);}document.querySelectorAll('[data-panel]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();showAdminPanel(a.dataset.panel);history.replaceState(null,'','#'+a.dataset.panel)}));function applyIntegratedReady(){}
 function updateReportAlert(){const el=document.getElementById('pendingReportCount');if(el)el.textContent=document.querySelectorAll('.report-row[data-status="new"]').length;}
 document.querySelectorAll('.settings-tab').forEach(btn=>{
   btn.addEventListener('click',()=>{
@@ -1497,117 +1498,201 @@ function makeButton(label,disabled,active,onClick){
 
 <script>
 (function(){
-  const modal=document.getElementById('vendorModal');
-  const openBtn=document.getElementById('openVendorCreateModal');
-  const closeBtn=document.getElementById('closeVendorModal');
-  const cancelBtn=document.getElementById('cancelVendorEdit');
-  const form=document.getElementById('vendorForm');
-  const title=document.getElementById('vendorModalTitle');
-  const submit=document.getElementById('vendorSubmitBtn');
+  if(window.__adminVendorEditorV2)return;
+  window.__adminVendorEditorV2=true;
+  var modal=document.getElementById('vendorModal');
+  var panel=document.getElementById('vendors');
+  var form=document.getElementById('vendorForm');
+  var openButton=document.getElementById('openVendorCreateModal');
+  var closeButton=document.getElementById('closeVendorModal');
+  var cancelButton=document.getElementById('cancelVendorEdit');
+  var title=document.getElementById('vendorModalTitle');
+  var submitButton=document.getElementById('vendorSubmitBtn');
+  var preview=document.getElementById('vendorImagePreview');
+  var imageInput=form&&form.elements.image;
+  var previewImage=preview&&preview.querySelector('img');
+  var previewText=preview&&preview.querySelector('span');
+  var previewObjectUrl='';
+  var bodyOverflow='';
+  var returnFocus=null;
+  if(!panel||!modal||!form)return;
 
-  if(!modal||!form)return;
-
-  function openModal(mode){
-    if(title) title.textContent = mode==='edit' ? '업체 수정' : '업체 등록';
-    if(submit) submit.textContent = mode==='edit' ? '업체 수정 저장' : '업체 등록';
-    if(modal.parentElement!==document.body) document.body.appendChild(modal);
-    modal.style.display='';
-    modal.removeAttribute('aria-hidden');
-    modal.classList.add('active');
-    document.body.style.overflow='hidden';
+  function setValue(name,value){
+    var field=form.elements[name];
+    if(field)field.value=value==null?'':value;
   }
-
-  window.forceCloseVendorModal=function(){
-    var target=document.getElementById('vendorModal');
-    try{
-      if(document.activeElement&&target&&target.contains(document.activeElement))document.activeElement.blur();
-    }catch(e){}
-    if(target){
-      target.classList.remove('active','open','show','visible');
-      target.style.display='none';
-      target.setAttribute('aria-hidden','true');
+  function setChecked(name,value){
+    var field=form.elements[name];
+    if(field)field.checked=!!value;
+  }
+  function revokePreviewUrl(){
+    if(previewObjectUrl){URL.revokeObjectURL(previewObjectUrl);previewObjectUrl='';}
+  }
+  function setPreview(src,message){
+    if(!preview)return;
+    if(src){
+      if(previewImage)previewImage.src=src;
+      if(previewText)previewText.textContent=message||'현재 등록된 업체 이미지입니다. 새 파일을 선택하면 교체됩니다.';
+      preview.classList.add('active');
+    }else{
+      if(previewImage)previewImage.removeAttribute('src');
+      if(previewText)previewText.textContent='선택한 이미지가 표시됩니다.';
+      preview.classList.remove('active');
     }
-    document.body.classList.remove('modal-open','vendor-modal-open');
-    document.body.style.overflow='';
-    var vendorForm=document.getElementById('vendorForm');
-    if(vendorForm){vendorForm.reset();var id=vendorForm.querySelector('[name="id"]');if(id)id.value='';}
-    var modalTitle=document.getElementById('vendorModalTitle');
-    if(modalTitle)modalTitle.textContent='업체 등록';
-    var submitButton=document.getElementById('vendorSubmitBtn');
+  }
+  function normalizeVendorAd(){
+    if(form.elements.banner_active&&form.elements.banner_active.checked&&form.elements.ad_type){
+      form.elements.ad_type.value='recommended';
+    }
+  }
+  function resetEditor(){
+    revokePreviewUrl();
+    form.reset();
+    setValue('id','');
+    setValue('status','active');
+    setValue('ad_type','none');
+    setValue('expire_at','');
+    setChecked('banner_active',false);
+    if(imageInput)try{imageInput.value='';}catch(_e){}
+    form.dataset.vendorSubmitting='0';
+    if(title)title.textContent='업체 등록';
     if(submitButton){submitButton.disabled=false;submitButton.classList.remove('ajax-loading');submitButton.textContent='업체 등록';}
-    var cancelButton=document.getElementById('cancelVendorEdit');
-    if(cancelButton)cancelButton.style.display='none';
-    var preview=document.getElementById('vendorImagePreview');
-    if(preview){preview.classList.remove('active','has-image','show');preview.style.display='';var image=preview.querySelector('img');if(image)image.removeAttribute('src');}
-  };
-
-  if(openBtn){
-    openBtn.addEventListener('click',()=>{
-      form.reset();
-      const idInput=form.querySelector('input[name="id"]');
-      if(idInput) idInput.value='';
-      const preview=document.getElementById('vendorImagePreview');
-      if(preview) preview.style.display='none';
-      if(cancelBtn) cancelBtn.style.display='none';
-      openModal('create');
-    });
+    if(cancelButton){cancelButton.hidden=true;cancelButton.style.removeProperty('display');}
+    setPreview('');
+  }
+  function openEditor(mode,opener){
+    returnFocus=opener||document.activeElement;
+    if(title)title.textContent=mode==='edit'?'업체 수정':'업체 등록';
+    if(submitButton)submitButton.textContent=mode==='edit'?'업체 수정 저장':'업체 등록';
+    if(cancelButton){cancelButton.hidden=mode!=='edit';cancelButton.style.removeProperty('display');}
+    bodyOverflow=document.body.style.overflow;
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden','false');
+    if(openButton)openButton.setAttribute('aria-expanded','true');
+    document.body.style.overflow='hidden';
+    var first=form.elements.name;
+    if(first)setTimeout(function(){first.focus();},0);
+  }
+  function closeEditor(){
+    if(!modal.classList.contains('active'))return;
+    if(document.activeElement&&modal.contains(document.activeElement))document.activeElement.blur();
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden','true');
+    if(openButton)openButton.setAttribute('aria-expanded','false');
+    document.body.style.overflow=bodyOverflow;
+    resetEditor();
+    var focusTarget=returnFocus;
+    returnFocus=null;
+    if(focusTarget&&document.contains(focusTarget))focusTarget.focus();
+  }
+  function fillEditor(v,row){
+    resetEditor();
+    setValue('id',v.id||'');
+    setValue('name',v.name||(row&&row.dataset.vendorName)||'');
+    setValue('category',v.category||(row&&row.dataset.category)||'');
+    setValue('region',v.region||(row&&row.dataset.region)||'');
+    setValue('phone',v.phone||'');
+    setValue('kakao_url',v.kakao_url||'');
+    setValue('business_hours',v.business_hours||(row&&row.dataset.businessHours)||'');
+    setValue('tags',v.tags||'');
+    setValue('status',v.status||(row&&row.dataset.status)||'active');
+    setValue('description',v.description||'');
+    setValue('ad_type',v.ad_type||(row&&row.dataset.adType)||'none');
+    setValue('expire_at',String(v.expire_at||(row&&row.dataset.expire)||'').slice(0,10));
+    setChecked('banner_active',!!v.banner_active||(row&&row.dataset.bannerActive==='1'));
+    normalizeVendorAd();
+    setPreview(v.image_exists?'/admin/vendors/'+encodeURIComponent(v.id)+'/image':'');
+    openEditor('edit',returnFocus);
+  }
+  function cachedVendor(id){
+    return window.__adminVendorRowsById&&window.__adminVendorRowsById[String(id||'')]||null;
+  }
+  function hasVendorDetail(v){
+    return !!(v&&(v.name||v.phone||v.kakao_url||v.business_hours||v.tags||v.description||v.category||v.region));
+  }
+  async function fetchVendorDetail(id){
+    var key=String(id||'');
+    var response=await fetch('/admin/api/vendors/'+encodeURIComponent(key),{credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'fetch'}});
+    var data=null;
+    try{data=await response.json();}catch(_e){}
+    if(!response.ok||!data||data.ok===false||!data.vendor)throw new Error(data&&data.error||('HTTP '+response.status));
+    window.__adminVendorRowsById=window.__adminVendorRowsById||{};
+    window.__adminVendorRowsById[key]=data.vendor;
+    return data.vendor;
   }
 
-  if(closeBtn) closeBtn.addEventListener('click',window.forceCloseVendorModal);
-  if(cancelBtn) cancelBtn.addEventListener('click',window.forceCloseVendorModal);
-  modal.addEventListener('click',e=>{
-    if(e.target===modal) window.forceCloseVendorModal();
+  if(openButton)openButton.addEventListener('click',function(e){e.preventDefault();resetEditor();openEditor('create',openButton);});
+  if(closeButton)closeButton.addEventListener('click',closeEditor);
+  if(cancelButton)cancelButton.addEventListener('click',closeEditor);
+  modal.addEventListener('click',function(e){if(e.target===modal)closeEditor();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modal.classList.contains('active'))closeEditor();});
+  if(imageInput)imageInput.addEventListener('change',function(){
+    var file=imageInput.files&&imageInput.files[0];
+    if(!file)return;
+    revokePreviewUrl();
+    previewObjectUrl=URL.createObjectURL(file);
+    setPreview(previewObjectUrl,'새로 선택한 업체 이미지입니다.');
   });
-
-  if(!window.__vendorFormDirectSubmitBound){
-    window.__vendorFormDirectSubmitBound=true;
-    form.addEventListener('submit',async function(e){
-      e.preventDefault();
-      e.stopPropagation();
-      if(e.stopImmediatePropagation)e.stopImmediatePropagation();
-      if(form.dataset.vendorSubmitting==='1')return;
-      form.dataset.vendorSubmitting='1';
-      var oldText=submit?submit.textContent:'';
-      if(submit){submit.disabled=true;submit.classList.add('ajax-loading');submit.textContent='저장중...';}
-      var success=false;
+  if(form.elements.banner_active)form.elements.banner_active.addEventListener('change',normalizeVendorAd);
+  document.addEventListener('click',async function(e){
+    var button=e.target&&e.target.closest&&e.target.closest('.edit-vendor-btn');
+    if(!button)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    returnFocus=button;
+    var row=button.closest('.vendor-row');
+    var id=button.dataset.id||(row&&row.dataset.id);
+    var oldText=button.textContent;
+    button.disabled=true;
+    button.textContent='불러오는 중...';
+    try{
+      var vendor=cachedVendor(id);
+      if(button.closest('#banners')||!hasVendorDetail(vendor))vendor=await fetchVendorDetail(id);
+      if(!vendor)throw new Error('업체 정보를 찾지 못했습니다.');
+      fillEditor(vendor,row);
+    }catch(error){
+      if(typeof toast==='function')toast('업체 정보를 불러오지 못했습니다.','bad',error.message||'잠시 후 다시 시도해주세요.');
+    }finally{
+      button.disabled=false;
+      button.textContent=oldText;
+    }
+  },true);
+  form.addEventListener('submit',async function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    if(form.dataset.vendorSubmitting==='1'||(form.reportValidity&&!form.reportValidity()))return;
+    form.dataset.vendorSubmitting='1';
+    var oldText=submitButton?submitButton.textContent:'';
+    if(submitButton){submitButton.disabled=true;submitButton.classList.add('ajax-loading');submitButton.textContent='저장 중...';}
+    try{
+      normalizeVendorAd();
+      var response=await fetch('/admin/vendor',{method:'POST',body:new FormData(form),credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'fetch'}});
+      var data=null;
+      try{data=await response.json();}catch(_e){throw new Error('서버 응답을 확인하지 못했습니다.');}
+      if(!response.ok||!data||data.ok===false)throw new Error(data&&data.error||('HTTP '+response.status));
+      var state=window.getAdminListState?window.getAdminListState('vendors'):{};
+      var page=Math.max(1,Number(state.page||1)||1);
+      if(window.saveActiveAdminListState)window.saveActiveAdminListState('vendors',page);
+      if(window.setAdminListState)window.setAdminListState('vendors',{page:page});
+      var refreshed=false;
       try{
-        var banner=form.elements.banner_active;
-        var adType=form.elements.ad_type;
-        if(banner&&banner.checked&&adType)adType.value='recommended';
-        var res=await fetch('/admin/vendor',{
-          method:'POST',body:new FormData(form),credentials:'same-origin',
-          headers:{'X-Requested-With':'fetch','Accept':'application/json'}
-        });
-        var data=await res.json();
-        if(!res.ok||!data||data.ok===false)throw new Error((data&&data.error)||('HTTP '+res.status));
-        success=true;
-        if(typeof toast==='function')toast('업체 정보가 저장되었습니다.','ok');
-        window.forceCloseVendorModal();
-        var state=window.getAdminListState?window.getAdminListState('vendors'):{};
-        var page=Number(state.page||1)||1;
-        if(window.saveActiveAdminListState)window.saveActiveAdminListState('vendors',page);
-        if(window.setAdminListState)window.setAdminListState('vendors',{page:page});
-        var refreshed=false;
-        if(typeof window.loadAdminVendors==='function'){
-          try{var ok=await window.loadAdminVendors(page);refreshed=ok!==false;}catch(_e){}
-        }
-        if(!refreshed&&typeof window.reloadAdminPanelList==='function'){
-          try{var ok2=await window.reloadAdminPanelList('vendors');refreshed=ok2!==false;}catch(_e){}
-        }
-        if(!refreshed){
-          try{sessionStorage.setItem('adminReturnPanel','vendors');}catch(_e){}
-          location.href='/admin#vendors';
-          location.reload();
-        }
-      }catch(err){
-        if(typeof toast==='function')toast('업체 정보를 저장하지 못했습니다.','bad',err&&err.message?err.message:'잠시 후 다시 시도해주세요.');
-        else alert(err&&err.message?err.message:'업체 정보를 저장하지 못했습니다.');
-      }finally{
-        form.dataset.vendorSubmitting='0';
-        if(!success&&submit){submit.disabled=false;submit.classList.remove('ajax-loading');submit.textContent=oldText||'업체 수정 저장';}
+        if(typeof window.loadAdminVendors==='function')refreshed=(await window.loadAdminVendors(page))!==false;
+        else if(typeof window.reloadAdminPanelList==='function')refreshed=(await window.reloadAdminPanelList('vendors'))!==false;
+      }catch(_refreshError){}
+      closeEditor();
+      if(typeof toast==='function'){
+        if(refreshed)toast('업체 정보가 저장되었습니다.','ok');
+        else toast('업체 정보는 저장되었지만 목록을 다시 불러오지 못했습니다.','bad','현재 목록에서 새로고침을 다시 시도해주세요.');
       }
-    });
-  }
+    }catch(error){
+      if(typeof toast==='function')toast('업체 정보를 저장하지 못했습니다.','bad',error.message||'잠시 후 다시 시도해주세요.');
+      else alert(error.message||'업체 정보를 저장하지 못했습니다.');
+    }finally{
+      form.dataset.vendorSubmitting='0';
+      if(submitButton&&modal.classList.contains('active')){submitButton.disabled=false;submitButton.classList.remove('ajax-loading');submitButton.textContent=oldText;}
+    }
+  });
 })();
 </script>
 <style>
@@ -2525,193 +2610,10 @@ function makeButton(label,disabled,active,onClick){
 })();
 </script>
 
-<script>
-(function(){
-  const form=document.getElementById('vendorForm');
-  if(!form)return;
-  const ad=form.elements.ad_type;
-  const banner=form.elements.banner_active;
-  function normalizeVendorAd(){
-    if(banner&&banner.checked&&ad){ad.value='recommended';}
-  }
-  banner&&banner.addEventListener('change',normalizeVendorAd);
-  form.addEventListener('submit',normalizeVendorAd);
-})();
-</script>
 
 
-<script>
-(function(){
-  if(window.__vendorEditDelegatedFixV31)return;
-  window.__vendorEditDelegatedFixV31=true;
-
-  function setVal(form,name,value){
-    var el=form&&form.elements&&form.elements[name];
-    if(!el)return;
-    el.value=value==null?'':value;
-  }
-  function setChecked(form,name,value){
-    var el=form&&form.elements&&form.elements[name];
-    if(!el)return;
-    el.checked=!!value;
-  }
-  function showPreviewSafe(src,text){
-    var box=document.getElementById('vendorImagePreview');
-    if(!box)return;
-    var img=box.querySelector('img');
-    var span=box.querySelector('span');
-    if(src){
-      if(img)img.src=src;
-      box.style.display='flex';
-      if(span)span.textContent=text||'현재 등록된 업체 이미지입니다. 새 파일 선택 시 교체됩니다.';
-    }else{
-      box.style.display='none';
-      if(img)img.removeAttribute('src');
-    }
-  }
-  function openVendorModalForEdit(){
-    var modal=document.getElementById('vendorModal');
-    var title=document.getElementById('vendorModalTitle');
-    var submit=document.getElementById('vendorSubmitBtn');
-    var cancel=document.getElementById('cancelVendorEdit');
-    if(title)title.textContent='업체 수정';
-    if(submit)submit.textContent='업체 수정 저장';
-    if(cancel)cancel.style.display='block';
-    if(modal){
-      if(modal.parentElement!==document.body) document.body.appendChild(modal);
-      modal.style.display='';
-      modal.removeAttribute('aria-hidden');
-      modal.classList.add('active');
-      document.body.style.overflow='hidden';
-    }
-  }
-  function fillVendorForm(v,row){
-    var form=document.getElementById('vendorForm');
-    if(!form||!v)return;
-    setVal(form,'id',v.id||'');
-    setVal(form,'name',v.name||row?.dataset.vendorName||'');
-    setVal(form,'category',v.category||row?.dataset.category||'');
-    setVal(form,'region',v.region||row?.dataset.region||'');
-    setVal(form,'phone',v.phone||'');
-    setVal(form,'kakao_url',v.kakao_url||'');
-    setVal(form,'business_hours',v.business_hours||row?.dataset.businessHours||'');
-    setVal(form,'tags',v.tags||'');
-    setVal(form,'status',v.status||row?.dataset.status||'active');
-    setVal(form,'description',v.description||'');
-    setVal(form,'ad_type',v.ad_type||row?.dataset.adType||'none');
-    setVal(form,'expire_at',String(v.expire_at||row?.dataset.expire||'').slice(0,10));
-    setChecked(form,'banner_active',!!v.banner_active || row?.dataset.bannerActive==='1');
-    if(form.elements.banner_active&&form.elements.banner_active.checked&&form.elements.ad_type){
-      form.elements.ad_type.value='recommended';
-    }
-    showPreviewSafe(v.image_exists?('/admin/vendors/'+encodeURIComponent(v.id)+'/image'):'', v.image_exists?'현재 등록된 업체 이미지입니다. 새 파일 선택 시 교체됩니다.':'새 파일 선택 시 이미지가 등록됩니다.');
-    openVendorModalForEdit();
-  }
-  function findVendor(id){
-    var key=String(id||'');
-    var cached=window.__adminVendorRowsById&&window.__adminVendorRowsById[key];
-    if(cached)return cached;
-    return null;
-  }
-  function hasEnoughVendorDetail(v){
-    if(!v)return false;
-    return !!(v.name || v.phone || v.kakao_url || v.business_hours || v.tags || v.description || v.category || v.region);
-  }
-  async function fetchVendorDetail(id){
-    var key=String(id||'');
-    if(!key)return null;
-    var res=await fetch('/admin/api/vendors/'+encodeURIComponent(key),{
-      credentials:'same-origin',
-      headers:{'Accept':'application/json','X-Requested-With':'fetch'}
-    });
-    var data=null;
-    try{data=await res.json();}catch(e){}
-    if(!res.ok || !data || data.ok===false || !data.vendor){
-      throw new Error((data&&data.error)||('HTTP '+res.status));
-    }
-    window.__adminVendorRowsById=window.__adminVendorRowsById||{};
-    window.__adminVendorRowsById[key]=data.vendor;
-    return data.vendor;
-  }
-  document.addEventListener('click',async function(e){
-    var btn=e.target&&e.target.closest&&e.target.closest('.edit-vendor-btn');
-    if(!btn)return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    var row=btn.closest('.vendor-row');
-    var id=btn.dataset.id || (row&&row.dataset.id);
-    var fromBannerPanel=!!btn.closest('#banners');
-    var oldText=btn.textContent;
-    btn.disabled=true;
-    btn.textContent='불러오는중...';
-    try{
-      var v=findVendor(id);
-      // 배너목록의 업체연동 행은 별도 배너 row라 업체 상세정보가 부족할 수 있으므로 항상 최신 업체정보를 서버에서 다시 가져옵니다.
-      if(fromBannerPanel || !hasEnoughVendorDetail(v)){
-        var fresh=await fetchVendorDetail(id);
-        if(fresh)v=fresh;
-      }
-      if(!v){
-        toast('업체 정보를 찾지 못했습니다.','bad');
-        return;
-      }
-      fillVendorForm(v,row);
-    }catch(err){
-      toast('업체 정보를 불러오지 못했습니다.','bad',err&&err.message?err.message:'잠시 후 다시 시도해주세요.');
-    }finally{
-      btn.disabled=false;
-      btn.textContent=oldText;
-    }
-  },true);
-})();
-</script>
 
 
-<script>
-(function(){
-  if(window.__adminVendorCreateFlowV42)return;
-  window.__adminVendorCreateFlowV42=true;
-  function setPreviewHidden(){
-    var box=document.getElementById('vendorImagePreview');
-    if(!box)return;
-    var img=box.querySelector('img');
-    if(img)img.removeAttribute('src');
-    box.style.display='none';
-  }
-  function openCreateVendorModal(){
-    var form=document.getElementById('vendorForm');
-    var modal=document.getElementById('vendorModal');
-    var title=document.getElementById('vendorModalTitle');
-    var submit=document.getElementById('vendorSubmitBtn');
-    var cancel=document.getElementById('cancelVendorEdit');
-    if(!form||!modal)return;
-    form.reset();
-    if(form.elements.id)form.elements.id.value='';
-    if(form.elements.status)form.elements.status.value='active';
-    if(form.elements.ad_type)form.elements.ad_type.value='none';
-    if(form.elements.banner_active)form.elements.banner_active.checked=false;
-    if(form.elements.expire_at)form.elements.expire_at.value='';
-    var file=form.elements.image;
-    if(file)try{file.value='';}catch(e){}
-    setPreviewHidden();
-    if(title)title.textContent='업체 등록';
-    if(submit)submit.textContent='업체 등록';
-    if(cancel)cancel.style.display='none';
-    if(modal.parentElement!==document.body)document.body.appendChild(modal);
-    modal.style.display='';
-    modal.removeAttribute('aria-hidden');
-    modal.classList.add('active');
-    document.body.style.overflow='hidden';
-  }
-  document.addEventListener('click',function(e){
-    var btn=e.target&&e.target.closest&&e.target.closest('#openVendorCreateModal');
-    if(!btn)return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    openCreateVendorModal();
-  },true);
-})();
-</script>
 
 
 <script>
@@ -3168,85 +3070,6 @@ function makeButton(label,disabled,active,onClick){
 })();
 </script>
 
-<script>
-(function(){
-  if(window.__vendorFormDirectSaveV6)return;
-  window.__vendorFormDirectSaveV6=true;
-
-  async function submitVendorFormDirect(form){
-    if(!form||form.dataset.vendorSubmitting==='1')return;
-    if(typeof form.reportValidity==='function'&&!form.reportValidity())return;
-    var submit=document.getElementById('vendorSubmitBtn');
-    var oldText=submit?submit.textContent:'업체 수정 저장';
-    form.dataset.vendorSubmitting='1';
-    if(submit){submit.disabled=true;submit.classList.add('ajax-loading');submit.textContent='저장중...';}
-    var success=false;
-    try{
-      var banner=form.elements.banner_active;
-      var adType=form.elements.ad_type;
-      if(banner&&banner.checked&&adType)adType.value='recommended';
-      var res=await fetch('/admin/vendor',{
-        method:'POST',body:new FormData(form),credentials:'same-origin',
-        headers:{'X-Requested-With':'fetch','Accept':'application/json'}
-      });
-      var data=null;
-      try{data=await res.json();}catch(parseErr){throw new Error('JSON 응답을 해석하지 못했습니다.');}
-      if(!res.ok||!data||data.ok===false)throw new Error((data&&data.error)||('HTTP '+res.status));
-      success=true;
-      try{if(typeof toast==='function')toast('업체 정보가 저장되었습니다.','ok');}catch(_toastErr){}
-      try{
-        if(typeof window.forceCloseVendorModal==='function')window.forceCloseVendorModal();
-        else{
-          var modal=document.getElementById('vendorModal');
-          if(modal){
-            if(document.activeElement&&modal.contains(document.activeElement)){try{document.activeElement.blur();}catch(_blurErr){}}
-            modal.classList.remove('active','open','show','visible');modal.style.display='none';modal.setAttribute('aria-hidden','true');
-          }
-          document.body.style.overflow='';
-        }
-      }catch(_closeErr){}
-      var page=1;
-      try{
-        var state=window.getAdminListState?window.getAdminListState('vendors'):{};
-        page=Number(state.page||1)||1;
-        if(window.saveActiveAdminListState)window.saveActiveAdminListState('vendors',page);
-        if(window.setAdminListState)window.setAdminListState('vendors',{page:page});
-      }catch(_stateErr){}
-      var refreshed=false;
-      try{if(typeof window.loadAdminVendors==='function'){var ok=await window.loadAdminVendors(page);refreshed=ok!==false;}}catch(_loadErr){}
-      try{if(!refreshed&&typeof window.reloadAdminPanelList==='function'){var ok2=await window.reloadAdminPanelList('vendors');refreshed=ok2!==false;}}catch(_reloadErr){}
-      if(!refreshed){
-        try{sessionStorage.setItem('adminReturnPanel','vendors');}catch(_e){}
-        location.href='/admin#vendors';
-        location.reload();
-      }
-    }catch(err){
-      try{
-        if(typeof toast==='function')toast('업체 정보를 저장하지 못했습니다.','bad',err&&err.message?err.message:'잠시 후 다시 시도해주세요.');
-        else alert(err&&err.message?err.message:'업체 정보를 저장하지 못했습니다.');
-      }catch(_toastErr2){alert(err&&err.message?err.message:'업체 정보를 저장하지 못했습니다.');}
-    }finally{
-      form.dataset.vendorSubmitting='0';
-      if(!success&&submit){submit.disabled=false;submit.classList.remove('ajax-loading');submit.textContent=oldText||'업체 수정 저장';}
-    }
-  }
-
-  document.addEventListener('click',function(e){
-    var btn=e.target&&e.target.closest&&e.target.closest('#vendorSubmitBtn');
-    if(!btn)return;
-    var form=document.getElementById('vendorForm');
-    if(!form)return;
-    e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
-    submitVendorFormDirect(form);
-  },true);
-
-  var form=document.getElementById('vendorForm');
-  if(form)form.addEventListener('submit',function(e){
-    e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
-    submitVendorFormDirect(form);
-  },true);
-})();
-</script>
 
 <script>
 (function(){
