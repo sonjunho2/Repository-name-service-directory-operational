@@ -181,7 +181,7 @@ async function openVendor(id){
     const flagBtn=`<button type="button" onclick="submitFlag('vendor',${esc(v.id)})" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#c8d0e8;font-weight:900;cursor:pointer;">업체 신고</button>`;
     const reviewHtml=reviews.length
       ? reviews.map(r=>`<article class="review"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><b>★${esc(r.rating)} ${esc(r.title)}</b><button type="button" onclick="submitFlag('review',${esc(r.id)})" style="height:30px;padding:0 10px;border-radius:999px;border:1px solid #39466c;background:#080d18;color:#c8d0e8;font-weight:800;cursor:pointer;">신고</button></div><p>${esc(r.content)}</p><small>${esc(r.nickname||'탈퇴회원')}</small></article>`).join('')
-      : '<p class="empty-text">첫 번째 후기를 작성해보세요.</p>';
+      : '<p class="empty-text">등록된 후기가 없습니다.</p>';
     modalContent.innerHTML=`
       <div class="modal-vendor-info">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
@@ -215,7 +215,7 @@ async function openVendor(id){
           </div>
         </div>
       </div>
-      <section class="modal-section review-section"><div class="review-title"><h3>⭐⭐⭐⭐⭐ 후기</h3><a href="/vendor/${esc(v.id)}#review" class="review-write-btn" style="display:inline-flex;align-items:center;text-decoration:none;">후기 작성하기</a></div>${reviewHtml}</section>
+      <section class="modal-section review-section"><div class="review-title"><h3>⭐⭐⭐⭐⭐ 후기</h3></div>${reviewHtml}</section>
     `;
   }catch(e){
     modalContent.innerHTML='<div class="modal-loading">업체 정보를 불러오지 못했습니다.</div>';
@@ -280,10 +280,6 @@ document.addEventListener('click',(e)=>{
 document.addEventListener('keydown',(e)=>{
   if(e.key==='Escape') closeModal();
 });
-
-const reviewPopupScript=document.createElement('script');
-reviewPopupScript.src='/public/js/review-popup.js';
-document.body.appendChild(reviewPopupScript);
 
 // 2026-06 사용성 보강: 필터 상태 표시, 이미지 로딩 최적화, 중복 클릭 방지
 (function(){
