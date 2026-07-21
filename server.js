@@ -29,6 +29,11 @@ async function ensureSchema(){
     await q(`CREATE TABLE IF NOT EXISTS vendors(id SERIAL PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, region TEXT NOT NULL, phone TEXT, tags TEXT, description TEXT, business_hours TEXT, image_data TEXT, is_recommended BOOLEAN DEFAULT false, is_premium BOOLEAN DEFAULT false, status TEXT DEFAULT 'active', views INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS banners(id SERIAL PRIMARY KEY, title TEXT NOT NULL, subtitle TEXT, link_url TEXT, image_data TEXT, position TEXT DEFAULT 'premium', sort_order INTEGER DEFAULT 0, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS reviews(id SERIAL PRIMARY KEY, vendor_id INTEGER REFERENCES vendors(id) ON DELETE CASCADE, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, title TEXT NOT NULL, content TEXT NOT NULL, rating INTEGER DEFAULT 5, status TEXT DEFAULT 'visible', created_at TIMESTAMP DEFAULT now())`);
+    await q('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS image_data TEXT');
+    await q('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0');
+    await q('ALTER TABLE reviews ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()');
+    await q('UPDATE reviews SET views=0 WHERE views IS NULL');
+    await q('CREATE INDEX IF NOT EXISTS idx_reviews_status_created ON reviews(status,created_at DESC)');
     await q(`CREATE TABLE IF NOT EXISTS events(id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, image_data TEXT, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS notices(id SERIAL PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, is_pinned BOOLEAN DEFAULT false, created_at TIMESTAMP DEFAULT now())`);
     await q('ALTER TABLE vendors ADD COLUMN IF NOT EXISTS kakao_url text'); await q(`CREATE TABLE IF NOT EXISTS inquiries(id SERIAL PRIMARY KEY,type text,company_name text,name text,phone text,kakao text,email text,category text,region text,content text,main_image_data text,banner_image_data text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS banner_status text DEFAULT 'new'"); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS user_id int"); await q("ALTER TABLE inquiries ADD COLUMN IF NOT EXISTS vendor_id int"); await q(`CREATE TABLE IF NOT EXISTS flags(id SERIAL PRIMARY KEY,type text,target_id int,reason text,content text,status text DEFAULT 'new',created_at timestamp DEFAULT now())`); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS admin_memo text"); await q("ALTER TABLE flags ADD COLUMN IF NOT EXISTS processed_at timestamp"); await q(`CREATE TABLE IF NOT EXISTS app_settings(key text PRIMARY KEY, value text DEFAULT '')`); await q("INSERT INTO app_settings(key,value) VALUES('categories','카페\n뷰티\n맛집\n교육\n기타') ON CONFLICT (key) DO NOTHING"); await q("INSERT INTO app_settings(key,value) VALUES('regions','서울\n부산\n대구\n인천\n광주\n대전\n제주') ON CONFLICT (key) DO NOTHING"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_vendor boolean DEFAULT false"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS vendor_id int"); await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamp DEFAULT now()"); await q(`CREATE TABLE IF NOT EXISTS vendor_update_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,name text,category text,region text,phone text,kakao_url text,business_hours text,tags text,description text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_banner_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,title text,subtitle text,link_url text,image_data text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q(`CREATE TABLE IF NOT EXISTS vendor_ad_requests(id SERIAL PRIMARY KEY,user_id int,vendor_id int,plan text,period text,content text,status text DEFAULT 'new',admin_memo text,created_at timestamp DEFAULT now(),processed_at timestamp)`); await q("ALTER TABLE vendors ADD COLUMN IF NOT EXISTS ad_until date");
@@ -135,6 +140,7 @@ async function ensureSchema(){
     await q("UPDATE board_categories SET layout_type='private',type='inquiry',write_role='member',comment_enabled=true WHERE slug='ad-inquiry'");
     await q("UPDATE board_categories SET layout_type='private' WHERE slug='reports' AND (layout_type IS NULL OR layout_type='list')");
     await q("UPDATE board_categories SET type='notice',layout_type='list',write_role='admin',is_active=true,image_enabled=true,comment_enabled=true WHERE slug='notice'");
+    await q("UPDATE board_categories SET type='review',layout_type='list',write_role='member',is_active=true,image_enabled=true,comment_enabled=false WHERE slug='reviews'");
     const noticeMigrationClient=await pool.connect();
     try{
       await noticeMigrationClient.query('BEGIN');
@@ -406,7 +412,7 @@ async function refreshSessionUser(req){
 
 async function getBoardCategories(user=null){
   const isAdmin=user?.role==='admin',userId=Number(user?.id||0);
-  const r=await q(`SELECT b.*,(SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id AND p.status='visible' AND (COALESCE(b.layout_type,'list')<>'private' OR $1 OR p.user_id=$2)) post_count FROM board_categories b WHERE b.is_active=true ORDER BY b.sort_order,b.id`,[isAdmin,userId]);
+  const r=await q(`SELECT b.*,CASE WHEN b.slug='reviews' THEN (SELECT COUNT(*)::int FROM reviews r JOIN vendors v ON v.id=r.vendor_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL}) ELSE (SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id AND p.status='visible' AND (COALESCE(b.layout_type,'list')<>'private' OR $1 OR p.user_id=$2)) END post_count FROM board_categories b WHERE b.is_active=true ORDER BY b.sort_order,b.id`,[isAdmin,userId]);
   return r.rows||[];
 }
 function canWriteBoard(user,board){
@@ -750,9 +756,11 @@ app.get('/boards',async(req,res)=>{
   try{
     const user=req.session.user||null,boards=await getBoardCategories(user);
     const ids=boards.map(x=>x.id);
-    const recent=ids.length?await q(`SELECT p.id,p.board_id,p.title,p.created_at,u.nickname FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id WHERE p.status='visible' AND p.board_id=ANY($1::int[]) AND (COALESCE(b.layout_type,'list')<>'private' OR $2 OR p.user_id=$3) ORDER BY p.created_at DESC`,[ids,user?.role==='admin',Number(user?.id||0)]):{rows:[]};
+    const recent=ids.length?await q(`SELECT p.id,p.board_id,p.title,p.created_at,u.nickname FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id WHERE p.status='visible' AND p.board_id=ANY($1::int[]) AND b.slug<>'reviews' AND (COALESCE(b.layout_type,'list')<>'private' OR $2 OR p.user_id=$3) ORDER BY p.created_at DESC`,[ids,user?.role==='admin',Number(user?.id||0)]):{rows:[]};
     const recentByBoard={};
     for(const post of recent.rows||[]){const list=recentByBoard[post.board_id]||(recentByBoard[post.board_id]=[]);if(list.length<5)list.push(post);}
+    const reviewBoard=boards.find(x=>x.slug==='reviews');
+    if(reviewBoard){const reviewRecent=await q(`SELECT r.id,$1::int board_id,r.title,r.created_at,u.nickname FROM reviews r JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL} ORDER BY r.created_at DESC,r.id DESC LIMIT 5`,[reviewBoard.id]);recentByBoard[reviewBoard.id]=reviewRecent.rows;}
     res.render('board-list',{mode:'categories',boards,board:null,posts:[],recentByBoard,page:1,totalPages:1,qText:'',canWrite:false,settings:await getSettings()});
   }catch(e){console.error('boards list failed',e);res.status(500).send('게시판을 불러오지 못했습니다.');}
 });
@@ -761,6 +769,14 @@ app.get('/boards/:slug',async(req,res)=>{
     const boardResult=await q('SELECT * FROM board_categories WHERE slug=$1 AND is_active=true',[String(req.params.slug||'').toLowerCase()]);
     const board=boardResult.rows[0];if(!board)return res.status(404).send('게시판을 찾을 수 없습니다.');
     const page=Math.max(1,parseInt(req.query.page||'1',10)||1),limit=20,offset=(page-1)*limit;
+    if(board.slug==='reviews'){
+      const qText=String(req.query.q||'').trim().slice(0,100),params=[];
+      let search='';if(qText){params.push(`%${qText}%`);const p=`$${params.length}`;search=` AND (r.id::text ILIKE ${p} OR r.title ILIKE ${p} OR r.content ILIKE ${p} OR v.name ILIKE ${p} OR v.category ILIKE ${p} OR v.region ILIKE ${p} OR u.username ILIKE ${p} OR u.nickname ILIKE ${p})`;}
+      const fromSql=` FROM reviews r JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL}${search}`;
+      const count=await q(`SELECT COUNT(*)::int count${fromSql}`,params),total=Number(count.rows[0]?.count||0),totalPages=Math.max(1,Math.ceil(total/limit));
+      const rows=await q(`SELECT r.id,r.vendor_id,v.name vendor_name,v.category vendor_category,v.region vendor_region,r.user_id,u.username,u.nickname,r.title,r.content,r.rating,r.image_data,COALESCE(r.views,0) views,r.created_at${fromSql} ORDER BY r.created_at DESC,r.id DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+      return res.render('board-list',{mode:'posts',boards:await getBoardCategories(req.session.user||null),board,posts:rows.rows,recentByBoard:{},page,totalPages,qText,canWrite:!!req.session.user&&canWriteBoard(req.session.user,board),settings:await getSettings()});
+    }
     const user=req.session.user||null,isPrivate=boardLayoutType(board.layout_type)==='private',params=[board.id];
     let access='';
     if(isPrivate&&user?.role!=='admin'){
@@ -780,13 +796,33 @@ app.get('/boards/:slug/write',async(req,res)=>{
   if(!board)return res.status(404).send('게시판을 찾을 수 없습니다.');
   if(!req.session.user)return res.redirect('/login');
   if(!canWriteBoard(req.session.user,board))return res.status(403).send('글쓰기 권한이 없습니다.');
-  res.render('board-write',{board,settings:await getSettings(),error:null});
+  if(board.slug==='reviews'){
+    const vendors=await q(`SELECT v.id,v.name,v.category,v.region FROM vendors v WHERE ${PUBLIC_VENDOR_SQL} ORDER BY v.name ASC,v.id ASC LIMIT 1000`);
+    return res.render('board-write',{board,settings:await getSettings(),error:null,vendors:vendors.rows,values:{vendor_id:'',rating:'5',title:'',content:''}});
+  }
+  res.render('board-write',{board,settings:await getSettings(),error:null,vendors:[],values:{}});
 });
 app.post('/boards/:slug/write',login,upload.single('image'),async(req,res)=>{
   try{
     const board=(await q('SELECT * FROM board_categories WHERE slug=$1 AND is_active=true',[String(req.params.slug||'').toLowerCase()])).rows[0];
     if(!board)return res.status(404).send('게시판을 찾을 수 없습니다.');
     if(!canWriteBoard(req.session.user,board))return res.status(403).send('글쓰기 권한이 없습니다.');
+    if(board.slug==='reviews'){
+      const rawTitle=String(req.body.title||'').trim(),rawContent=String(req.body.content||'').trim(),vendorId=Number(req.body.vendor_id),rating=Number(req.body.rating);
+      const values={vendor_id:String(req.body.vendor_id||''),rating:String(req.body.rating||''),title:rawTitle,content:rawContent};
+      const renderError=async(status,error)=>{const vendors=await q(`SELECT v.id,v.name,v.category,v.region FROM vendors v WHERE ${PUBLIC_VENDOR_SQL} ORDER BY v.name ASC,v.id ASC LIMIT 1000`);return res.status(status).render('board-write',{board,settings:await getSettings(),error,vendors:vendors.rows,values});};
+      if(!Number.isInteger(vendorId)||vendorId<=0)return renderError(400,'업체를 선택해주세요.');
+      const vendor=await q(`SELECT v.id FROM vendors v WHERE v.id=$1 AND ${PUBLIC_VENDOR_SQL}`,[vendorId]);
+      if(!vendor.rows[0])return renderError(400,'공개 중인 업체만 후기를 작성할 수 있습니다.');
+      if(!Number.isInteger(rating)||rating<1||rating>5)return renderError(400,'평점은 1점부터 5점까지 선택해주세요.');
+      if(rawTitle.length<2||rawTitle.length>100)return renderError(400,'제목은 2자 이상 100자 이하로 입력해주세요.');
+      if(rawContent.length<5||rawContent.length>5000)return renderError(400,'내용은 5자 이상 5,000자 이하로 입력해주세요.');
+      const imageData=req.file?img(req.file):null;if(req.file&&!imageData)return renderError(400,'이미지 파일이 올바르지 않습니다.');
+      const dup=await q("SELECT id FROM reviews WHERE vendor_id=$1 AND user_id=$2 AND created_at>=CURRENT_DATE-INTERVAL '1 day' LIMIT 1",[vendorId,req.session.user.id]);
+      if(dup.rows[0])return renderError(429,'같은 업체에는 하루에 한 번만 후기를 작성할 수 있습니다.');
+      const saved=await q("INSERT INTO reviews(vendor_id,user_id,title,content,rating,image_data,status,views,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,'visible',0,now(),now()) RETURNING id",[vendorId,req.session.user.id,rawTitle,rawContent,rating,imageData]);
+      return res.redirect(`/boards/reviews/${saved.rows[0].id}`);
+    }
     const title=String(req.body.title||'').trim().slice(0,100),content=String(req.body.content||'').trim().slice(0,5000);
     if(title.length<2||content.length<2)return res.status(400).render('board-write',{board,settings:await getSettings(),error:'제목과 내용을 2자 이상 입력해주세요.'});
     const imageData=board.image_enabled?img(req.file):null;
@@ -803,6 +839,7 @@ app.post('/boards/:slug/write',login,upload.single('image'),async(req,res)=>{
   }catch(e){console.error('board write failed',e);res.status(500).send('게시글을 저장하지 못했습니다.');}
 });
 app.post('/boards/:slug/:id/comments',login,async(req,res)=>{
+  if(String(req.params.slug||'').toLowerCase()==='reviews')return res.status(403).send('이용후기에는 댓글을 작성할 수 없습니다.');
   const id=parseInt(req.params.id||0,10),content=String(req.body.content||'').trim().slice(0,1000);
   const found=await q(`SELECT p.id,p.title,p.user_id,b.slug,b.comment_enabled,b.layout_type FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2 AND p.status='visible' AND b.is_active=true`,[id,String(req.params.slug||'').toLowerCase()]);
   if(!found.rows[0])return res.status(404).send('게시글을 찾을 수 없습니다.');
@@ -829,6 +866,13 @@ app.post('/boards/:slug/:id/comments',login,async(req,res)=>{
 app.get('/boards/:slug/:id',async(req,res)=>{
   try{
     const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('게시글을 찾을 수 없습니다.');
+    if(String(req.params.slug||'').toLowerCase()==='reviews'){
+      const board=(await q("SELECT * FROM board_categories WHERE slug='reviews' AND is_active=true")).rows[0];if(!board)return res.status(404).send('게시판을 찾을 수 없습니다.');
+      const found=await q(`SELECT r.id,r.vendor_id,v.name vendor_name,v.category vendor_category,v.region vendor_region,r.user_id,u.username,u.nickname,r.title,r.content,r.rating,r.image_data,COALESCE(r.views,0) views,r.created_at,r.updated_at FROM reviews r JOIN vendors v ON v.id=r.vendor_id LEFT JOIN users u ON u.id=r.user_id WHERE r.id=$1 AND r.status='visible' AND ${PUBLIC_VENDOR_SQL}`,[id]);
+      const post=found.rows[0];if(!post)return res.status(404).send('이용후기를 찾을 수 없습니다.');
+      await q('UPDATE reviews SET views=COALESCE(views,0)+1 WHERE id=$1',[id]);post.views=Number(post.views||0)+1;
+      return res.render('board-post',{board,post,comments:[],canWrite:!!req.session.user&&canWriteBoard(req.session.user,board),settings:await getSettings()});
+    }
     const found=await q(`SELECT p.* FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2 AND b.is_active=true AND p.status='visible'`,[id,String(req.params.slug||'').toLowerCase()]);
     const post=found.rows[0];if(!post)return res.status(404).send('게시글을 찾을 수 없습니다.');
     const board=(await q('SELECT * FROM board_categories WHERE id=$1',[post.board_id])).rows[0];
@@ -1194,7 +1238,7 @@ app.get('/admin/api/reviews',admin,async(req,res)=>{
     const whereSql=where.length?' WHERE '+where.join(' AND '):'';
     const orderBy={latest:'r.created_at DESC,r.id DESC',default:'r.created_at DESC,r.id DESC',oldest:'r.created_at ASC,r.id ASC',rating_high:'r.rating DESC,r.id DESC',high:'r.rating DESC,r.id DESC',rating_low:'r.rating ASC,r.id DESC',low:'r.rating ASC,r.id DESC',reports:'rf.report_count DESC,r.id DESC',pending_reports:'rf.pending_report_count DESC,rf.report_count DESC,r.id DESC',vendor:'v.name ASC NULLS LAST,r.id DESC'}[String(req.query.sort||'latest')]||'r.created_at DESC,r.id DESC';
     const {page,limit,offset}=adminPageParams(req);
-    const rows=await q(`SELECT r.id,r.vendor_id,r.user_id,r.title,r.content,r.rating,r.status,r.created_at,v.name vendor_name,v.category vendor_category,v.region vendor_region,v.status vendor_status,v.ad_type vendor_ad_type,(v.id IS NOT NULL) vendor_exists,u.username,u.nickname,(u.id IS NOT NULL) author_exists,COALESCE(NULLIF(u.nickname,''),NULLIF(u.username,''),'탈퇴회원') author_label,COALESCE(rf.report_count,0) report_count,COALESCE(rf.pending_report_count,0) pending_report_count,rf.latest_report_at,(COALESCE(rf.pending_report_count,0)>0) has_pending_report${fromSql}${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const rows=await q(`SELECT r.id,r.vendor_id,r.user_id,r.title,r.content,r.rating,r.status,r.created_at,COALESCE(r.views,0) views,(COALESCE(r.image_data,'')<>'') has_image,v.name vendor_name,v.category vendor_category,v.region vendor_region,v.status vendor_status,v.ad_type vendor_ad_type,(v.id IS NOT NULL) vendor_exists,u.username,u.nickname,(u.id IS NOT NULL) author_exists,COALESCE(NULLIF(u.nickname,''),NULLIF(u.username,''),'탈퇴회원') author_label,COALESCE(rf.report_count,0) report_count,COALESCE(rf.pending_report_count,0) pending_report_count,rf.latest_report_at,(COALESCE(rf.pending_report_count,0)>0) has_pending_report${fromSql}${whereSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
     const count=await q(`SELECT COUNT(*)${fromSql}${whereSql}`,params),total=Number(count.rows[0]?.count||0);
     const summary=await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER (WHERE r.status='visible')::int visible,COUNT(*) FILTER (WHERE r.status='hidden')::int hidden,COUNT(*) FILTER (WHERE r.status='deleted')::int deleted,COUNT(*) FILTER (WHERE r.rating<=2)::int "lowRating",COUNT(*) FILTER (WHERE EXISTS(SELECT 1 FROM flags f WHERE f.type='review' AND f.target_id=r.id))::int reported,COUNT(*) FILTER (WHERE EXISTS(SELECT 1 FROM flags f WHERE f.type='review' AND f.target_id=r.id AND COALESCE(f.status,'new')='new'))::int "pendingReports" FROM reviews r`);
     return res.json({ok:true,rows:rows.rows,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),summary:summary.rows[0]||{}});
@@ -1208,7 +1252,7 @@ app.get('/admin/api/board-posts',admin,async(req,res)=>{
   const pinned=String(req.query.pinned||'').trim();
   const orderBy={latest:'p.created_at DESC,p.id DESC',views:'p.views DESC,p.id DESC',comments:'comment_count DESC,p.id DESC'}[String(req.query.sort||'latest')]||'p.created_at DESC,p.id DESC';
   if(qText){params.push(`%${qText}%`);where.push(`(p.title ILIKE $${params.length} OR p.content ILIKE $${params.length} OR b.title ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
-  if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}else where.push("b.slug<>'notice'");
+  if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}else where.push("b.slug NOT IN ('notice','reviews')");
   if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`p.status=$${params.length}`);}
   if(pinned==='pinned'){params.push(true);where.push(`p.is_pinned=$${params.length}`);}
   else if(pinned==='normal'){params.push(false);where.push(`p.is_pinned=$${params.length}`);}
