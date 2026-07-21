@@ -1038,15 +1038,29 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
     ORDER BY v.id DESC LIMIT 1
   ) image_v ON true`;
   return adminPagedJson(req,res,`SELECT i.id,i.type,i.company_name,i.name,i.phone,i.kakao,i.email,i.category,i.region,i.content,i.status,i.banner_status,i.user_id,i.vendor_id,i.created_at,
-  u.username applicant_username,u.nickname applicant_nickname,COALESCE(u.is_vendor,false) applicant_is_vendor,u.vendor_id applicant_vendor_id,
-  linked_v.name linked_vendor_name,iv.id matched_vendor_id,iv.name matched_vendor_name,
+  u.username applicant_username,u.nickname applicant_nickname,u.role applicant_role,u.status applicant_status,COALESCE(u.is_vendor,false) applicant_is_vendor,u.vendor_id applicant_vendor_id,
+  linked_v.id linked_vendor_id,linked_v.name linked_vendor_name,(linked_v.id IS NOT NULL) linked_vendor_exists,iv.id matched_vendor_id,iv.name matched_vendor_name,
   (SELECT COUNT(*)::int FROM vendors dv WHERE LOWER(TRIM(dv.name))=LOWER(TRIM(i.company_name))) duplicate_company_count,
   (SELECT COUNT(*)::int FROM vendors dv WHERE COALESCE(TRIM(i.phone),'')<>'' AND REGEXP_REPLACE(COALESCE(dv.phone,''),'[^0-9]','','g')=REGEXP_REPLACE(i.phone,'[^0-9]','','g')) duplicate_phone_count,
-  (i.type='apply' AND i.status='new') can_approve,
+  (i.type='apply' AND i.status='new' AND u.id IS NOT NULL AND u.role<>'admin' AND u.status='active'
+    AND NOT (COALESCE(u.is_vendor,false) AND u.vendor_id IS NULL)
+    AND (u.vendor_id IS NULL OR linked_v.id IS NOT NULL)
+    AND (i.vendor_id IS NULL OR u.vendor_id IS NULL OR i.vendor_id=u.vendor_id)) can_approve,
+  CASE
+    WHEN i.type='apply' AND i.status='new' AND u.id IS NOT NULL AND u.role<>'admin' AND u.status='active' AND u.vendor_id IS NOT NULL AND linked_v.id IS NOT NULL AND (i.vendor_id IS NULL OR i.vendor_id=u.vendor_id) THEN 'updated'
+    WHEN i.type='apply' AND i.status='new' AND u.id IS NOT NULL AND u.role<>'admin' AND u.status='active' AND u.vendor_id IS NULL AND COALESCE(u.is_vendor,false)=false THEN 'created'
+    ELSE NULL
+  END approval_mode,
+  CASE WHEN i.type='apply' AND i.status='new' AND u.id IS NOT NULL AND u.role<>'admin' AND u.status='active' AND u.vendor_id IS NOT NULL AND linked_v.id IS NOT NULL AND (i.vendor_id IS NULL OR i.vendor_id=u.vendor_id)
+    THEN '기존 업체와 연결되어 있습니다. 승인하면 입점신청 내용이 연결된 업체에 반영됩니다.' ELSE '' END approval_notice,
   CONCAT_WS(' · ',
-    CASE WHEN COALESCE(u.is_vendor,false) AND u.vendor_id IS NOT NULL AND (i.vendor_id IS NULL OR u.vendor_id<>i.vendor_id) THEN '신청 회원이 이미 다른 업체와 연결되어 있습니다.' END,
-    CASE WHEN EXISTS(SELECT 1 FROM vendors dv WHERE LOWER(TRIM(dv.name))=LOWER(TRIM(i.company_name))) THEN '동일 업체명이 존재합니다.' END,
-    CASE WHEN COALESCE(TRIM(i.phone),'')<>'' AND EXISTS(SELECT 1 FROM vendors dv WHERE REGEXP_REPLACE(COALESCE(dv.phone,''),'[^0-9]','','g')=REGEXP_REPLACE(i.phone,'[^0-9]','','g')) THEN '동일 연락처 업체가 존재합니다.' END,
+    CASE WHEN u.id IS NULL THEN '신청 회원 정보를 찾을 수 없습니다.' END,
+    CASE WHEN u.id IS NOT NULL AND u.role='admin' THEN '관리자 계정은 업체회원으로 전환할 수 없습니다.' END,
+    CASE WHEN u.id IS NOT NULL AND u.status IS DISTINCT FROM 'active' THEN '활성 회원만 입점승인할 수 있습니다.' END,
+    CASE WHEN u.id IS NOT NULL AND COALESCE(u.is_vendor,false) AND u.vendor_id IS NULL THEN '업체회원 연결 정보가 올바르지 않습니다.' END,
+    CASE WHEN u.vendor_id IS NOT NULL AND linked_v.id IS NULL THEN '회원에게 연결된 업체를 찾을 수 없습니다.' END,
+    CASE WHEN EXISTS(SELECT 1 FROM vendors dv WHERE LOWER(TRIM(dv.name))=LOWER(TRIM(i.company_name)) AND (u.vendor_id IS NULL OR dv.id<>u.vendor_id) AND (i.vendor_id IS NULL OR dv.id<>i.vendor_id)) THEN '동일 업체명이 존재합니다.' END,
+    CASE WHEN COALESCE(TRIM(i.phone),'')<>'' AND EXISTS(SELECT 1 FROM vendors dv WHERE REGEXP_REPLACE(COALESCE(dv.phone,''),'[^0-9]','','g')=REGEXP_REPLACE(i.phone,'[^0-9]','','g') AND (u.vendor_id IS NULL OR dv.id<>u.vendor_id) AND (i.vendor_id IS NULL OR dv.id<>i.vendor_id)) THEN '동일 연락처 업체가 존재합니다.' END,
     CASE WHEN i.vendor_id IS NOT NULL AND u.vendor_id IS NOT NULL AND i.vendor_id<>u.vendor_id THEN '신청서 업체와 회원 연결 업체가 다릅니다.' END,
     CASE WHEN i.status<>'new' THEN '이미 처리된 신청입니다.' END
   ) approval_warning,
