@@ -1412,7 +1412,7 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
       if(!vendor){const error=new Error('회원에게 연결된 업체를 찾을 수 없습니다. 업체 연결 상태를 확인해주세요.');error.status=409;throw error;}
       vendorId=user.vendor_id;
       const inquiryImage=inquiry.main_image_data||inquiry.banner_image_data||null;
-      const updatedVendor=await client.query("UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,description=$6,image_data=CASE WHEN $7 IS NOT NULL AND $7<>'' THEN $7 ELSE image_data END,image_updated_at=CASE WHEN $7 IS NOT NULL AND $7<>'' THEN now() ELSE image_updated_at END WHERE id=$8 RETURNING id,name",[inquiry.company_name,inquiry.category||'기타',inquiry.region||'기타',inquiry.phone,inquiry.kakao,inquiry.content,inquiryImage,vendorId]);
+      const updatedVendor=await client.query("UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,description=$6,image_data=COALESCE(NULLIF($7::text,''),image_data),image_updated_at=CASE WHEN NULLIF($7::text,'') IS NOT NULL THEN now() ELSE image_updated_at END WHERE id=$8 RETURNING id,name",[inquiry.company_name,inquiry.category||'기타',inquiry.region||'기타',inquiry.phone,inquiry.kakao,inquiry.content,inquiryImage,vendorId]);
       if(!updatedVendor.rows[0]){const error=new Error('연결된 업체에 입점신청 정보를 반영하지 못했습니다.');error.status=409;throw error;}
       const correctedUser=await client.query("UPDATE users SET is_vendor=true WHERE id=$1 AND role<>'admin' AND status='active' AND vendor_id=$2 RETURNING id,vendor_id,is_vendor",[user.id,vendorId]);
       if(!correctedUser.rows[0]){const error=new Error('업체회원 상태를 확인하지 못했습니다. 회원 연결 상태를 확인해주세요.');error.status=409;throw error;}
