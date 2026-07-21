@@ -180,8 +180,9 @@
     <div class="side-box">
       <h3>공지사항</h3>
       <% notices.forEach(n=>{ %>
-        <div class="sideitem"><b><%=n.is_pinned?'[필독] ':''%><%=n.title%></b><p><%=n.content%></p></div>
+        <a class="sideitem" href="/boards/notice/<%=n.id%>" title="<%=n.title%>"><b><%=n.is_pinned?'[필독] ':''%><%=n.title%></b><p><%=n.content%></p></a>
       <%})%>
+      <% if(!notices.length){ %><p>등록된 공지사항이 없습니다.</p><% } %>
     </div>
     <div class="side-box">
       <h3>최신 후기</h3>

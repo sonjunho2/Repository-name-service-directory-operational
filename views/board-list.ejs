@@ -41,7 +41,7 @@
       </div>
     <% } else { %>
       <div class="board-table-wrap"><table class="board-table"><thead><tr><th>번호</th><th>제목</th><% if(showAnswerStatus){ %><th>답변상태</th><% } %><th>작성자</th><th>작성일</th><th>조회수</th></tr></thead><tbody>
-        <% posts.forEach(p=>{ %><tr data-board-href="/boards/<%=board.slug%>/<%=p.id%>"><td><%=p.is_pinned?'공지':p.id%></td><td><a href="/boards/<%=board.slug%>/<%=p.id%>"><%=p.title%> <% if(p.comment_count){ %><small>[<%=p.comment_count%>]</small><% } %></a></td><% if(showAnswerStatus){ %><td><span class="qna-status <%=p.admin_comment_count?'qna-done':'qna-waiting'%>"><%=p.admin_comment_count?'답변완료':'답변대기'%></span></td><% } %><td><%=p.nickname||p.username||'탈퇴회원'%></td><td><%=fmtDate(p.created_at)%></td><td><%=p.views||0%></td></tr><% }) %>
+        <% posts.forEach(p=>{ %><tr data-board-href="/boards/<%=board.slug%>/<%=p.id%>"><td><%=p.is_pinned?'공지':p.id%></td><td><a href="/boards/<%=board.slug%>/<%=p.id%>"><%=p.title%> <% if(p.comment_count){ %><small>[<%=p.comment_count%>]</small><% } %></a></td><% if(showAnswerStatus){ %><td><span class="qna-status <%=p.admin_comment_count?'qna-done':'qna-waiting'%>"><%=p.admin_comment_count?'답변완료':'답변대기'%></span></td><% } %><td><%=board.slug==='notice'?(p.nickname||p.username||'관리자'):(p.nickname||p.username||'탈퇴회원')%></td><td><%=fmtDate(p.created_at)%></td><td><%=p.views||0%></td></tr><% }) %>
         <% if(!posts.length){ %><tr><td colspan="<%=showAnswerStatus?6:5%>" class="board-empty"><%=isAdInquiry&&!me?'로그인 후 광고문의를 작성할 수 있습니다.':layout==='private'&&!me?'로그인 후 본인의 문의를 확인할 수 있습니다.':'등록된 게시글이 없습니다.'%></td></tr><% } %>
       </tbody></table></div>
     <% } %>
