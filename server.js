@@ -1403,27 +1403,41 @@ app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
     if(!user){const error=new Error('신청 회원 정보를 찾을 수 없습니다.');error.status=404;throw error;}
     if(user.role==='admin'){const error=new Error('관리자 계정은 업체회원으로 전환할 수 없습니다.');error.status=403;throw error;}
     if(user.status!=='active'){const error=new Error('활성 회원만 업체회원으로 전환할 수 있습니다.');error.status=409;throw error;}
-    if(user.is_vendor||user.vendor_id!=null){const error=new Error('이미 다른 업체와 연결된 회원입니다.');error.status=409;throw error;}
+    if(user.is_vendor&&user.vendor_id==null){const error=new Error('업체회원 연결 정보가 올바르지 않습니다. 회원 연결 상태를 확인해주세요.');error.status=409;throw error;}
 
-    const inserted=await client.query(
-      "INSERT INTO vendors(name,category,region,phone,kakao_url,description,image_data,is_recommended,is_premium,status,membership_type,ad_type,expire_at,banner_active) VALUES($1,$2,$3,$4,$5,$6,$7,false,false,$8,$9,$10,NULL,false) RETURNING id",
-      [inquiry.company_name,inquiry.category||'기타',inquiry.region||'기타',inquiry.phone,inquiry.kakao,inquiry.content,inquiry.main_image_data||inquiry.banner_image_data||null,'active','general','none']
-    );
-    const vendorId=inserted.rows[0]?.id;
-    if(!vendorId){const error=new Error('업체 등록 결과를 확인할 수 없습니다.');error.status=500;throw error;}
-
-    const linked=await client.query("UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2 AND role<>'admin' AND status='active' AND COALESCE(is_vendor,false)=false AND vendor_id IS NULL RETURNING id,username,vendor_id",[vendorId,user.id]);
-    if(!linked.rows[0]){const error=new Error('신청 회원을 업체회원으로 연결하지 못했습니다. 회원 상태 또는 기존 업체 연결을 확인해주세요.');error.status=409;throw error;}
+    let vendorId=null,approvalMode='created',logAction='입점신청 승인/업체회원전환',logMemo='';
+    if(user.vendor_id!=null){
+      const vendorResult=await client.query('SELECT * FROM vendors WHERE id=$1 FOR UPDATE',[user.vendor_id]);
+      const vendor=vendorResult.rows[0];
+      if(!vendor){const error=new Error('회원에게 연결된 업체를 찾을 수 없습니다. 업체 연결 상태를 확인해주세요.');error.status=409;throw error;}
+      vendorId=user.vendor_id;
+      const inquiryImage=inquiry.main_image_data||inquiry.banner_image_data||null;
+      const updatedVendor=await client.query("UPDATE vendors SET name=$1,category=$2,region=$3,phone=$4,kakao_url=$5,description=$6,image_data=CASE WHEN $7 IS NOT NULL AND $7<>'' THEN $7 ELSE image_data END,image_updated_at=CASE WHEN $7 IS NOT NULL AND $7<>'' THEN now() ELSE image_updated_at END WHERE id=$8 RETURNING id,name",[inquiry.company_name,inquiry.category||'기타',inquiry.region||'기타',inquiry.phone,inquiry.kakao,inquiry.content,inquiryImage,vendorId]);
+      if(!updatedVendor.rows[0]){const error=new Error('연결된 업체에 입점신청 정보를 반영하지 못했습니다.');error.status=409;throw error;}
+      const correctedUser=await client.query("UPDATE users SET is_vendor=true WHERE id=$1 AND role<>'admin' AND status='active' AND vendor_id=$2 RETURNING id,vendor_id,is_vendor",[user.id,vendorId]);
+      if(!correctedUser.rows[0]){const error=new Error('업체회원 상태를 확인하지 못했습니다. 회원 연결 상태를 확인해주세요.');error.status=409;throw error;}
+      approvalMode='updated';logAction='입점신청 승인/기존업체정보반영';logMemo=`기존 업체ID ${vendorId}에 입점신청 정보 반영, 업체회원 연결 확인`;
+    }else{
+      const inserted=await client.query(
+        "INSERT INTO vendors(name,category,region,phone,kakao_url,description,image_data,is_recommended,is_premium,status,membership_type,ad_type,expire_at,banner_active) VALUES($1,$2,$3,$4,$5,$6,$7,false,false,$8,$9,$10,NULL,false) RETURNING id",
+        [inquiry.company_name,inquiry.category||'기타',inquiry.region||'기타',inquiry.phone,inquiry.kakao,inquiry.content,inquiry.main_image_data||inquiry.banner_image_data||null,'active','general','none']
+      );
+      vendorId=inserted.rows[0]?.id;
+      if(!vendorId){const error=new Error('업체 등록 결과를 확인할 수 없습니다.');error.status=500;throw error;}
+      const linked=await client.query("UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2 AND role<>'admin' AND status='active' AND COALESCE(is_vendor,false)=false AND vendor_id IS NULL RETURNING id,username,vendor_id",[vendorId,user.id]);
+      if(!linked.rows[0]){const error=new Error('신청 회원을 업체회원으로 연결하지 못했습니다. 회원 상태 또는 기존 업체 연결을 확인해주세요.');error.status=409;throw error;}
+      logMemo=`업체ID ${vendorId} 생성, 광고상태 없음`;
+    }
 
     const approved=await client.query("UPDATE inquiries SET status='approved',vendor_id=$1 WHERE id=$2 AND type='apply' AND status='new' RETURNING id,status,vendor_id",[vendorId,inquiry.id]);
     if(!approved.rows[0]){const error=new Error('입점신청 상태가 변경되어 승인을 완료하지 못했습니다.');error.status=409;throw error;}
 
     await client.query(
       'INSERT INTO admin_logs(admin_id,admin_username,action,target_type,target_id,memo) VALUES($1,$2,$3,$4,$5,$6)',
-      [req.session.user?.id||null,req.session.user?.username||'','입점신청 승인/업체회원전환','inquiry',String(inquiry.id||''),String(`업체ID ${vendorId} 생성, 광고상태 없음`).slice(0,1000)]
+      [req.session.user?.id||null,req.session.user?.username||'',logAction,'inquiry',String(inquiry.id||''),String(logMemo).slice(0,1000)]
     );
     await client.query('COMMIT');
-    return sendOk(req,res,'/admin#inquiries');
+    return sendOk(req,res,'/admin#inquiries',{mode:approvalMode,vendor_id:vendorId});
   }catch(error){
     if(client){try{await client.query('ROLLBACK');}catch(rollbackError){console.error('admission approval rollback failed',rollbackError);}}
     console.error('admission approval failed',error);
