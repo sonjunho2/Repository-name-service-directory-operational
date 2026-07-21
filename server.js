@@ -1386,25 +1386,51 @@ app.get('/admin/vendors/:id/image',admin,async(req,res)=>{const id=parseInt(req.
 app.get('/admin/banners/:id/image',admin,async(req,res)=>{const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('이미지가 없습니다.');const r=await q('SELECT CASE WHEN b.vendor_id IS NULL THEN b.image_data ELSE COALESCE(v.image_data,b.image_data) END image_data FROM banners b LEFT JOIN vendors v ON v.id=b.vendor_id WHERE b.id=$1',[id]);const data=r.rows[0]?.image_data;if(!data)return res.status(404).send('이미지가 없습니다.');const m=String(data).match(/^data:(.+);base64,(.+)$/);if(!m)return res.status(400).send('이미지 형식 오류');res.setHeader('Content-Type',m[1]);res.setHeader('Cache-Control','private, max-age=86400');res.send(Buffer.from(m[2],'base64'));});
 app.get('/admin/banner-requests/:id/image',admin,async(req,res)=>{const id=parseInt(req.params.id||0,10);if(!id)return res.status(404).send('이미지가 없습니다.');const r=await q('SELECT image_data FROM vendor_banner_requests WHERE id=$1',[id]);const data=r.rows[0]?.image_data;if(!data)return res.status(404).send('이미지가 없습니다.');const m=String(data).match(/^data:(.+);base64,(.+)$/);if(!m)return res.status(400).send('이미지 형식 오류');res.setHeader('Content-Type',m[1]);res.setHeader('Cache-Control','private, max-age=86400');res.send(Buffer.from(m[2],'base64'));});
 app.post('/admin/inquiries/:id/approve',admin,async(req,res)=>{
-  const r=await q('SELECT * FROM inquiries WHERE id=$1',[req.params.id]);
-  const x=r.rows[0];
-  if(!x)return res.redirect('/admin#inquiries');
-  if(x.type!=='apply'||x.status!=='new')return res.redirect('/admin#inquiries');
+  const inquiryId=parseInt(req.params.id||0,10);
+  if(!Number.isInteger(inquiryId)||inquiryId<=0)return sendFail(req,res,400,'잘못된 입점신청 ID입니다.','/admin#inquiries');
+  let client=null;
+  try{
+    client=await pool.connect();
+    await client.query('BEGIN');
+    const inquiryResult=await client.query("SELECT * FROM inquiries WHERE id=$1 AND type='apply' FOR UPDATE",[inquiryId]);
+    const inquiry=inquiryResult.rows[0];
+    if(!inquiry){const error=new Error('입점신청을 찾을 수 없습니다.');error.status=404;throw error;}
+    if(inquiry.status!=='new'){const error=new Error('이미 처리된 입점신청입니다.');error.status=409;throw error;}
+    if(!inquiry.user_id){const error=new Error('신청 회원 정보를 찾을 수 없습니다.');error.status=404;throw error;}
 
-  const inserted=await q(
-    "INSERT INTO vendors(name,category,region,phone,kakao_url,description,image_data,is_recommended,is_premium,status,membership_type,ad_type,expire_at,banner_active) VALUES($1,$2,$3,$4,$5,$6,$7,false,false,$8,$9,$10,NULL,false) RETURNING id",
-    [x.company_name,x.category||'기타',x.region||'기타',x.phone,x.kakao,x.content,x.main_image_data||x.banner_image_data||null,'active','general','none']
-  );
+    const userResult=await client.query('SELECT id,username,nickname,role,status,is_vendor,vendor_id FROM users WHERE id=$1 FOR UPDATE',[inquiry.user_id]);
+    const user=userResult.rows[0];
+    if(!user){const error=new Error('신청 회원 정보를 찾을 수 없습니다.');error.status=404;throw error;}
+    if(user.role==='admin'){const error=new Error('관리자 계정은 업체회원으로 전환할 수 없습니다.');error.status=403;throw error;}
+    if(user.status!=='active'){const error=new Error('활성 회원만 업체회원으로 전환할 수 있습니다.');error.status=409;throw error;}
+    if(user.is_vendor||user.vendor_id!=null){const error=new Error('이미 다른 업체와 연결된 회원입니다.');error.status=409;throw error;}
 
-  const vendorId=inserted.rows[0]?.id;
+    const inserted=await client.query(
+      "INSERT INTO vendors(name,category,region,phone,kakao_url,description,image_data,is_recommended,is_premium,status,membership_type,ad_type,expire_at,banner_active) VALUES($1,$2,$3,$4,$5,$6,$7,false,false,$8,$9,$10,NULL,false) RETURNING id",
+      [inquiry.company_name,inquiry.category||'기타',inquiry.region||'기타',inquiry.phone,inquiry.kakao,inquiry.content,inquiry.main_image_data||inquiry.banner_image_data||null,'active','general','none']
+    );
+    const vendorId=inserted.rows[0]?.id;
+    if(!vendorId){const error=new Error('업체 등록 결과를 확인할 수 없습니다.');error.status=500;throw error;}
 
-  if(x.user_id&&vendorId){
-    await q('UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2 AND role<>$3',[vendorId,x.user_id,'admin']);
+    const linked=await client.query("UPDATE users SET is_vendor=true,vendor_id=$1 WHERE id=$2 AND role<>'admin' AND status='active' AND COALESCE(is_vendor,false)=false AND vendor_id IS NULL RETURNING id,username,vendor_id",[vendorId,user.id]);
+    if(!linked.rows[0]){const error=new Error('신청 회원을 업체회원으로 연결하지 못했습니다. 회원 상태 또는 기존 업체 연결을 확인해주세요.');error.status=409;throw error;}
+
+    const approved=await client.query("UPDATE inquiries SET status='approved',vendor_id=$1 WHERE id=$2 AND type='apply' AND status='new' RETURNING id,status,vendor_id",[vendorId,inquiry.id]);
+    if(!approved.rows[0]){const error=new Error('입점신청 상태가 변경되어 승인을 완료하지 못했습니다.');error.status=409;throw error;}
+
+    await client.query(
+      'INSERT INTO admin_logs(admin_id,admin_username,action,target_type,target_id,memo) VALUES($1,$2,$3,$4,$5,$6)',
+      [req.session.user?.id||null,req.session.user?.username||'','입점신청 승인/업체회원전환','inquiry',String(inquiry.id||''),String(`업체ID ${vendorId} 생성, 광고상태 없음`).slice(0,1000)]
+    );
+    await client.query('COMMIT');
+    return sendOk(req,res,'/admin#inquiries');
+  }catch(error){
+    if(client){try{await client.query('ROLLBACK');}catch(rollbackError){console.error('admission approval rollback failed',rollbackError);}}
+    console.error('admission approval failed',error);
+    return sendFail(req,res,Number(error.status||500),error.status?error.message:'입점신청 승인 처리에 실패했습니다.','/admin#inquiries');
+  }finally{
+    if(client)client.release();
   }
-
-  await q('UPDATE inquiries SET status=$1,vendor_id=$3 WHERE id=$2',['approved',x.id,vendorId||null]);
-  await logAdmin(req,'입점신청 승인/업체회원전환','inquiry',x.id,`업체ID ${vendorId} 생성, 광고상태 없음`);
-  return sendOk(req,res,'/admin#inquiries');
 });
 app.post('/admin/inquiries/:id/banner',admin,async(req,res)=>{const r=await q(`SELECT i.*,v.image_data vendor_image_data FROM inquiries i LEFT JOIN vendors v ON v.id=i.vendor_id WHERE i.id=$1`,[req.params.id]);const x=r.rows[0];const representativeImage=x&&(x.vendor_image_data||x.main_image_data||x.banner_image_data);if(!x||x.type!=='apply'||x.status!=='approved'||!x.vendor_id||!representativeImage||x.banner_status==='approved')return sendFail(req,res,400,'banner_not_available','/admin#inquiries');await q('INSERT INTO banners(title,subtitle,link_url,position,sort_order,is_active,image_data,vendor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[x.company_name||'입점신청 배너','입점신청으로 등록된 배너','#','premium',0,true,representativeImage,x.vendor_id]);await q("UPDATE inquiries SET banner_status=$1 WHERE id=$2 AND COALESCE(banner_status,'new')<>'approved'",['approved',x.id]);await logAdmin(req,'입점신청 배너등록','inquiry',x.id,x.company_name||'');return sendOk(req,res,'/admin#inquiries');});
 app.post('/admin/boards',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
