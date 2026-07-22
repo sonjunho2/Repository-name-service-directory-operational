@@ -1,7 +1,7 @@
 <% const _boards=typeof publicBoardCategories!=='undefined'&&Array.isArray(publicBoardCategories)?publicBoardCategories:[]; const _me=typeof me!=='undefined'?me:null; %>
 <button type="button" class="public-menu-toggle" data-public-menu-open aria-label="메뉴 열기" aria-controls="publicSideMenu" aria-expanded="false"><span></span><span></span><span></span></button>
 <div class="public-menu-overlay" data-public-menu-close aria-hidden="true"></div>
-<aside class="public-side-menu" id="publicSideMenu" aria-hidden="true">
+<aside class="public-side-menu" id="publicSideMenu" data-public-authenticated="<%= _me ? 'true' : 'false' %>" aria-hidden="true" inert>
   <div class="public-menu-head"><b>MENU</b><button type="button" data-public-menu-close aria-label="메뉴 닫기">×</button></div>
   <nav class="public-menu-nav" aria-label="공개 메뉴">
     <a class="public-menu-link" href="/">HOME</a>

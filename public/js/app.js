@@ -1,5 +1,11 @@
 let i=0;
 
+function isPublicUserAuthenticated(){
+  const menu=document.getElementById('publicSideMenu');
+  if(menu)return menu.dataset.publicAuthenticated==='true';
+  return Boolean(document.querySelector('a[href="/logout"]'));
+}
+
 function notificationGroup(type){
   const t=String(type||'').toLowerCase();
   if(t.startsWith('ad_inquiry'))return {key:'ad-inquiry',label:'광고문의'};
@@ -11,6 +17,7 @@ function notificationGroup(type){
 }
 
 function initMemberNotificationCenter(){
+  if(!isPublicUserAuthenticated())return;
   if(document.getElementById('adminNotificationCenter')||document.getElementById('memberNotificationCenter'))return;
   const root=document.createElement('div');
   root.id='memberNotificationCenter';root.className='notification-center';
@@ -55,14 +62,15 @@ function submitFlag(type,targetId){
   location.href=`/boards/reports/write?type=${safeType}&target_id=${id}`;
 }
 let favoriteIds=[];
-let favoriteAuthed=false;
+let favoriteAuthed=isPublicUserAuthenticated();
 let favoriteOnly=false;
-let favoriteLoaded=false;
+let favoriteLoaded=!favoriteAuthed;
 let favoriteLoadPromise=null;
 function getFavs(){return favoriteIds}
 function setFavs(list){favoriteIds=[...new Set((list||[]).map(x=>String(x)))]}
 function isFav(id){return favoriteIds.includes(String(id))}
 async function loadFavs(){
+  if(!isPublicUserAuthenticated()){favoriteAuthed=false;favoriteLoaded=true;setFavs([]);return false;}
   try{
     const res=await fetch('/api/favorites',{headers:{'Accept':'application/json'}});
     if(res.status===401){favoriteAuthed=false;setFavs([]);favoriteLoaded=true;return false;}
@@ -80,6 +88,7 @@ async function loadFavs(){
   }
 }
 function ensureFavsLoaded(){
+  if(!isPublicUserAuthenticated()){favoriteAuthed=false;favoriteLoaded=true;setFavs([]);return Promise.resolve(false);}
   if(favoriteLoaded)return Promise.resolve(favoriteAuthed);
   if(!favoriteLoadPromise)favoriteLoadPromise=loadFavs();
   return favoriteLoadPromise;
@@ -357,8 +366,29 @@ document.addEventListener('keydown',(e)=>{
   function qsa(s,root){return Array.prototype.slice.call((root||document).querySelectorAll(s));}
   var menu=qs('#publicSideMenu'),overlay=qs('.public-menu-overlay'),openButton=qs('[data-public-menu-open]');
   if(!menu)return;
-  function openMenu(){menu.classList.add('open');menu.setAttribute('aria-hidden','false');if(overlay)overlay.classList.add('open');if(openButton)openButton.setAttribute('aria-expanded','true');document.body.classList.add('public-menu-open');}
-  function closeMenu(){menu.classList.remove('open');menu.setAttribute('aria-hidden','true');if(overlay)overlay.classList.remove('open');if(openButton)openButton.setAttribute('aria-expanded','false');document.body.classList.remove('public-menu-open');}
+  function focusWithoutScroll(element){if(!element)return;try{element.focus({preventScroll:true});}catch(e){element.focus();}}
+  function openMenu(){
+    if(menu.classList.contains('open'))return;
+    menu.removeAttribute('inert');
+    menu.setAttribute('aria-hidden','false');
+    menu.classList.add('open');
+    if(overlay){overlay.classList.add('open');overlay.setAttribute('aria-hidden','false');}
+    if(openButton)openButton.setAttribute('aria-expanded','true');
+    document.body.classList.add('public-menu-open');
+    focusWithoutScroll(qs('[data-public-menu-close]',menu));
+  }
+  function closeMenu(){
+    var wasOpen=menu.classList.contains('open');
+    if(!wasOpen)return;
+    var focusWasInside=menu.contains(document.activeElement);
+    menu.classList.remove('open');
+    if(overlay){overlay.classList.remove('open');overlay.setAttribute('aria-hidden','true');}
+    document.body.classList.remove('public-menu-open');
+    if(focusWasInside)focusWithoutScroll(openButton);
+    menu.setAttribute('inert','');
+    menu.setAttribute('aria-hidden','true');
+    if(openButton)openButton.setAttribute('aria-expanded','false');
+  }
   document.addEventListener('click',function(e){
     if(e.target.closest('[data-public-menu-open]')){e.preventDefault();openMenu();return;}
     if(e.target.closest('[data-public-menu-close]')){e.preventDefault();closeMenu();return;}
