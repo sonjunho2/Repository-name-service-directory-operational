@@ -3,6 +3,7 @@ const express=require('express'), session=require('express-session'), bcrypt=req
 const fs=require('fs'), path=require('path'), crypto=require('crypto');
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
 const {createBoardComment:createBoardCommentCore}=require('./lib/board-comments');
+const isTestEnvironment=process.env.NODE_ENV==='test';
 const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg|webp)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF, WEBP만 가능합니다.'))}});
 app.get('/favicon.ico',(req,res)=>res.status(204).end());
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
@@ -206,7 +207,9 @@ app.get('/public/css/style.css',async(req,res,next)=>{
   }
 });
 app.use('/public',express.static('public',{maxAge:'30d',etag:true,lastModified:true,immutable:true}));
-app.use(session({store:new PgSession({pool,createTableIfMissing:true}), secret:process.env.SESSION_SECRET||'dev-secret', resave:false, saveUninitialized:false, cookie:{maxAge:1000*60*60*12,httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production'}}));
+const sessionOptions={secret:process.env.SESSION_SECRET||'dev-secret',resave:false,saveUninitialized:false,cookie:{maxAge:1000*60*60*12,httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production'}};
+if(!isTestEnvironment)sessionOptions.store=new PgSession({pool,createTableIfMissing:true});
+app.use(session(sessionOptions));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next();});
 app.use((req,res,next)=>{
   if(req.path.startsWith('/admin')||req.path.startsWith('/api')||req.path.startsWith('/vendor-dashboard')){
@@ -284,14 +287,27 @@ function rateLimit(req,name,max,windowMs){
   requestLimits.set(key,x);
   return x.count<=max;
 }
-setInterval(expirePendingPayments,1000*60*5).unref?.();
-
-setInterval(()=>{
+const backgroundJobs=[];
+function clearExpiredRequestLimits(){
   const now=Date.now();
   for(const [k,v] of requestLimits.entries()){
     if(now>v.reset)requestLimits.delete(k);
   }
-},1000*60*10).unref?.();
+}
+function startBackgroundJobs({setIntervalFn=setInterval,clearIntervalFn=clearInterval}={}){
+  if(backgroundJobs.length)return;
+  for(const [callback,interval] of [[expirePendingPayments,1000*60*5],[clearExpiredRequestLimits,1000*60*10]]){
+    const handle=setIntervalFn(callback,interval);
+    handle?.unref?.();
+    backgroundJobs.push({handle,clearIntervalFn});
+  }
+}
+function stopBackgroundJobs(){
+  while(backgroundJobs.length){
+    const {handle,clearIntervalFn}=backgroundJobs.pop();
+    clearIntervalFn(handle);
+  }
+}
 
 function formatKstDate(value){
   if(!value)return '-';
@@ -2919,24 +2935,76 @@ app.use((err,req,res,next)=>{
   res.status(500).send('<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>오류가 발생했습니다</title><link rel="icon" href="/favicon.svg"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080d18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.box{max-width:560px;padding:32px;border:1px solid #29324f;border-radius:22px;background:#10182b;text-align:center}a{display:inline-flex;margin-top:18px;height:42px;padding:0 18px;align-items:center;border-radius:999px;background:linear-gradient(90deg,#ff3fb4,#10d9ff);color:#fff;text-decoration:none;font-weight:900}</style></head><body><div class="box"><h1>500</h1><p>일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p><a href="/">홈으로 이동</a></div></body></html>');
 });
 
-process.on('unhandledRejection',err=>{
-  console.error('unhandledRejection',err);
-});
-process.on('uncaughtException',err=>{
-  console.error('uncaughtException',err);
-});
-async function shutdown(signal){
-  console.log(signal+' received, closing database pool');
-  try{await pool.end();}catch(e){console.error('pool close failed',e);}
-  process.exit(0);
-}
-process.on('SIGTERM',()=>shutdown('SIGTERM'));
-process.on('SIGINT',()=>shutdown('SIGINT'));
+let httpServer=null,serverStartPromise=null,poolClosePromise=null,shutdownPromise=null,processHandlersRegistered=false;
 
-const port=process.env.PORT||3000;
-ensureSchema()
-  .then(()=>app.listen(port,()=>console.log('server on '+port)))
-  .catch(e=>{
+function closeHttpServer(server){
+  if(!server||typeof server.close!=='function')return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    try{server.close(error=>error?reject(error):resolve());}catch(error){reject(error);}
+  });
+}
+async function closeRuntimeResources({stopJobs=stopBackgroundJobs,server=httpServer,closeServer=closeHttpServer,endPool=()=>pool.end()}={}){
+  stopJobs();
+  if(server){
+    try{await closeServer(server);}catch(e){console.error('server close failed',e);}finally{if(server===httpServer)httpServer=null;}
+  }
+  if(!poolClosePromise)poolClosePromise=Promise.resolve().then(endPool);
+  try{await poolClosePromise;}catch(e){console.error('pool close failed',e);}
+}
+async function shutdown(signal){
+  if(shutdownPromise)return shutdownPromise;
+  shutdownPromise=(async()=>{
+    console.log(signal+' received, closing database pool');
+    await closeRuntimeResources();
+    process.exit(0);
+  })();
+  return shutdownPromise;
+}
+
+const processHandlers={
+  unhandledRejection:err=>console.error('unhandledRejection',err),
+  uncaughtException:err=>console.error('uncaughtException',err),
+  SIGTERM:()=>{void shutdown('SIGTERM');},
+  SIGINT:()=>{void shutdown('SIGINT');}
+};
+function registerProcessHandlers(){
+  if(processHandlersRegistered)return;
+  for(const [event,handler] of Object.entries(processHandlers))process.on(event,handler);
+  processHandlersRegistered=true;
+}
+function unregisterProcessHandlers(){
+  if(!processHandlersRegistered)return;
+  for(const [event,handler] of Object.entries(processHandlers))process.removeListener(event,handler);
+  processHandlersRegistered=false;
+}
+
+async function startServer({port=process.env.PORT||3000,initializeSchema=ensureSchema,listen=app.listen.bind(app),startJobs=startBackgroundJobs}={}){
+  if(httpServer)return httpServer;
+  if(serverStartPromise)return serverStartPromise;
+  serverStartPromise=(async()=>{
+    await initializeSchema();
+    let server;
+    await new Promise((resolve,reject)=>{
+      let listening=false;
+      try{
+        server=listen(port,()=>{listening=true;resolve();});
+        server?.once?.('error',error=>{if(!listening)reject(error);});
+      }catch(error){reject(error);}
+    });
+    httpServer=server;
+    startJobs();
+    return httpServer;
+  })();
+  try{return await serverStartPromise;}finally{serverStartPromise=null;}
+}
+function getRuntimeState(){return {serverStarted:Boolean(httpServer),backgroundJobCount:backgroundJobs.length,processHandlersRegistered};}
+
+module.exports={app,startServer,startBackgroundJobs,stopBackgroundJobs,registerProcessHandlers,unregisterProcessHandlers,getRuntimeState,closeRuntimeResources};
+
+if(require.main===module){
+  registerProcessHandlers();
+  startServer().then(()=>console.log('server on '+(process.env.PORT||3000))).catch(e=>{
     console.error('ensureSchema failed',e);
     process.exit(1);
   });
+}
