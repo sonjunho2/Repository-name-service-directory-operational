@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; const layout=board?.layout_type||'list'; const isAdInquiry=board?.slug==='ad-inquiry'; const isReviewBoard=board?.slug==='reviews'; const showAnswerStatus=layout==='qna'||isAdInquiry; %>
+  <% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; const layout=board?.layout_type||'list'; const isAdInquiry=board?.slug==='ad-inquiry'; const isReviewBoard=board?.slug==='reviews'; const isReportBoard=board?.slug==='reports'; const showAnswerStatus=layout==='qna'||isAdInquiry; %>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><%=mode==='posts'?board.title:'커뮤니티 게시판'%> - <%=brand.name%></title>
@@ -22,9 +22,14 @@
   <% } else { %>
     <div class="board-head"><div><h1><%=board.title%></h1><p><%=board.description||''%></p></div><form method="get" action="/boards/<%=board.slug%>" class="board-search"><input name="q" value="<%=qText%>" placeholder="제목/내용 검색"><button>검색</button></form></div>
 
-    <% if(isAdInquiry){ %><div class="private-board-note inquiry-note"><div><b>광고문의</b><p class="inquiry-status-help">배너 광고, 프리미엄 노출, 입점 광고 관련 문의를 남겨주세요.<br>작성한 문의는 본인과 관리자만 확인할 수 있습니다.</p></div><span><%=me?.role==='admin'?'전체 광고문의를 확인하고 답변할 수 있습니다.':me?'내 문의와 답변 상태를 확인할 수 있습니다.':'로그인 후 광고문의를 작성할 수 있습니다.'%></span></div><% } else if(layout==='private'){ %><div class="private-board-note"><b>1:1 문의 게시판</b><span><%=me?.role==='admin'?'관리자는 모든 문의를 확인할 수 있습니다.':me?'본인이 작성한 문의만 표시됩니다.':'로그인하면 본인의 문의를 확인하고 작성할 수 있습니다.'%></span></div><% } %>
+    <% if(isReportBoard){ %><div class="private-board-note"><div><b>내 신고내역</b><p>신고 내용은 본인과 관리자만 확인할 수 있습니다.<br>처리 결과와 관리자 안내를 이 화면에서 확인할 수 있습니다.</p></div><span>업체 또는 이용후기의 신고 버튼을 이용해주세요.</span></div><% } else if(isAdInquiry){ %><div class="private-board-note inquiry-note"><div><b>광고문의</b><p class="inquiry-status-help">배너 광고, 프리미엄 노출, 입점 광고 관련 문의를 남겨주세요.<br>작성한 문의는 본인과 관리자만 확인할 수 있습니다.</p></div><span><%=me?.role==='admin'?'전체 광고문의를 확인하고 답변할 수 있습니다.':me?'내 문의와 답변 상태를 확인할 수 있습니다.':'로그인 후 광고문의를 작성할 수 있습니다.'%></span></div><% } else if(layout==='private'){ %><div class="private-board-note"><b>1:1 문의 게시판</b><span><%=me?.role==='admin'?'관리자는 모든 문의를 확인할 수 있습니다.':me?'본인이 작성한 문의만 표시됩니다.':'로그인하면 본인의 문의를 확인하고 작성할 수 있습니다.'%></span></div><% } %>
 
-    <% if(isReviewBoard){ %>
+    <% if(isReportBoard){ %>
+      <div class="board-table-wrap"><table class="board-table"><thead><tr><th>신고번호</th><th>신고대상</th><th>신고사유</th><th>처리상태</th><th>접수일</th><th>처리일</th></tr></thead><tbody>
+        <% posts.forEach(p=>{ const target=p.target_exists?(p.type==='review'?[p.target_name,p.target_vendor_name].filter(Boolean).join(' · '):p.target_name):`대상을 확인할 수 없습니다. #${p.target_id}`; %><tr data-board-href="/boards/reports/<%=p.id%>"><td><a href="/boards/reports/<%=p.id%>">#<%=p.id%></a></td><td><%=target%></td><td><%=p.reason%></td><td><%=p.status_label%></td><td><%=fmtDate(p.created_at)%></td><td><%=p.processed_at?fmtDate(p.processed_at):'-'%></td></tr><% }) %>
+        <% if(!posts.length){ %><tr><td colspan="6" class="board-empty">접수한 신고가 없습니다.</td></tr><% } %>
+      </tbody></table></div>
+    <% } else if(isReviewBoard){ %>
       <div class="board-table-wrap"><table class="board-table"><thead><tr><th>번호</th><th>제목</th><th>업체 / 평점</th><th>작성자</th><th>작성일</th><th>조회수</th></tr></thead><tbody>
         <% posts.forEach(p=>{ %><tr data-board-href="/boards/reviews/<%=p.id%>"><td><%=p.id%></td><td><a href="/boards/reviews/<%=p.id%>"><%=p.title%></a></td><td><a href="/vendor/<%=p.vendor_id%>" class="vendor-open" data-vendor-id="<%=p.vendor_id%>"><%=p.vendor_name%></a> · ★ <%=p.rating%></td><td><%=p.nickname||p.username||'탈퇴회원'%></td><td><%=fmtDate(p.created_at)%></td><td><%=p.views||0%></td></tr><% }) %>
         <% if(!posts.length){ %><tr><td colspan="6" class="board-empty">등록된 이용후기가 없습니다.</td></tr><% } %>
@@ -52,7 +57,7 @@
     <% } %>
 
     <div class="board-pagination"><a href="?page=1&q=<%=encodeURIComponent(qText)%>">처음</a><a href="?page=<%=Math.max(1,page-1)%>&q=<%=encodeURIComponent(qText)%>">이전</a><% for(let n=Math.max(1,page-2);n<=Math.min(totalPages,page+2);n++){ %><a class="<%=n===page?'active':''%>" href="?page=<%=n%>&q=<%=encodeURIComponent(qText)%>"><%=n%></a><% } %><a href="?page=<%=Math.min(totalPages,page+1)%>&q=<%=encodeURIComponent(qText)%>">다음</a><a href="?page=<%=totalPages%>&q=<%=encodeURIComponent(qText)%>">마지막</a></div>
-    <div class="board-actions"><a href="/boards">게시판 목록</a><% if(canWrite){ %><a class="board-write-btn" href="/boards/<%=board.slug%>/write"><%=isAdInquiry?'광고문의 작성':isReviewBoard?'후기 작성':'새 글 작성'%></a><% } %></div>
+    <div class="board-actions"><a href="/boards">게시판 목록</a><% if(canWrite&&!isReportBoard){ %><a class="board-write-btn" href="/boards/<%=board.slug%>/write"><%=isAdInquiry?'광고문의 작성':isReviewBoard?'후기 작성':'새 글 작성'%></a><% } %></div>
   <% } %>
 </main>
 <%- include('partials/vendor-modal') %>

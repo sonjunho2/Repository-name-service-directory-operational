@@ -48,17 +48,11 @@ const modalContent=document.getElementById('vendorModalContent');
 function esc(s=''){
   return String(s||'').replace(/[&<>"]/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 }
-async function submitFlag(type,targetId){
-  const reason=prompt('신고 사유를 선택/입력해주세요. 예: 허위정보, 부적절한 내용, 광고성, 기타');
-  if(!reason) return;
-  const content=prompt('상세 내용을 입력해주세요. 생략해도 됩니다.')||'';
-  try{
-    const res=await fetch('/api/flag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,target_id:targetId,reason,content})});
-    if(!res.ok) throw new Error('failed');
-    alert('신고가 접수되었습니다. 관리자가 확인하겠습니다.');
-  }catch(e){
-    alert('신고 접수에 실패했습니다. 잠시 후 다시 시도해주세요.');
-  }
+function submitFlag(type,targetId){
+  const safeType=type==='review'?'review':type==='vendor'?'vendor':'';
+  const id=Number(targetId);
+  if(!safeType||!Number.isInteger(id)||id<=0)return;
+  location.href=`/boards/reports/write?type=${safeType}&target_id=${id}`;
 }
 let favoriteIds=[];
 let favoriteAuthed=false;

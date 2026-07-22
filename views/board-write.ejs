@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; const layout=board.layout_type||'list'; const isAdInquiry=board.slug==='ad-inquiry'; const isReviewBoard=board.slug==='reviews'; const formValues=typeof values==='undefined'?{}:(values||{}); const reviewVendors=typeof vendors==='undefined'?[]:(vendors||[]); const layoutHelp={list:'일반 게시글을 작성합니다.',gallery:'이미지 중심 게시글입니다. 대표 이미지를 등록하세요.',webzine:'대표 이미지와 소개글이 목록에 함께 표시됩니다.',qna:'질문을 남기면 관리자가 답변합니다.',faq:'FAQ는 관리자만 작성하는 것을 권장합니다. 제목은 질문, 내용은 답변으로 작성합니다.',private:'1:1 문의는 작성자와 관리자만 확인할 수 있습니다.'}; %>
+  <% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; const layout=board.layout_type||'list'; const isAdInquiry=board.slug==='ad-inquiry'; const isReviewBoard=board.slug==='reviews'; const isReportBoard=board.slug==='reports'; const formValues=typeof values==='undefined'?{}:(values||{}); const reviewVendors=typeof vendors==='undefined'?[]:(vendors||[]); const target=typeof reportTarget==='undefined'?null:reportTarget; const layoutHelp={list:'일반 게시글을 작성합니다.',gallery:'이미지 중심 게시글입니다. 대표 이미지를 등록하세요.',webzine:'대표 이미지와 소개글이 목록에 함께 표시됩니다.',qna:'질문을 남기면 관리자가 답변합니다.',faq:'FAQ는 관리자만 작성하는 것을 권장합니다. 제목은 질문, 내용은 답변으로 작성합니다.',private:'1:1 문의는 작성자와 관리자만 확인할 수 있습니다.'}; %>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>글쓰기 - <%=board.title%></title><link rel="stylesheet" href="/public/css/style.css"><link rel="stylesheet" href="/public/css/home-card-layout-v48.css"><link rel="stylesheet" href="/public/css/vendor-popup-layout-v50.css">
 </head>
 <body>
@@ -9,19 +9,26 @@
 <header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=brand.link||'/'%>"><% if(brand.showLogo&&brand.logo){ %><img src="<%=brand.logo%>" alt=""><% } %><% if(brand.showName){ %><span><%=brand.name%></span><% } %></a><nav><a href="/boards/<%=board.slug%>"><%=board.title%></a></nav></header>
 <%- include('partials/public-ad-banner') %>
 <main class="board-wrap">
-  <div class="board-head"><div><h1><%=isAdInquiry?'광고문의 작성':board.title+' 글쓰기'%></h1><p><%=isAdInquiry?'배너 광고, 프리미엄 노출, 제휴 관련 문의 내용을 남겨주세요.':layoutHelp[layout]||layoutHelp.list%><% if(isAdInquiry){ %><br>작성한 문의는 본인과 관리자만 확인할 수 있습니다.<% } %></p></div></div>
+  <div class="board-head"><div><h1><%=isReportBoard?'신고 접수':isAdInquiry?'광고문의 작성':board.title+' 글쓰기'%></h1><p><%=isReportBoard?'신고 내용은 본인과 관리자만 확인할 수 있습니다.':isAdInquiry?'배너 광고, 프리미엄 노출, 제휴 관련 문의 내용을 남겨주세요.':layoutHelp[layout]||layoutHelp.list%><% if(isAdInquiry){ %><br>작성한 문의는 본인과 관리자만 확인할 수 있습니다.<% } %></p></div></div>
   <% if(error){ %><div class="board-form-error"><%=error%></div><% } %>
+  <% if(isReportBoard&&!target){ %><div class="private-board-note"><span>업체 또는 이용후기의 신고 버튼을 이용해주세요.</span></div><div class="board-actions"><a href="/boards/reports">내 신고내역</a></div><% } else { %>
   <form class="board-form" method="post" action="/boards/<%=board.slug%>/write" enctype="multipart/form-data">
-    <% if(isReviewBoard){ %>
+    <% if(isReportBoard){ %>
+      <input type="hidden" name="type" value="<%=target.type%>"><input type="hidden" name="target_id" value="<%=target.target_id%>">
+      <div class="private-board-note"><div><b><%=target.type==='vendor'?'업체 신고':'이용후기 신고'%></b><p><%=target.target_name%></p></div><span><%=target.target_subtitle||''%></span></div>
+      <label>신고 사유<select name="reason" required><option value="">신고 사유를 선택해주세요.</option><% ['허위정보','부적절한 내용','광고성·도배','개인정보 노출','사칭·권리침해','서비스 이용규정 위반','기타'].forEach(reason=>{ %><option value="<%=reason%>" <%=formValues.reason===reason?'selected':''%>><%=reason%></option><% }) %></select></label>
+      <label>상세 내용<textarea name="content" minlength="5" maxlength="2000" required><%=formValues.content||''%></textarea></label>
+    <% } else if(isReviewBoard){ %>
       <label>업체 검색<input type="search" id="reviewVendorSearch" placeholder="업체명, 지역, 카테고리 검색"></label>
       <label>업체 선택<select name="vendor_id" id="reviewVendorSelect" required><option value="">업체를 선택해주세요.</option><% reviewVendors.forEach(v=>{ %><option value="<%=v.id%>" data-search="<%=v.name%> <%=v.region%> <%=v.category%>" <%=String(formValues.vendor_id||'')===String(v.id)?'selected':''%>><%=v.name%> · <%=v.region%> · <%=v.category%></option><% }) %></select></label>
       <label>평점<select name="rating" required><% [5,4,3,2,1].forEach(score=>{ %><option value="<%=score%>" <%=String(formValues.rating||'5')===String(score)?'selected':''%>>★ <%=score%>점</option><% }) %></select></label>
     <% } %>
-    <label>제목<input name="title" minlength="2" maxlength="100" required value="<%=formValues.title||''%>" placeholder="<%=isAdInquiry?'문의 제목을 입력하세요.':''%>"></label>
+    <% if(!isReportBoard){ %><label>제목<input name="title" minlength="2" maxlength="100" required value="<%=formValues.title||''%>" placeholder="<%=isAdInquiry?'문의 제목을 입력하세요.':''%>"></label>
     <label>내용<textarea name="content" minlength="<%=isReviewBoard?5:2%>" maxlength="5000" required placeholder="<%=isAdInquiry?'광고 목적, 희망 상품, 연락 가능한 방법 등을 입력하세요.':''%>"><%=formValues.content||''%></textarea></label>
-    <% if(board.image_enabled){ %><label>이미지<input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"></label><div class="board-image-preview"><img alt="이미지 미리보기"></div><% } %>
-    <div class="board-actions"><a href="/boards/<%=board.slug%>">취소</a><button class="board-write-btn">등록</button></div>
+    <% if(board.image_enabled){ %><label>이미지<input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp"></label><div class="board-image-preview"><img alt="이미지 미리보기"></div><% } %><% } %>
+    <div class="board-actions"><a href="/boards/<%=board.slug%>">취소</a><button class="board-write-btn"><%=isReportBoard?'신고 접수':'등록'%></button></div>
   </form>
+  <% } %>
   <% if(isReviewBoard){ %><script>document.getElementById('reviewVendorSearch')?.addEventListener('input',function(){var q=this.value.trim().toLowerCase();document.querySelectorAll('#reviewVendorSelect option[data-search]').forEach(function(option){option.hidden=q&&!option.dataset.search.toLowerCase().includes(q);});});</script><% } %>
 </main>
 <%- include('partials/vendor-modal') %>
