@@ -2,6 +2,7 @@ require('dotenv').config();
 const express=require('express'), session=require('express-session'), bcrypt=require('bcryptjs'), multer=require('multer');
 const fs=require('fs'), path=require('path'), crypto=require('crypto');
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
+const {createBoardComment:createBoardCommentCore}=require('./lib/board-comments');
 const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg|webp)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF, WEBP만 가능합니다.'))}});
 app.get('/favicon.ico',(req,res)=>res.status(204).end());
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
@@ -440,22 +441,7 @@ function boardLayoutType(value){return BOARD_LAYOUT_TYPES.includes(String(value|
 function legacyBoardTypeForLayout(layout){return layout==='qna'?'qna':layout==='private'?'inquiry':layout==='faq'?'faq':'community';}
 function canReadPrivateBoardPost(user,post){return !!user&&(user.role==='admin'||Number(user.id)===Number(post?.user_id));}
 
-function boardCommentError(code,status){const error=new Error(code);error.code=code;error.status=status;return error;}
-async function createBoardComment({userId,slug,postId,content}){
-  const uid=Number(userId),id=Number(postId),safeSlug=String(slug||'').trim().toLowerCase(),safeContent=String(content||'').trim();
-  if(!Number.isInteger(uid)||uid<=0)throw boardCommentError('inactive_user',403);
-  if(!Number.isInteger(id)||id<=0||!safeSlug)throw boardCommentError('invalid_comment_target',400);
-  if(['reviews','reports'].includes(safeSlug))throw boardCommentError('comments_disabled',403);
-  if(safeContent.length<1||safeContent.length>1000)throw boardCommentError('invalid_comment_content',400);
-  const user=(await q("SELECT id,username,nickname,role,status FROM users WHERE id=$1",[uid])).rows[0];
-  if(!user||user.status!=='active')throw boardCommentError('inactive_user',403);
-  const post=(await q(`SELECT p.id,p.title,p.user_id,p.status,b.slug,b.layout_type,b.comment_enabled,b.is_active FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2`,[id,safeSlug])).rows[0];
-  if(!post||post.status!=='visible'||!post.is_active)throw boardCommentError('board_post_not_found',404);
-  if(['reviews','reports'].includes(post.slug)||!post.comment_enabled)throw boardCommentError('comments_disabled',403);
-  if(boardLayoutType(post.layout_type)==='private'&&!canReadPrivateBoardPost(user,post))throw boardCommentError('private_post_forbidden',403);
-  const saved=await q("INSERT INTO board_comments(post_id,user_id,content,status,created_at,updated_at) VALUES($1,$2,$3,'visible',now(),now()) RETURNING id",[id,uid,safeContent]);
-  return {id:saved.rows[0].id,post,user,content:safeContent};
-}
+function createBoardComment(args){return createBoardCommentCore({...args,query:q});}
 
 async function createAdInquiryPost({userId,title,content,imageData=null}){
   const uid=Number(userId),safeTitle=String(title||'').trim(),safeContent=String(content||'').trim();
