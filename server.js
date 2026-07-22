@@ -133,9 +133,12 @@ async function ensureSchema(){
     await q('ALTER TABLE board_posts ADD COLUMN IF NOT EXISTS legacy_notice_id INTEGER');
     await q('CREATE UNIQUE INDEX IF NOT EXISTS idx_board_posts_legacy_notice_id ON board_posts(legacy_notice_id)');
     await q(`CREATE TABLE IF NOT EXISTS board_comments(id SERIAL PRIMARY KEY,post_id INTEGER REFERENCES board_posts(id) ON DELETE CASCADE,user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,content TEXT NOT NULL,status TEXT DEFAULT 'visible',created_at TIMESTAMP DEFAULT now())`);
+    await q('ALTER TABLE board_comments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()');
+    await q('UPDATE board_comments SET updated_at=COALESCE(created_at,now()) WHERE updated_at IS NULL');
     await q("CREATE INDEX IF NOT EXISTS idx_board_categories_active_sort ON board_categories(is_active,sort_order)");
     await q("CREATE INDEX IF NOT EXISTS idx_board_posts_board_status_pinned_created ON board_posts(board_id,status,is_pinned,created_at DESC)");
     await q("CREATE INDEX IF NOT EXISTS idx_board_comments_post_status_created ON board_comments(post_id,status,created_at)");
+    await q("CREATE INDEX IF NOT EXISTS idx_board_comments_user_status_created ON board_comments(user_id,status,created_at)");
     for(const board of [['공지사항','notice','notice','admin'],['자유게시판','free','community','member'],['이용후기','reviews','review','member'],['제보/신고','reports','report','member'],['광고문의','ad-inquiry','qna','member']]){
       await q('INSERT INTO board_categories(title,slug,type,write_role) VALUES($1,$2,$3,$4) ON CONFLICT (slug) DO NOTHING',board);
     }
@@ -436,6 +439,23 @@ function isProtectedBoardSlug(slug){return PROTECTED_BOARD_SLUGS.includes(String
 function boardLayoutType(value){return BOARD_LAYOUT_TYPES.includes(String(value||''))?String(value):'list';}
 function legacyBoardTypeForLayout(layout){return layout==='qna'?'qna':layout==='private'?'inquiry':layout==='faq'?'faq':'community';}
 function canReadPrivateBoardPost(user,post){return !!user&&(user.role==='admin'||Number(user.id)===Number(post?.user_id));}
+
+function boardCommentError(code,status){const error=new Error(code);error.code=code;error.status=status;return error;}
+async function createBoardComment({userId,slug,postId,content}){
+  const uid=Number(userId),id=Number(postId),safeSlug=String(slug||'').trim().toLowerCase(),safeContent=String(content||'').trim();
+  if(!Number.isInteger(uid)||uid<=0)throw boardCommentError('inactive_user',403);
+  if(!Number.isInteger(id)||id<=0||!safeSlug)throw boardCommentError('invalid_comment_target',400);
+  if(['reviews','reports'].includes(safeSlug))throw boardCommentError('comments_disabled',403);
+  if(safeContent.length<1||safeContent.length>1000)throw boardCommentError('invalid_comment_content',400);
+  const user=(await q("SELECT id,username,nickname,role,status FROM users WHERE id=$1",[uid])).rows[0];
+  if(!user||user.status!=='active')throw boardCommentError('inactive_user',403);
+  const post=(await q(`SELECT p.id,p.title,p.user_id,p.status,b.slug,b.layout_type,b.comment_enabled,b.is_active FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2`,[id,safeSlug])).rows[0];
+  if(!post||post.status!=='visible'||!post.is_active)throw boardCommentError('board_post_not_found',404);
+  if(['reviews','reports'].includes(post.slug)||!post.comment_enabled)throw boardCommentError('comments_disabled',403);
+  if(boardLayoutType(post.layout_type)==='private'&&!canReadPrivateBoardPost(user,post))throw boardCommentError('private_post_forbidden',403);
+  const saved=await q("INSERT INTO board_comments(post_id,user_id,content,status,created_at,updated_at) VALUES($1,$2,$3,'visible',now(),now()) RETURNING id",[id,uid,safeContent]);
+  return {id:saved.rows[0].id,post,user,content:safeContent};
+}
 
 async function createAdInquiryPost({userId,title,content,imageData=null}){
   const uid=Number(userId),safeTitle=String(title||'').trim(),safeContent=String(content||'').trim();
@@ -884,29 +904,25 @@ app.post('/boards/:slug/write',login,upload.single('image'),async(req,res)=>{
   }catch(e){console.error('board write failed',e);res.status(500).send('게시글을 저장하지 못했습니다.');}
 });
 app.post('/boards/:slug/:id/comments',login,async(req,res)=>{
-  if(['reviews','reports'].includes(String(req.params.slug||'').toLowerCase()))return res.status(403).send('이 게시판에는 댓글을 작성할 수 없습니다.');
-  const id=parseInt(req.params.id||0,10),content=String(req.body.content||'').trim().slice(0,1000);
-  const found=await q(`SELECT p.id,p.title,p.user_id,b.slug,b.comment_enabled,b.layout_type FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1 AND b.slug=$2 AND p.status='visible' AND b.is_active=true`,[id,String(req.params.slug||'').toLowerCase()]);
-  if(!found.rows[0])return res.status(404).send('게시글을 찾을 수 없습니다.');
-  if(boardLayoutType(found.rows[0].layout_type)==='private'&&!canReadPrivateBoardPost(req.session.user,found.rows[0]))return res.status(403).send('본인의 문의만 확인할 수 있습니다.');
-  if(!found.rows[0].comment_enabled)return res.status(403).send('댓글을 사용할 수 없습니다.');
-  if(!content)return res.status(400).send('댓글 내용을 입력해주세요.');
-  await q('INSERT INTO board_comments(post_id,user_id,content) VALUES($1,$2,$3)',[id,req.session.user.id,content]);
-  if(found.rows[0].slug==='ad-inquiry'){
+  let created;
+  try{created=await createBoardComment({userId:req.session.user.id,slug:req.params.slug,postId:req.params.id,content:req.body.content});}
+  catch(e){return res.status(e.status||500).send(e.code||'comment_create_failed');}
+  const {post,user}=created,id=post.id;
+  if(post.slug==='ad-inquiry'){
     try{
-      if(req.session.user.role==='admin'){
-        const targetUserId=Number(found.rows[0].user_id||0);
-        if(targetUserId&&targetUserId!==Number(req.session.user.id||0)){
-          const safeTitle=String(found.rows[0].title||'광고문의').slice(0,80);
+      if(user.role==='admin'){
+        const targetUserId=Number(post.user_id||0);
+        if(targetUserId&&targetUserId!==Number(user.id||0)){
+          const safeTitle=String(post.title||'광고문의').slice(0,80);
           await userNotify(targetUserId,'ad_inquiry_answered','광고문의에 답변이 등록되었습니다',`${safeTitle}에 관리자 답변이 등록되었습니다.`,`/boards/ad-inquiry/${id}`);
         }
-      }else{
-        const authorName=String(req.session.user.nickname||req.session.user.username||'회원').slice(0,40);
+      }else if(Number(post.user_id)===Number(user.id)){
+        const authorName=String(user.nickname||user.username||'회원').slice(0,40);
         await adminNotify('ad_inquiry_reply','광고문의에 추가 댓글이 등록되었습니다',`${authorName}님이 광고문의에 댓글을 남겼습니다.`,`/boards/ad-inquiry/${id}`);
       }
     }catch(e){console.error('ad inquiry comment notification failed',e.message);}
   }
-  res.redirect(`/boards/${found.rows[0].slug}/${id}`);
+  res.redirect(`/boards/${post.slug}/${id}`);
 });
 app.get('/boards/:slug/:id',async(req,res)=>{
   try{
@@ -931,7 +947,8 @@ app.get('/boards/:slug/:id',async(req,res)=>{
     if(boardLayoutType(board.layout_type)==='private'&&!canReadPrivateBoardPost(req.session.user,post))return res.status(403).send('본인의 문의만 확인할 수 있습니다.');
     await q('UPDATE board_posts SET views=views+1 WHERE id=$1',[id]);post.views=Number(post.views||0)+1;
     const author=(await q('SELECT username,nickname FROM users WHERE id=$1',[post.user_id])).rows[0]||{};
-    const comments=await q(`SELECT c.*,u.username,u.nickname FROM board_comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 AND c.status='visible' ORDER BY c.created_at`,[id]);
+    const comments=await q(`SELECT c.id,c.post_id,c.user_id,c.content,c.status,c.created_at,c.updated_at,u.username,u.nickname,u.role,(u.role='admin') is_admin_comment FROM board_comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 AND c.status='visible' ORDER BY c.created_at ASC,c.id ASC`,[id]);
+    post.visible_comment_count=comments.rows.length;post.visible_admin_comment_count=comments.rows.filter(c=>c.is_admin_comment).length;post.answer_status=post.visible_admin_comment_count>0?'answered':'waiting';
     res.render('board-post',{board,post:{...post,...author},comments:comments.rows,canWrite:!!req.session.user&&canWriteBoard(req.session.user,board),settings:await getSettings()});
   }catch(e){console.error('board post failed',e);res.status(500).send('게시글을 불러오지 못했습니다.');}
 });
@@ -1363,7 +1380,7 @@ app.get('/admin/api/board-posts',admin,async(req,res)=>{
   else if(pinned==='normal'){params.push(false);where.push(`p.is_pinned=$${params.length}`);}
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
   const fromSql=' FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id';
-  return adminPagedJson(req,res,`SELECT p.id,p.board_id,b.title board_title,b.slug board_slug,p.title,u.username,u.nickname,p.status,p.is_pinned,p.views,p.created_at,p.updated_at,(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id) comment_count${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+  return adminPagedJson(req,res,`SELECT p.id,p.board_id,b.title board_title,b.slug board_slug,p.title,u.username,u.nickname,p.status,p.is_pinned,p.views,p.created_at,p.updated_at,(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id) comment_count,(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id AND c.status='visible') visible_comment_count${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
 app.get('/admin/api/ad-inquiries',admin,async(req,res)=>{
   try{
@@ -1389,13 +1406,18 @@ app.get('/admin/api/board-comments',admin,async(req,res)=>{
   const params=[];const where=[];
   const qText=String(req.query.q||'').trim().slice(0,100);
   const boardId=parseInt(req.query.board_id||0,10);
-  const status=String(req.query.status||'').trim();
+  if(Object.prototype.hasOwnProperty.call(req.query,'board_id')&&(!Number.isInteger(boardId)||boardId<=0))return res.status(400).json({ok:false,error:'invalid_board_id'});
+  if(boardId){const board=(await q('SELECT slug FROM board_categories WHERE id=$1',[boardId])).rows[0];if(!board)return res.status(404).json({ok:false,error:'board_not_found'});if(['reviews','reports'].includes(board.slug)&&String(req.query.legacy||'')!=='true')return res.status(409).json({ok:false,error:'comments_not_supported'});}
+  const status=String(req.query.status||'').trim(),authorRole=String(req.query.author_role||'').trim(),sort=String(req.query.sort||'latest').trim();
   if(qText){params.push(`%${qText}%`);where.push(`(c.content ILIKE $${params.length} OR p.title ILIKE $${params.length} OR b.title ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
   if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}
+  else if(String(req.query.legacy||'')!=='true')where.push("b.slug NOT IN ('reviews','reports')");
   if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`c.status=$${params.length}`);}
+  if(authorRole==='admin')where.push("u.role='admin'");else if(authorRole==='member')where.push("u.id IS NOT NULL AND u.role<>'admin'");else if(authorRole==='missing')where.push('u.id IS NULL');
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
   const fromSql=' FROM board_comments c JOIN board_posts p ON p.id=c.post_id JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=c.user_id';
-  return adminPagedJson(req,res,`SELECT c.id,c.post_id,p.board_id,b.title board_title,b.slug board_slug,p.title post_title,u.username,u.nickname,c.content,c.status,c.created_at${fromSql}${whereSql} ORDER BY c.created_at DESC,c.id DESC`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
+  const orderBy={latest:'c.created_at DESC,c.id DESC',oldest:'c.created_at ASC,c.id ASC',board:'b.title ASC,p.id DESC,c.id DESC',author:"COALESCE(u.nickname,u.username,'') ASC,c.id DESC"}[sort]||'c.created_at DESC,c.id DESC';
+  return adminPagedJson(req,res,`SELECT c.id,c.post_id,p.board_id,b.title board_title,b.slug board_slug,p.title post_title,p.status post_status,c.user_id,u.username,u.nickname,u.role user_role,(u.id IS NOT NULL) author_exists,COALESCE(NULLIF(u.nickname,''),NULLIF(u.username,''),'탈퇴회원') author_label,c.content,c.status,c.created_at,c.updated_at,'/boards/'||b.slug||'/'||p.id detail_link,(u.role='admin') is_admin_comment,(b.slug='ad-inquiry' AND u.role='admin') affects_ad_answer_status${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params);
 });
 app.get('/admin/api/logs',admin,async(req,res)=>{
   try{
@@ -1730,11 +1752,18 @@ registerBoardPostAction('restore','status','visible','게시글 복구');
 registerBoardPostAction('delete','status','deleted','게시글 삭제상태');
 function registerBoardCommentAction(path,status,action){
   app.post(`/admin/board-comments/:id/${path}`,admin,async(req,res)=>{
-    const id=parseInt(req.params.id||0,10);if(!id)return sendFail(req,res,400,'잘못된 댓글 ID입니다.','/admin#boardComments');
-    const r=await q('UPDATE board_comments SET status=$1 WHERE id=$2 RETURNING id,content',[status,id]);
-    if(!r.rows[0])return sendFail(req,res,404,'댓글을 찾을 수 없습니다.','/admin#boardComments');
-    await logAdmin(req,action,'board_comment',id,String(r.rows[0].content||'').slice(0,200));
-    return sendOk(req,res,'/admin#boardComments');
+    const id=parseInt(req.params.id||0,10);if(!Number.isInteger(id)||id<=0)return sendFail(req,res,400,'잘못된 댓글 ID입니다.','/admin#boardComments');
+    const found=await q(`SELECT c.id,c.post_id,c.user_id,c.content,c.status,p.title post_title,p.status post_status,b.id board_id,b.slug board_slug,u.role author_role FROM board_comments c JOIN board_posts p ON p.id=c.post_id JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=c.user_id WHERE c.id=$1`,[id]);
+    const comment=found.rows[0];if(!comment)return sendFail(req,res,404,'board_comment_not_found','/admin#boardComments');
+    if(['reviews','reports'].includes(comment.board_slug))return sendFail(req,res,409,'comments_not_supported','/admin#boardComments');
+    if(comment.status===status)return sendFail(req,res,409,'comment_status_unchanged','/admin#boardComments');
+    const before=comment.board_slug==='ad-inquiry'?Number((await q("SELECT COUNT(*)::int count FROM board_comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 AND c.status='visible' AND u.role='admin'",[comment.post_id])).rows[0]?.count||0):0;
+    const r=await q('UPDATE board_comments SET status=$1,updated_at=now() WHERE id=$2 RETURNING id,content',[status,id]);
+    const after=comment.board_slug==='ad-inquiry'?Number((await q("SELECT COUNT(*)::int count FROM board_comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 AND c.status='visible' AND u.role='admin'",[comment.post_id])).rows[0]?.count||0):0;
+    const beforeStatus=before>0?'answered':'waiting',answerStatus=after>0?'answered':'waiting';
+    const memo=comment.board_slug==='ad-inquiry'?`게시판 ad-inquiry · 게시글 #${comment.post_id} · 댓글 작성자 ${comment.author_role||'missing'} · 답변상태 ${beforeStatus}→${answerStatus}`:`게시판 ${comment.board_slug} · 게시글 #${comment.post_id} · ${action}`;
+    await logAdmin(req,action,'board_comment',id,memo);
+    return sendOk(req,res,'/admin#boardComments',{visible_admin_comment_count:after,answer_status:answerStatus});
   });
 }
 registerBoardCommentAction('hide','hidden','댓글 숨김');
