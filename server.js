@@ -142,6 +142,7 @@ async function ensureSchema(){
     await q("UPDATE board_categories SET layout_type='private',type='inquiry',write_role='member',is_active=true,comment_enabled=true WHERE slug='ad-inquiry'");
     await q("UPDATE board_categories SET type='report',layout_type='private',write_role='member',is_active=true,image_enabled=false,comment_enabled=false WHERE slug='reports'");
     await q("UPDATE board_categories SET type='notice',layout_type='list',write_role='admin',is_active=true,image_enabled=true,comment_enabled=true WHERE slug='notice'");
+    await q("UPDATE board_categories SET type='community',layout_type='list',write_role='member',is_active=true,comment_enabled=true WHERE slug='free'");
     await q("UPDATE board_categories SET type='review',layout_type='list',write_role='member',is_active=true,image_enabled=true,comment_enabled=false WHERE slug='reviews'");
     const noticeMigrationClient=await pool.connect();
     try{
@@ -414,7 +415,7 @@ async function refreshSessionUser(req){
 
 async function getBoardCategories(user=null){
   const isAdmin=user?.role==='admin',userId=Number(user?.id||0);
-  const r=await q(`SELECT b.*,CASE WHEN b.slug='reviews' THEN (SELECT COUNT(*)::int FROM reviews r JOIN vendors v ON v.id=r.vendor_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL}) WHEN b.slug='reports' THEN CASE WHEN $1 THEN 0 ELSE (SELECT COUNT(*)::int FROM flags f WHERE f.user_id=$2) END ELSE (SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id AND p.status='visible' AND (COALESCE(b.layout_type,'list')<>'private' OR $1 OR p.user_id=$2)) END post_count FROM board_categories b WHERE b.is_active=true ORDER BY b.sort_order,b.id`,[isAdmin,userId]);
+  const r=await q(`SELECT b.*,CASE WHEN b.slug='reviews' THEN (SELECT COUNT(*)::int FROM reviews r JOIN vendors v ON v.id=r.vendor_id WHERE r.status='visible' AND ${PUBLIC_VENDOR_SQL}) WHEN b.slug='reports' THEN CASE WHEN $1 OR $2=0 THEN 0 ELSE (SELECT COUNT(*)::int FROM flags f WHERE f.user_id=$2) END WHEN b.slug='ad-inquiry' THEN CASE WHEN $1 OR $2=0 THEN 0 ELSE (SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id AND p.user_id=$2 AND p.status='visible') END ELSE (SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id AND p.status='visible' AND (COALESCE(b.layout_type,'list')<>'private' OR $1 OR p.user_id=$2)) END post_count FROM board_categories b WHERE b.is_active=true ORDER BY b.sort_order,b.id`,[isAdmin,userId]);
   return r.rows||[];
 }
 function canWriteBoard(user,board){
@@ -773,7 +774,7 @@ app.get('/boards',async(req,res)=>{
   try{
     const user=req.session.user||null,boards=await getBoardCategories(user);
     const ids=boards.map(x=>x.id);
-    const recent=ids.length?await q(`SELECT p.id,p.board_id,p.title,p.created_at,u.nickname FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id WHERE p.status='visible' AND p.board_id=ANY($1::int[]) AND b.slug NOT IN ('reviews','reports') AND (COALESCE(b.layout_type,'list')<>'private' OR $2 OR p.user_id=$3) ORDER BY p.created_at DESC`,[ids,user?.role==='admin',Number(user?.id||0)]):{rows:[]};
+    const recent=ids.length?await q(`SELECT p.id,p.board_id,p.title,p.created_at,u.nickname FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id WHERE p.status='visible' AND p.board_id=ANY($1::int[]) AND b.slug NOT IN ('reviews','reports','ad-inquiry') AND (COALESCE(b.layout_type,'list')<>'private' OR $2 OR p.user_id=$3) ORDER BY p.created_at DESC`,[ids,user?.role==='admin',Number(user?.id||0)]):{rows:[]};
     const recentByBoard={};
     for(const post of recent.rows||[]){const list=recentByBoard[post.board_id]||(recentByBoard[post.board_id]=[]);if(list.length<5)list.push(post);}
     const reviewBoard=boards.find(x=>x.slug==='reviews');
@@ -782,6 +783,11 @@ app.get('/boards',async(req,res)=>{
     if(reportBoard&&user&&user.role!=='admin'){
       const reportRecent=await q(`SELECT f.id,$1::int board_id,CASE WHEN f.type='vendor' THEN '업체 신고 · '||COALESCE(v.name,'삭제되거나 비공개된 대상 #'||f.target_id) WHEN f.type='review' THEN '후기 신고 · '||COALESCE(r.title,'삭제되거나 비공개된 대상 #'||f.target_id) ELSE '신고 #'||f.id END title,f.created_at FROM flags f LEFT JOIN vendors v ON f.type='vendor' AND v.id=f.target_id AND ${PUBLIC_VENDOR_SQL} LEFT JOIN reviews r ON f.type='review' AND r.id=f.target_id AND r.status='visible' AND EXISTS(SELECT 1 FROM vendors rv WHERE rv.id=r.vendor_id AND rv.status='active' AND COALESCE(rv.ad_type,'none')<>'none' AND rv.expire_at IS NOT NULL AND rv.expire_at>=CURRENT_DATE) WHERE f.user_id=$2 ORDER BY f.created_at DESC,f.id DESC LIMIT 5`,[reportBoard.id,user.id]);
       recentByBoard[reportBoard.id]=reportRecent.rows;
+    }
+    const adInquiryBoard=boards.find(x=>x.slug==='ad-inquiry');
+    if(adInquiryBoard&&user&&user.role!=='admin'){
+      const adInquiryRecent=await q("SELECT p.id,p.board_id,p.title,p.created_at FROM board_posts p WHERE p.board_id=$1 AND p.user_id=$2 AND p.status='visible' ORDER BY p.created_at DESC,p.id DESC LIMIT 5",[adInquiryBoard.id,user.id]);
+      recentByBoard[adInquiryBoard.id]=adInquiryRecent.rows;
     }
     res.render('board-list',{mode:'categories',boards,board:null,posts:[],recentByBoard,page:1,totalPages:1,qText:'',canWrite:false,settings:await getSettings()});
   }catch(e){console.error('boards list failed',e);res.status(500).send('게시판을 불러오지 못했습니다.');}
@@ -1342,11 +1348,16 @@ app.get('/admin/api/board-posts',admin,async(req,res)=>{
   const params=[];const where=[];
   const qText=String(req.query.q||'').trim().slice(0,100);
   const boardId=parseInt(req.query.board_id||0,10);
+  if(Object.prototype.hasOwnProperty.call(req.query,'board_id')&&(!Number.isInteger(boardId)||boardId<=0))return res.status(400).json({ok:false,error:'invalid_board_id'});
   const status=String(req.query.status||'').trim();
   const pinned=String(req.query.pinned||'').trim();
   const orderBy={latest:'p.created_at DESC,p.id DESC',views:'p.views DESC,p.id DESC',comments:'comment_count DESC,p.id DESC'}[String(req.query.sort||'latest')]||'p.created_at DESC,p.id DESC';
   if(qText){params.push(`%${qText}%`);where.push(`(p.title ILIKE $${params.length} OR p.content ILIKE $${params.length} OR b.title ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
-  if(boardId){params.push(boardId);where.push(`p.board_id=$${params.length}`);}else where.push("b.slug NOT IN ('notice','reviews','reports')");
+  if(boardId){
+    const selected=(await q('SELECT slug FROM board_categories WHERE id=$1',[boardId])).rows[0];if(!selected)return res.status(404).json({ok:false,error:'board_not_found'});
+    if(['notice','reviews','reports','ad-inquiry'].includes(selected.slug)&&String(req.query.legacy||'')!=='true')return res.status(409).json({ok:false,error:'dedicated_board_manager_required'});
+    params.push(boardId);where.push(`p.board_id=$${params.length}`);
+  }else where.push("b.slug NOT IN ('notice','reviews','reports','ad-inquiry')");
   if(['visible','hidden','deleted'].includes(status)){params.push(status);where.push(`p.status=$${params.length}`);}
   if(pinned==='pinned'){params.push(true);where.push(`p.is_pinned=$${params.length}`);}
   else if(pinned==='normal'){params.push(false);where.push(`p.is_pinned=$${params.length}`);}
@@ -1634,21 +1645,43 @@ app.post('/admin/boards',admin,async(req,res)=>runAdminAction(req,res,'/admin#bo
   return {board:{...created.rows[0],post_count:0}};
 }));
 app.post('/admin/boards/:id/update',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
-  const id=parseInt(req.params.id||0,10),title=String(req.body.title||'').trim().slice(0,100);if(!id||!title)throw new Error('게시판 정보를 확인해주세요.');
+  const id=parseInt(req.params.id||0,10),title=String(req.body.title||'').trim().slice(0,100);if(!Number.isInteger(id)||id<=0||!title)throw new Error('게시판 정보를 확인해주세요.');
   const oldBoard=await q('SELECT * FROM board_categories WHERE id=$1',[id]);
   const current=oldBoard.rows[0];
   if(!current){const error=new Error('게시판을 찾을 수 없습니다.');error.status=404;throw error;}
-  if(isProtectedBoardSlug(current.slug)&&!req.body.is_active){const error=new Error('기본 게시판은 비활성화할 수 없습니다.');error.status=400;throw error;}
-  const slug=boardSlugSafe(req.body.slug,title),layoutType=boardLayoutType(req.body.layout_type);
+  const hasBodyField=key=>Object.prototype.hasOwnProperty.call(req.body,key);
+  const parseBodyBoolean=value=>{
+    if(value===true||value===1)return true;if(value===false||value===0)return false;
+    const normalized=String(value??'').trim().toLowerCase();
+    if(['1','true','on','yes'].includes(normalized))return true;
+    if(['','0','false','off','no'].includes(normalized))return false;
+    const error=new Error('invalid_board_boolean');error.status=400;throw error;
+  };
+  const slug=hasBodyField('slug')?boardSlugSafe(req.body.slug,title):current.slug;
+  const requestedType=hasBodyField('type')?String(req.body.type||'').trim():String(current.type||'');
+  const layoutType=hasBodyField('layout_type')?boardLayoutType(req.body.layout_type):boardLayoutType(current.layout_type);
+  const writeRole=hasBodyField('write_role')?(['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member'):String(current.write_role||'member');
+  const requestedIsActive=hasBodyField('is_active')?parseBodyBoolean(req.body.is_active):!!current.is_active;
+  const requestedCommentEnabled=hasBodyField('comment_enabled')?parseBodyBoolean(req.body.comment_enabled):!!current.comment_enabled;
+  const requestedImageEnabled=hasBodyField('image_enabled')?parseBodyBoolean(req.body.image_enabled):!!current.image_enabled;
+  if(isProtectedBoardSlug(current.slug)){
+    const lockedChanged=slug!==current.slug
+      || requestedType!==String(current.type||'')
+      || layoutType!==boardLayoutType(current.layout_type)
+      || writeRole!==String(current.write_role||'member')
+      || requestedIsActive!==!!current.is_active
+      || requestedCommentEnabled!==!!current.comment_enabled
+      || requestedImageEnabled!==!!current.image_enabled;
+    if(lockedChanged){const error=new Error('protected_board_field_locked');error.status=409;throw error;}
+  }
   if(slug!==current.slug){
-    if(isProtectedBoardSlug(current.slug)){const error=new Error('기본 게시판의 주소(slug)는 변경할 수 없습니다.');error.status=400;throw error;}
+    if(isProtectedBoardSlug(current.slug)){const error=new Error('protected_board_field_locked');error.status=409;throw error;}
     const postCount=await q('SELECT COUNT(*)::int count FROM board_posts WHERE board_id=$1',[id]);
     if(Number(postCount.rows[0]?.count||0)>0){const error=new Error('게시글이 있는 게시판의 주소(slug)는 변경할 수 없습니다.');error.status=400;throw error;}
   }
-  const writeRole=['guest','member','admin','all','user'].includes(req.body.write_role)?req.body.write_role:'member';
-  const description=Object.prototype.hasOwnProperty.call(req.body,'description')?String(req.body.description||'').trim().slice(0,500):null;
-  const sortOrder=Object.prototype.hasOwnProperty.call(req.body,'sort_order')?(parseInt(req.body.sort_order||0,10)||0):null;
-  const updated=await q(`UPDATE board_categories SET title=$1,slug=$2,description=COALESCE($3,description),layout_type=$4,is_active=$5,sort_order=COALESCE($6,sort_order),write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id,title,slug,description,layout_type,is_active,sort_order,write_role,comment_enabled,image_enabled,created_at`,[title,slug,description,layoutType,!!req.body.is_active,sortOrder,writeRole,!!req.body.comment_enabled,!!req.body.image_enabled,id]);
+  const description=hasBodyField('description')?String(req.body.description||'').trim().slice(0,500):null;
+  const sortOrder=hasBodyField('sort_order')?(parseInt(req.body.sort_order||0,10)||0):null;
+  const updated=await q(`UPDATE board_categories SET title=$1,slug=$2,description=COALESCE($3,description),layout_type=$4,is_active=$5,sort_order=COALESCE($6,sort_order),write_role=$7,comment_enabled=$8,image_enabled=$9 WHERE id=$10 RETURNING id,title,slug,description,layout_type,is_active,sort_order,write_role,comment_enabled,image_enabled,created_at`,[title,slug,description,layoutType,requestedIsActive,sortOrder,writeRole,requestedCommentEnabled,requestedImageEnabled,id]);
   if(!updated.rows[0])throw new Error('게시판을 찾을 수 없습니다.');
   const updatedPostCount=await q('SELECT COUNT(*)::int count FROM board_posts WHERE board_id=$1',[id]);
   await logAdmin(req,'게시판 수정','board_category',id,title);
@@ -1673,16 +1706,19 @@ app.post('/admin/boards/reorder',admin,async(req,res)=>{
   }finally{client.release();}
 });
 app.post('/admin/boards/:id/delete',admin,async(req,res)=>runAdminAction(req,res,'/admin#boards',async()=>{
-  const id=parseInt(req.params.id||0,10),found=await q('SELECT id,title,slug FROM board_categories WHERE id=$1',[id]);
+  const id=parseInt(req.params.id||0,10);if(!Number.isInteger(id)||id<=0){const error=new Error('게시판 ID가 올바르지 않습니다.');error.status=400;throw error;}const found=await q('SELECT id,title,slug FROM board_categories WHERE id=$1',[id]);
   const board=found.rows[0];if(!board){const error=new Error('게시판을 찾을 수 없습니다.');error.status=404;throw error;}
-  if(isProtectedBoardSlug(board.slug)){const error=new Error('기본 게시판은 비활성화할 수 없습니다.');error.status=400;throw error;}
+  if(isProtectedBoardSlug(board.slug)){const error=new Error('protected_board_cannot_be_deleted');error.status=409;throw error;}
   const r=await q('UPDATE board_categories SET is_active=false WHERE id=$1 RETURNING id,title',[id]);await logAdmin(req,'게시판 비활성화','board_category',r.rows[0].id,r.rows[0].title);
 }));
 function registerBoardPostAction(path,field,value,action){
   app.post(`/admin/board-posts/:id/${path}`,admin,async(req,res)=>{
-    const id=parseInt(req.params.id||0,10);if(!id)return sendFail(req,res,400,'잘못된 게시글 ID입니다.','/admin#boardPosts');
+    const id=parseInt(req.params.id||0,10);if(!Number.isInteger(id)||id<=0)return sendFail(req,res,400,'잘못된 게시글 ID입니다.','/admin#boardPosts');
+    const found=await q('SELECT p.id,p.title,b.slug FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.id=$1',[id]);
+    const post=found.rows[0];if(!post)return sendFail(req,res,404,'board_post_not_found','/admin#boardPosts');
+    if(['notice','reviews','reports','ad-inquiry'].includes(post.slug))return sendFail(req,res,409,'dedicated_board_manager_required','/admin#boardPosts');
     const sql=field==='is_pinned'?'UPDATE board_posts SET is_pinned=$1,updated_at=now() WHERE id=$2 RETURNING id,title':'UPDATE board_posts SET status=$1,updated_at=now() WHERE id=$2 RETURNING id,title';
-    const r=await q(sql,[value,id]);if(!r.rows[0])return sendFail(req,res,404,'게시글을 찾을 수 없습니다.','/admin#boardPosts');
+    const r=await q(sql,[value,id]);if(!r.rows[0])return sendFail(req,res,404,'board_post_not_found','/admin#boardPosts');
     await logAdmin(req,action,'board_post',id,r.rows[0].title||'');
     return sendOk(req,res,'/admin#boardPosts');
   });
@@ -1727,7 +1763,13 @@ const [users,vendors,banners,reviews,events,notices,inquiries,flags,vendorReques
   FROM vendor_update_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.id,r.user_id,r.vendor_id,r.title,r.subtitle,r.link_url,r.status,r.admin_memo,r.created_at,r.processed_at,r.krw_price,r.usdt_amount,r.payment_status,r.payment_expires_at,r.paid_usdt_amount,r.payment_txid,
   CASE WHEN r.image_data IS NOT NULL AND r.image_data<>'' THEN true ELSE false END has_image_data,
   u.username,u.nickname,v.name vendor_name FROM vendor_banner_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q(`SELECT r.*,u.username,u.nickname,v.name vendor_name FROM vendor_ad_requests r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 500`),q('SELECT * FROM admin_logs ORDER BY id DESC LIMIT 200'),q(`SELECT p.*,v.name vendor_name,u.username,ar.product_type source_product_type FROM payment_logs p LEFT JOIN vendors v ON v.id=p.vendor_id LEFT JOIN users u ON u.id=p.user_id LEFT JOIN vendor_ad_requests ar ON p.request_type='ad_request' AND ar.id=p.request_id WHERE p.status='paid' ORDER BY p.paid_at DESC,p.id DESC LIMIT 500`),getSettings()]);
-  const adminBoards=(await q('SELECT b.*,(SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id) post_count FROM board_categories b ORDER BY b.sort_order,b.id')).rows;
+  const adminBoards=(await q(`SELECT b.*,
+    (b.slug=ANY($1::text[])) is_protected,
+    CASE b.slug WHEN 'notice' THEN 'notices' WHEN 'reviews' THEN 'reviews' WHEN 'reports' THEN 'reports' WHEN 'ad-inquiry' THEN 'ad-inquiries' ELSE 'board-posts' END manager_type,
+    CASE b.slug WHEN 'reviews' THEN (SELECT COUNT(*)::int FROM reviews) WHEN 'reports' THEN (SELECT COUNT(*)::int FROM flags) ELSE (SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id) END record_count,
+    CASE b.slug WHEN 'reviews' THEN (SELECT COUNT(*)::int FROM reviews WHERE status='visible') WHEN 'reports' THEN (SELECT COUNT(*)::int FROM flags WHERE COALESCE(status,'new')='new') ELSE (SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id AND p.status='visible') END visible_count,
+    CASE b.slug WHEN 'reviews' THEN (SELECT COUNT(*)::int FROM reviews) WHEN 'reports' THEN (SELECT COUNT(*)::int FROM flags) ELSE (SELECT COUNT(*)::int FROM board_posts p WHERE p.board_id=b.id) END post_count
+    FROM board_categories b ORDER BY b.sort_order,b.id`,[PROTECTED_BOARD_SLUGS])).rows;
   const vendorRows=vendors.rows||[];
   const reviewRows=reviews.rows||[];
   const flagRows=flags.rows||[];

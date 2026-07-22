@@ -1322,7 +1322,7 @@
   <nav class="board-operation-tabs" aria-label="게시판 운영 메뉴"><button type="button" data-board-operation-target="boardPosts">전체 게시글</button><button type="button" data-board-operation-target="notices">공지사항</button><button type="button" data-board-operation-target="reviews">이용후기</button><button type="button" data-board-operation-target="reports">신고·제보</button><button type="button" data-board-operation-target="adInquiries">광고문의</button></nav>
   <div class="admin-board-filterbar posts">
     <input id="boardPostSearch" placeholder="게시글 ID, 제목, 내용, 게시판, 작성자 검색" autocomplete="off">
-    <select id="boardPostBoardFilter"><option value="all">전체 게시판</option><% (adminBoards||[]).forEach(b=>{ %><option value="<%=b.id%>"><%=b.title%></option><% }) %></select>
+    <select id="boardPostBoardFilter"><option value="all">전체 게시판</option><% (adminBoards||[]).filter(b=>b.manager_type==='board-posts').forEach(b=>{ %><option value="<%=b.id%>"><%=b.title%></option><% }) %></select>
     <select id="boardPostStatusFilter"><option value="all">전체 상태</option><option value="visible">공개</option><option value="hidden">숨김</option><option value="deleted">삭제상태</option></select>
     <select id="boardPostPinnedFilter"><option value="all">전체 글</option><option value="pinned">고정글</option><option value="normal">일반글</option></select>
     <select id="boardPostSort"><option value="latest">최신순</option><option value="views">조회수순</option><option value="comments">댓글순</option></select>
