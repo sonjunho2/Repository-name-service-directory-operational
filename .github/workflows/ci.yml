@@ -1,0 +1,65 @@
+name: Node.js CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Node 20 tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: true
+      NODE_ENV: test
+      SESSION_SECRET: phase7-ci-test-secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Show runtime versions
+        run: |
+          node --version
+          npm --version
+          node -e "const major=Number(process.versions.node.split('.')[0]); if(major!==20) throw new Error('Expected Node 20');"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify dependency manifests
+        run: git diff --exit-code -- package.json package-lock.json
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check server.js
+          node --check lib/board-comments.js
+          node --check tests/board-comments.test.js
+          node --check tests/server-lifecycle.test.js
+          node --check tests/api-routes.test.js
+          node --check tests/comment-routes.test.js
+          node --check tests/http-integration.test.js
+          node --check tests/helpers/load-test-server.js
+          node --check tests/helpers/load-http-test-server.js
+
+      - name: Run test suite
+        run: npm test
