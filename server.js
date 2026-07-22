@@ -139,7 +139,7 @@ async function ensureSchema(){
     for(const board of [['공지사항','notice','notice','admin'],['자유게시판','free','community','member'],['이용후기','reviews','review','member'],['제보/신고','reports','report','member'],['광고문의','ad-inquiry','qna','member']]){
       await q('INSERT INTO board_categories(title,slug,type,write_role) VALUES($1,$2,$3,$4) ON CONFLICT (slug) DO NOTHING',board);
     }
-    await q("UPDATE board_categories SET layout_type='private',type='inquiry',write_role='member',comment_enabled=true WHERE slug='ad-inquiry'");
+    await q("UPDATE board_categories SET layout_type='private',type='inquiry',write_role='member',is_active=true,comment_enabled=true WHERE slug='ad-inquiry'");
     await q("UPDATE board_categories SET type='report',layout_type='private',write_role='member',is_active=true,image_enabled=false,comment_enabled=false WHERE slug='reports'");
     await q("UPDATE board_categories SET type='notice',layout_type='list',write_role='admin',is_active=true,image_enabled=true,comment_enabled=true WHERE slug='notice'");
     await q("UPDATE board_categories SET type='review',layout_type='list',write_role='member',is_active=true,image_enabled=true,comment_enabled=false WHERE slug='reviews'");
@@ -435,6 +435,21 @@ function isProtectedBoardSlug(slug){return PROTECTED_BOARD_SLUGS.includes(String
 function boardLayoutType(value){return BOARD_LAYOUT_TYPES.includes(String(value||''))?String(value):'list';}
 function legacyBoardTypeForLayout(layout){return layout==='qna'?'qna':layout==='private'?'inquiry':layout==='faq'?'faq':'community';}
 function canReadPrivateBoardPost(user,post){return !!user&&(user.role==='admin'||Number(user.id)===Number(post?.user_id));}
+
+async function createAdInquiryPost({userId,title,content,imageData=null}){
+  const uid=Number(userId),safeTitle=String(title||'').trim(),safeContent=String(content||'').trim();
+  if(!Number.isInteger(uid)||uid<=0){const e=new Error('login_required');e.status=401;throw e;}
+  if(safeTitle.length<2||safeTitle.length>100||safeContent.length<5||safeContent.length>5000){const e=new Error('invalid_ad_inquiry');e.status=400;throw e;}
+  const user=(await q("SELECT id,username,nickname,role,status FROM users WHERE id=$1 AND status='active'",[uid])).rows[0];
+  if(!user){const e=new Error('login_required');e.status=401;throw e;}
+  const board=(await q("SELECT * FROM board_categories WHERE slug='ad-inquiry' AND is_active=true")).rows[0];
+  if(!board){const e=new Error('ad_inquiry_board_not_found');e.status=404;throw e;}
+  if(!canWriteBoard(user,board)){const e=new Error('ad_inquiry_forbidden');e.status=403;throw e;}
+  const saved=await q("INSERT INTO board_posts(board_id,user_id,title,content,image_data,status,views,is_pinned,created_at,updated_at) VALUES($1,$2,$3,$4,$5,'visible',0,false,now(),now()) RETURNING id",[board.id,uid,safeTitle,safeContent,board.image_enabled?imageData:null]);
+  const postId=saved.rows[0].id;
+  try{await adminNotify('ad_inquiry_new','새 광고문의가 등록되었습니다',`${user.nickname||user.username||'회원'} · ${safeTitle}`,`/boards/ad-inquiry/${postId}`);}catch(e){console.error('ad inquiry notification failed',e.message);}
+  return {id:postId,board};
+}
 
 
 async function expireAds(){
@@ -753,7 +768,7 @@ async function homeData(req){
 }
 app.get('/healthz',async(req,res)=>{try{await q('SELECT 1');res.json({ok:true,db:true,time:new Date().toISOString()});}catch(e){res.status(500).json({ok:false,db:false,error:e.message,time:new Date().toISOString()});}});
 app.get('/',async(req,res)=>res.render('index',await homeData(req)));
-app.get('/advertise',async(req,res)=>res.render('inquiry',{type:'ad',title:'광고문의',done:false,error:null,settings:await getSettings()}));
+app.get('/advertise',(req,res)=>res.redirect(302,'/boards/ad-inquiry'));
 app.get('/boards',async(req,res)=>{
   try{
     const user=req.session.user||null,boards=await getBoardCategories(user);
@@ -849,18 +864,16 @@ app.post('/boards/:slug/write',login,upload.single('image'),async(req,res)=>{
       const saved=await q("INSERT INTO reviews(vendor_id,user_id,title,content,rating,image_data,status,views,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,'visible',0,now(),now()) RETURNING id",[vendorId,req.session.user.id,rawTitle,rawContent,rating,imageData]);
       return res.redirect(`/boards/reviews/${saved.rows[0].id}`);
     }
+    if(board.slug==='ad-inquiry'){
+      const imageData=board.image_enabled?img(req.file):null;
+      try{const saved=await createAdInquiryPost({userId:req.session.user.id,title:req.body.title,content:req.body.content,imageData});return res.redirect(`/boards/ad-inquiry/${saved.id}`);}
+      catch(e){return res.status(e.status||500).render('board-write',{board,settings:await getSettings(),error:e.message==='invalid_ad_inquiry'?'제목은 2~100자, 내용은 5~5,000자로 입력해주세요.':'광고문의를 저장하지 못했습니다.',vendors:[],values:{title:String(req.body.title||''),content:String(req.body.content||'')}});}
+    }
     const title=String(req.body.title||'').trim().slice(0,100),content=String(req.body.content||'').trim().slice(0,5000);
     if(title.length<2||content.length<2)return res.status(400).render('board-write',{board,settings:await getSettings(),error:'제목과 내용을 2자 이상 입력해주세요.'});
     const imageData=board.image_enabled?img(req.file):null;
     const saved=await q('INSERT INTO board_posts(board_id,user_id,title,content,image_data) VALUES($1,$2,$3,$4,$5) RETURNING id',[board.id,req.session.user.id,title,content,imageData]);
     const postId=saved.rows[0].id;
-    if(board.slug==='ad-inquiry'){
-      try{
-        const authorName=String(req.session.user.nickname||req.session.user.username||'회원').slice(0,40);
-        const safeTitle=String(title||'').slice(0,80);
-        await adminNotify('ad_inquiry_new','새 광고문의가 등록되었습니다',`${authorName}님이 광고문의를 등록했습니다: ${safeTitle}`,`/boards/ad-inquiry/${postId}`);
-      }catch(e){console.error('ad inquiry notification failed',e.message);}
-    }
     res.redirect(`/boards/${board.slug}/${postId}`);
   }catch(e){console.error('board write failed',e);res.status(500).send('게시글을 저장하지 못했습니다.');}
 });
@@ -917,7 +930,25 @@ app.get('/boards/:slug/:id',async(req,res)=>{
   }catch(e){console.error('board post failed',e);res.status(500).send('게시글을 불러오지 못했습니다.');}
 });
 app.get('/apply',async(req,res)=>res.render('inquiry',{type:'apply',title:'입점신청',done:false,error:null,settings:await getSettings()}));
-app.post('/inquiry',upload.fields([{name:'main_image',maxCount:1},{name:'banner_image',maxCount:1}]),async(req,res)=>{try{const type=['apply','ad'].includes(req.body.type)?req.body.type:'ad'; const company=(req.body.company_name||'').trim().slice(0,100); const phone=(req.body.phone||'').trim().slice(0,50); const content=(req.body.content||'').trim().slice(0,2000); if(!company||!phone||content.length<5)return res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:false,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',settings:await getSettings()}); const f=req.files||{}; const representativeImage=img(f.main_image?.[0])||img(f.banner_image?.[0])||null; await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,banner_image_data,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[type,company,(req.body.name||'').trim().slice(0,50),phone,(req.body.kakao||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'').trim().slice(0,50),(req.body.region||'').trim().slice(0,50),content,representativeImage,null,req.session.user?.id||null]); res.render('inquiry',{type,title:type==='apply'?'입점신청':'광고문의',done:true,error:null,settings:await getSettings()});}catch(e){res.render('inquiry',{type:req.body.type||'ad',title:req.body.type==='apply'?'입점신청':'광고문의',done:false,error:e.message||'신청 저장 실패',settings:await getSettings()});}});
+app.post('/inquiry',upload.fields([{name:'main_image',maxCount:1},{name:'banner_image',maxCount:1}]),async(req,res)=>{
+  const type=String(req.body.type||'').trim();
+  if(type==='ad'){
+    const user=await refreshSessionUser(req);if(!user){delete req.session.user;return req.session.save(()=>res.redirect('/login'));}
+    const fields={company_name:String(req.body.company_name||'').trim(),name:String(req.body.name||'').trim(),phone:String(req.body.phone||'').trim(),kakao:String(req.body.kakao||'').trim(),email:String(req.body.email||'').trim(),category:String(req.body.category||'').trim(),region:String(req.body.region||'').trim(),content:String(req.body.content||'').trim()};
+    if(fields.company_name.length<1||fields.company_name.length>100||fields.phone.length<2||fields.phone.length>50||fields.content.length<5||fields.content.length>2000||fields.name.length>50||fields.kakao.length>200||fields.email.length>120||fields.category.length>50||fields.region.length>50)return res.status(400).send('광고문의 입력값을 확인해주세요.');
+    const labels={company_name:'업체명',name:'담당자명',phone:'연락처',kakao:'카카오톡',email:'이메일',category:'업종',region:'지역'},lines=[];
+    for(const key of Object.keys(labels))if(fields[key])lines.push(`${labels[key]}: ${fields[key]}`);
+    try{const saved=await createAdInquiryPost({userId:user.id,title:`[광고문의] ${fields.company_name}`.slice(0,100),content:`${lines.join('\n')}\n\n문의 내용:\n${fields.content}`});return res.redirect(303,`/boards/ad-inquiry/${saved.id}`);}
+    catch(e){console.error('legacy ad inquiry adapter failed',e);return res.status(e.status||500).send('광고문의를 저장하지 못했습니다.');}
+  }
+  try{
+    const company=(req.body.company_name||'').trim().slice(0,100),phone=(req.body.phone||'').trim().slice(0,50),content=(req.body.content||'').trim().slice(0,2000);
+    if(type!=='apply'||!company||!phone||content.length<5)return res.status(400).render('inquiry',{type:'apply',title:'입점신청',done:false,error:'업체명, 연락처, 신청 내용을 정확히 입력해주세요.',settings:await getSettings()});
+    const f=req.files||{},representativeImage=img(f.main_image?.[0])||img(f.banner_image?.[0])||null;
+    await q('INSERT INTO inquiries(type,company_name,name,phone,kakao,email,category,region,content,main_image_data,banner_image_data,user_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',['apply',company,(req.body.name||'').trim().slice(0,50),phone,(req.body.kakao||'').trim().slice(0,200),(req.body.email||'').trim().slice(0,120),(req.body.category||'').trim().slice(0,50),(req.body.region||'').trim().slice(0,50),content,representativeImage,null,req.session.user?.id||null]);
+    res.render('inquiry',{type:'apply',title:'입점신청',done:true,error:null,settings:await getSettings()});
+  }catch(e){res.status(500).render('inquiry',{type:'apply',title:'입점신청',done:false,error:e.message||'신청 저장 실패',settings:await getSettings()});}
+});
 
 const PUBLIC_VENDOR_SQL="v.status='active' AND COALESCE(v.ad_type,'none')<>'none' AND v.expire_at IS NOT NULL AND v.expire_at>=CURRENT_DATE";
 async function getReportTarget(type,targetId){
@@ -1111,12 +1142,15 @@ app.get('/admin/api/users',admin,async(req,res)=>{
       v.name vendor_name,v.category vendor_category,v.region vendor_region,v.status vendor_status,v.ad_type vendor_ad_type,v.expire_at vendor_expire_at,COALESCE(v.banner_active,false) vendor_banner_active,v.banner_until vendor_banner_until,
       (SELECT COUNT(*)::int FROM reviews r WHERE r.user_id=u.id) review_count,
       (SELECT COUNT(*)::int FROM favorites f WHERE f.user_id=u.id) favorite_count,
-      (SELECT COUNT(*)::int FROM inquiries i WHERE i.user_id=u.id) inquiry_count,
-      (SELECT COUNT(*)::int FROM inquiries i WHERE i.user_id=u.id AND i.status='new') pending_inquiry_count,
+      (SELECT COUNT(*)::int FROM inquiries i WHERE i.user_id=u.id AND i.type='apply') inquiry_count,
+      (SELECT COUNT(*)::int FROM inquiries i WHERE i.user_id=u.id AND i.type='apply' AND i.status='new') pending_inquiry_count,
+      (SELECT COUNT(*)::int FROM inquiries i WHERE i.user_id=u.id AND i.type='apply') apply_inquiry_count,
+      (SELECT COUNT(*)::int FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.user_id=u.id AND b.slug='ad-inquiry') ad_inquiry_count,
+      (SELECT COUNT(*)::int FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.user_id=u.id AND b.slug='ad-inquiry' AND p.status='visible' AND NOT EXISTS(SELECT 1 FROM board_comments c JOIN users au ON au.id=c.user_id WHERE c.post_id=p.id AND c.status='visible' AND au.role='admin')) pending_ad_inquiry_count,
       (SELECT COUNT(*)::int FROM vendor_update_requests r WHERE r.user_id=u.id) vendor_update_request_count,
       (SELECT COUNT(*)::int FROM vendor_update_requests r WHERE r.user_id=u.id AND r.status='new') pending_vendor_update_count,
       (SELECT COUNT(*)::int FROM payment_logs p WHERE p.user_id=u.id) payment_count,
-      ((SELECT COUNT(*) FROM reviews r WHERE r.user_id=u.id)+(SELECT COUNT(*) FROM favorites f WHERE f.user_id=u.id)+(SELECT COUNT(*) FROM inquiries i WHERE i.user_id=u.id)+(SELECT COUNT(*) FROM vendor_update_requests r WHERE r.user_id=u.id)+(SELECT COUNT(*) FROM payment_logs p WHERE p.user_id=u.id))::int activity_total,
+      ((SELECT COUNT(*) FROM reviews r WHERE r.user_id=u.id)+(SELECT COUNT(*) FROM favorites f WHERE f.user_id=u.id)+(SELECT COUNT(*) FROM inquiries i WHERE i.user_id=u.id AND i.type='apply')+(SELECT COUNT(*) FROM board_posts p JOIN board_categories b ON b.id=p.board_id WHERE p.user_id=u.id AND b.slug='ad-inquiry')+(SELECT COUNT(*) FROM vendor_update_requests r WHERE r.user_id=u.id)+(SELECT COUNT(*) FROM payment_logs p WHERE p.user_id=u.id))::int activity_total,
       CASE WHEN u.role='admin' THEN 'admin' WHEN COALESCE(u.is_vendor,false) OR u.vendor_id IS NOT NULL THEN 'vendor' ELSE 'user' END account_type,
       CASE WHEN u.role='admin' THEN '관리자' WHEN COALESCE(u.is_vendor,false) OR u.vendor_id IS NOT NULL THEN '업체회원' ELSE '일반회원' END account_type_label,
       CASE WHEN u.vendor_id IS NOT NULL AND v.id IS NOT NULL THEN 'linked' WHEN COALESCE(u.is_vendor,false) AND u.vendor_id IS NULL THEN 'broken' WHEN u.vendor_id IS NOT NULL AND v.id IS NULL THEN 'missing' ELSE 'unlinked' END vendor_link_status,
@@ -1138,10 +1172,11 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
   const params=[];
   const qText=String(req.query.q||'').trim().slice(0,100);
   const type=String(req.query.type||'').trim();
+  if(type==='ad')return res.status(400).json({ok:false,error:'legacy_ad_inquiry_not_supported'});
   const status=String(req.query.status||'').trim();
   const orderBy={latest:'i.id DESC',oldest:'i.id ASC',waiting:"CASE WHEN COALESCE(i.status,'new')='new' THEN 0 ELSE 1 END,i.id DESC",company:'LOWER(i.company_name) ASC,i.id DESC',status:"CASE WHEN COALESCE(i.status,'new')='new' THEN 0 WHEN i.status='approved' THEN 1 ELSE 2 END,i.id DESC",type:'i.type ASC,i.id DESC'}[String(req.query.sort||'latest')]||'i.id DESC';
   if(qText){params.push(`%${qText}%`);where.push(`(i.company_name ILIKE $${params.length} OR i.name ILIKE $${params.length} OR i.phone ILIKE $${params.length} OR i.content ILIKE $${params.length} OR i.kakao ILIKE $${params.length} OR i.email ILIKE $${params.length} OR i.category ILIKE $${params.length} OR i.region ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`);}
-  if(['apply','ad'].includes(type)){params.push(type);where.push(`i.type=$${params.length}`);}
+  params.push('apply');where.push(`i.type=$${params.length}`);
   if(['new','approved','rejected','cancelled'].includes(status)){params.push(status);where.push(status==='new'?`COALESCE(i.status,'new')=$${params.length}`:`i.status=$${params.length}`);}
   const whereSql=where.length?' WHERE '+where.join(' AND '):'';
   const fromSql=` FROM inquiries i
@@ -1191,7 +1226,7 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
   CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(image_v.image_data,'')) IS NOT NULL THEN true ELSE false END has_main_image_data,
   CASE WHEN COALESCE(i.banner_image_data,'')<>'' THEN true ELSE false END has_banner_image_data,
   CASE WHEN COALESCE(NULLIF(i.main_image_data,''),NULLIF(i.banner_image_data,''),NULLIF(image_v.image_data,'')) IS NOT NULL THEN true ELSE false END has_image_data
-  ${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params,type==='apply'?async()=>{
+  ${fromSql}${whereSql} ORDER BY ${orderBy}`,`SELECT COUNT(*)${fromSql}${whereSql}`,params,async()=>{
     const result=await q(`SELECT COUNT(*)::int total,
       COUNT(*) FILTER(WHERE COALESCE(status,'new')='new')::int waiting,
       COUNT(*) FILTER(WHERE status='approved')::int approved,
@@ -1199,7 +1234,7 @@ app.get('/admin/api/inquiries',admin,async(req,res)=>{
       COUNT(*) FILTER(WHERE status='cancelled')::int cancelled
       FROM inquiries WHERE type='apply'`);
     return {summary:result.rows[0]||{total:0,waiting:0,approved:0,rejected:0,cancelled:0}};
-  }:{});
+  });
 });
 app.get('/admin/api/payments',admin,async(req,res)=>{
   try{
@@ -1325,14 +1360,16 @@ app.get('/admin/api/ad-inquiries',admin,async(req,res)=>{
     const {page,limit,offset}=adminPageParams(req),params=[];
     const qText=String(req.query.q||'').trim().slice(0,100),status=String(req.query.status||'all').trim();
     let search='';
-    if(qText){params.push(`%${qText}%`);search=` AND (p.title ILIKE $${params.length} OR p.content ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`;}
+    if(qText){params.push(`%${qText}%`);search=` AND (p.id::text ILIKE $${params.length} OR p.title ILIKE $${params.length} OR p.content ILIKE $${params.length} OR u.username ILIKE $${params.length} OR u.nickname ILIKE $${params.length})`;}
     const adminCount=`(SELECT COUNT(*)::int FROM board_comments ac JOIN users au ON au.id=ac.user_id WHERE ac.post_id=p.id AND ac.status='visible' AND au.role='admin')`;
     const commentCount=`(SELECT COUNT(*)::int FROM board_comments c WHERE c.post_id=p.id AND c.status='visible')`;
     const base=` FROM board_posts p JOIN board_categories b ON b.id=p.board_id LEFT JOIN users u ON u.id=p.user_id WHERE b.slug='ad-inquiry' AND p.status='visible'${search}`;
     const statusSql=status==='waiting'?` AND ${adminCount}=0`:status==='answered'?` AND ${adminCount}>0`:'';
-    const rows=await q(`SELECT p.id,p.title,LEFT(p.content,240) content,p.user_id,u.username,u.nickname,p.created_at,p.views,${commentCount} comment_count,${adminCount} admin_comment_count,CASE WHEN ${adminCount}>0 THEN 'answered' ELSE 'waiting' END answer_status${base}${statusSql} ORDER BY (${adminCount}=0) DESC,p.created_at DESC,p.id DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
+    const lastAdminReply=`(SELECT MAX(ac.created_at) FROM board_comments ac JOIN users au ON au.id=ac.user_id WHERE ac.post_id=p.id AND ac.status='visible' AND au.role='admin')`;
+    const orderBy=String(req.query.sort||'latest')==='oldest'?'p.created_at ASC,p.id ASC':'p.created_at DESC,p.id DESC';
+    const rows=await q(`SELECT p.id,p.title,LEFT(p.content,240) content,p.user_id,u.username,u.nickname,p.created_at,p.views,${commentCount} comment_count,${adminCount} admin_comment_count,${lastAdminReply} last_answer_at,'/boards/ad-inquiry/'||p.id detail_link,CASE WHEN ${adminCount}>0 THEN 'answered' ELSE 'waiting' END answer_status${base}${statusSql} ORDER BY ${orderBy} LIMIT $${params.length+1} OFFSET $${params.length+2}`,[...params,limit,offset]);
     const count=await q(`SELECT COUNT(*)::int count${base}${statusSql}`,params);
-    const summary=await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER (WHERE ${adminCount}=0)::int waiting,COUNT(*) FILTER (WHERE ${adminCount}>0)::int answered${base}`,params);
+    const summary=await q(`SELECT COUNT(*)::int total,COUNT(*) FILTER (WHERE ${adminCount}=0)::int waiting,COUNT(*) FILTER (WHERE ${adminCount}>0)::int answered,COUNT(*) FILTER (WHERE p.created_at>=CURRENT_DATE)::int today${base}`,params);
     const total=Number(count.rows[0]?.count||0);
     return res.json({ok:true,rows:rows.rows,page,limit,total,totalPages:Math.max(1,Math.ceil(total/limit)),summary:summary.rows[0]||{total:0,waiting:0,answered:0}});
   }catch(e){console.error('admin ad inquiries api failed',e);return res.status(500).json({ok:false,error:e.message||'ad_inquiries_load_failed'});}
