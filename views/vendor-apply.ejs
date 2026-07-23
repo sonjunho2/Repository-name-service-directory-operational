@@ -15,7 +15,7 @@
 @media(max-width:520px){.image-guide-grid{grid-template-columns:1fr}}
 </style>
 </head>
-<body>
+<body class="ui-theme ui-public-page ui-form-page">
 <% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %>
 <header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=siteBrand.link||'/'%>">
     <% if(siteBrand.showLogo&&siteBrand.logo){ %><img src="<%=siteBrand.logo%>" alt=""><% } %>

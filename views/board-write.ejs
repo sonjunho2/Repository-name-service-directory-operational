@@ -4,7 +4,7 @@
   <% const brand=settings?.brand||{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; const layout=board.layout_type||'list'; const isAdInquiry=board.slug==='ad-inquiry'; const isReviewBoard=board.slug==='reviews'; const isReportBoard=board.slug==='reports'; const formValues=typeof values==='undefined'?{}:(values||{}); const reviewVendors=typeof vendors==='undefined'?[]:(vendors||[]); const target=typeof reportTarget==='undefined'?null:reportTarget; const layoutHelp={list:'일반 게시글을 작성합니다.',gallery:'이미지 중심 게시글입니다. 대표 이미지를 등록하세요.',webzine:'대표 이미지와 소개글이 목록에 함께 표시됩니다.',qna:'질문을 남기면 관리자가 답변합니다.',faq:'FAQ는 관리자만 작성하는 것을 권장합니다. 제목은 질문, 내용은 답변으로 작성합니다.',private:'1:1 문의는 작성자와 관리자만 확인할 수 있습니다.'}; %>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>글쓰기 - <%=board.title%></title><link rel="stylesheet" href="/public/css/style.css"><link rel="stylesheet" href="/public/css/home-card-layout-v48.css"><link rel="stylesheet" href="/public/css/vendor-popup-layout-v50.css">
 </head>
-<body>
+<body class="ui-theme ui-public-page ui-board-page">
 <%- include('partials/public-mobile-menu') %>
 <header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=brand.link||'/'%>"><% if(brand.showLogo&&brand.logo){ %><img src="<%=brand.logo%>" alt=""><% } %><% if(brand.showName){ %><span><%=brand.name%></span><% } %></a><nav><a href="/boards/<%=board.slug%>"><%=board.title%></a></nav></header>
 <%- include('partials/public-ad-banner') %>

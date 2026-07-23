@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/public/css/home-card-layout-v48.css">
   <link rel="stylesheet" href="/public/css/vendor-popup-layout-v50.css">
 </head>
-<body>
+<body class="ui-theme ui-public-page ui-board-page">
 <%- include('partials/public-mobile-menu') %>
 <header class="top"><a class="brand" href="/">홈</a><a class="site-brand-center" href="<%=brand.link||'/'%>"><% if(brand.showLogo&&brand.logo){%><img src="<%=brand.logo%>" alt=""><%}%><% if(brand.showName){%><span><%=brand.name%></span><%}%></a><nav><a href="/boards">게시판</a><% if(me){%><a href="<%=me.role==='admin'?'/admin':me.is_vendor?'/vendor-dashboard':'/mypage'%>">내메뉴</a><a href="/logout">로그아웃</a><%}else{%><a href="/login">로그인</a><%}%></nav></header>
 <%- include('partials/public-ad-banner') %>

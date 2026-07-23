@@ -65,6 +65,7 @@ jobs:
           node --check tests/session-store-compat.test.js
           node --check tests/ejs-compat.test.js
           node --check tests/express5-compat.test.js
+          node --check tests/ui-theme.test.js
           node --check tests/helpers/load-test-server.js
           node --check tests/helpers/load-http-test-server.js
 

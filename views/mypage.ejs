@@ -25,7 +25,7 @@ table{width:100%;border-collapse:collapse;margin-top:12px;background:#070b15}th,
 @media(max-width:520px){.apply-guide{grid-template-columns:1fr}}
 </style>
 </head>
-<body>
+<body class="ui-theme ui-public-page ui-detail-page">
 <% const siteBrand=(settings&&settings.brand)?settings.brand:{name:'서비스 디렉터리',showLogo:false,showName:true,logo:'',link:'/'}; %>
 <%
   const reviewStatusLabel=(status)=>({visible:'표시중',hidden:'숨김',deleted:'삭제됨'}[status]||status||'대기');
