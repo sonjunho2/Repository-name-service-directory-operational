@@ -63,6 +63,7 @@ jobs:
           node --check tests/bcrypt-compat.test.js
           node --check tests/dotenv-compat.test.js
           node --check tests/session-store-compat.test.js
+          node --check tests/ejs-compat.test.js
           node --check tests/helpers/load-test-server.js
           node --check tests/helpers/load-http-test-server.js
 
