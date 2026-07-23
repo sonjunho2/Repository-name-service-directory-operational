@@ -1,10 +1,11 @@
 require('dotenv').config();
-const express=require('express'), session=require('express-session'), bcrypt=require('bcryptjs'), multer=require('multer');
+const express=require('express'), session=require('express-session'), bcrypt=require('bcryptjs');
 const fs=require('fs'), path=require('path'), crypto=require('crypto');
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
 const {createBoardComment:createBoardCommentCore}=require('./lib/board-comments');
+const {createImageUpload,imageDataUrl}=require('./lib/image-upload');
 const isTestEnvironment=process.env.NODE_ENV==='test';
-const app=express(); const upload=multer({storage:multer.memoryStorage(), limits:{fileSize:5*1024*1024}, fileFilter:(req,file,cb)=>{/image\/(jpeg|png|gif|jpg|webp)/.test(file.mimetype)?cb(null,true):cb(new Error('이미지는 JPG, PNG, GIF, WEBP만 가능합니다.'))}});
+const app=express(); const upload=createImageUpload();
 app.get('/favicon.ico',(req,res)=>res.status(204).end());
 const pool=new Pool({connectionString:process.env.DATABASE_URL, ssl:process.env.DATABASE_URL?.includes('supabase')?{rejectUnauthorized:false}:undefined});
 const q=(s,p=[])=>pool.query(s,p);
@@ -14,17 +15,7 @@ const ADMIN_BACKUP_TABLES=[
   'app_settings','payment_logs','vendor_view_logs','notifications','admin_logs',
   'board_categories','board_posts','board_comments'
 ];
-function validImageBuffer(file){
-  if(!file||!file.buffer||!file.mimetype)return false;
-  const b=file.buffer;
-  const mime=String(file.mimetype||'').toLowerCase();
-  if(mime==='image/png')return b.length>8&&b[0]===0x89&&b[1]===0x50&&b[2]===0x4e&&b[3]===0x47;
-  if(mime==='image/jpeg'||mime==='image/jpg')return b.length>3&&b[0]===0xff&&b[1]===0xd8&&b[2]===0xff;
-  if(mime==='image/gif')return b.length>6&&b.slice(0,3).toString()==='GIF';
-  if(mime==='image/webp')return b.length>12&&b.slice(0,4).toString()==='RIFF'&&b.slice(8,12).toString()==='WEBP';
-  return false;
-}
-const img=f=>f&&validImageBuffer(f)?`data:${f.mimetype};base64,${f.buffer.toString('base64')}`:null;
+const img=imageDataUrl;
 async function ensureSchema(){
     await q(`CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, nickname TEXT NOT NULL, role TEXT DEFAULT 'user', status TEXT DEFAULT 'active', created_at TIMESTAMP DEFAULT now())`);
     await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP');
