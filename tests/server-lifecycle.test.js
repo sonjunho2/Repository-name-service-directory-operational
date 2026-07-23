@@ -12,23 +12,26 @@ const Module=require('node:module');
 const serverPath=path.resolve(__dirname,'../server.js');
 function loadLifecycle(){
   const counts={listen:0,query:0,connect:0,pgSession:0};
+  const dotenvCalls=[],loadOrder=[];
   const app={use(){return app;},get(){return app;},post(){return app;},set(){return app;},listen(){counts.listen+=1;throw new Error('real listen attempted');}};
   const express=()=>app;
   express.static=express.urlencoded=express.json=()=>function middleware(req,res,next){next?.();};
   const session=()=>function sessionMiddleware(req,res,next){next?.();};
   const multer=()=>({single:()=>function middleware(){},fields:()=>function middleware(){},none:()=>function middleware(){}});
   multer.memoryStorage=()=>({});
-  class Pool{query(){counts.query+=1;throw new Error('real query attempted');}connect(){counts.connect+=1;throw new Error('real connect attempted');}end(){return Promise.resolve();}}
-  const replacements={dotenv:{config(){}},express,'express-session':session,bcryptjs:{},multer,pg:{Pool},'connect-pg-simple':()=>class PgSession{constructor(){counts.pgSession+=1;}}};
+  class Pool{constructor(){loadOrder.push('pool');}query(){counts.query+=1;throw new Error('real query attempted');}connect(){counts.connect+=1;throw new Error('real connect attempted');}end(){return Promise.resolve();}}
+  const replacements={dotenv:{config(options){dotenvCalls.push(options);loadOrder.push('dotenv');}},express,'express-session':session,bcryptjs:{},multer,pg:{Pool},'connect-pg-simple':()=>class PgSession{constructor(){counts.pgSession+=1;}}};
   const originalLoad=Module._load;
   Module._load=function(request,parent,isMain){return Object.hasOwn(replacements,request)?replacements[request]:originalLoad.call(this,request,parent,isMain);};
-  try{return {lifecycle:require(serverPath),counts};}finally{Module._load=originalLoad;}
+  try{return {lifecycle:require(serverPath),counts,dotenvCalls,loadOrder};}finally{Module._load=originalLoad;}
 }
-const {lifecycle,counts}=loadLifecycle();
+const {lifecycle,counts,dotenvCalls,loadOrder}=loadLifecycle();
 
 test('server.js require가 부작용 없이 완료되고 필수 API를 export한다',()=>{
   assert.ok(lifecycle.app);
   assert.equal(typeof lifecycle.startServer,'function');
+  assert.deepEqual(dotenvCalls,[{quiet:true}]);
+  assert.deepEqual(loadOrder,['dotenv','pool']);
   assert.deepEqual(counts,{listen:0,query:0,connect:0,pgSession:0});
   assert.deepEqual(lifecycle.getRuntimeState(),{serverStarted:false,backgroundJobCount:0,processHandlersRegistered:false});
 });
@@ -41,8 +44,9 @@ test('require만 한 격리 프로세스가 서버, DB, 타이머, 핸들러 없
     const express=()=>app;express.static=express.urlencoded=express.json=()=>function(){};
     const session=()=>function(){};
     const multer=()=>({single:()=>function(){},fields:()=>function(){},none:()=>function(){}});multer.memoryStorage=()=>({});
-    class Pool{query(){throw new Error('query called')}connect(){throw new Error('connect called')}end(){return Promise.resolve()}}
-    const replacements={dotenv:{config(){}},express,'express-session':session,bcryptjs:{},multer,pg:{Pool},'connect-pg-simple':()=>class PgSession{constructor(){throw new Error('PgSession created')}}};
+    let dotenvLoaded=false;
+    class Pool{constructor(){if(!dotenvLoaded)throw new Error('Pool created before dotenv')}query(){throw new Error('query called')}connect(){throw new Error('connect called')}end(){return Promise.resolve()}}
+    const replacements={dotenv:{config(options){if(JSON.stringify(options)!==JSON.stringify({quiet:true}))throw new Error('unexpected dotenv options');dotenvLoaded=true;}},express,'express-session':session,bcryptjs:{},multer,pg:{Pool},'connect-pg-simple':()=>class PgSession{constructor(){throw new Error('PgSession created')}}};
     Module._load=function(request,parent,isMain){return Object.hasOwn(replacements,request)?replacements[request]:originalLoad.call(this,request,parent,isMain)};
     const before={sigterm:process.listenerCount('SIGTERM'),sigint:process.listenerCount('SIGINT'),rejection:process.listenerCount('unhandledRejection'),exception:process.listenerCount('uncaughtException')};
     const lifecycle=require(${JSON.stringify(serverPath)});

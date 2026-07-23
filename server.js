@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({quiet:true});
 const express=require('express'), session=require('express-session'), bcrypt=require('bcryptjs');
 const fs=require('fs'), path=require('path'), crypto=require('crypto');
 const {Pool}=require('pg'); const PgSession=require('connect-pg-simple')(session);
