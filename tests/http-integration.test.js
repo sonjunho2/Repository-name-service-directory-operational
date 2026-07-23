@@ -5,8 +5,10 @@ const assert=require('node:assert/strict');
 const bcrypt=require('bcryptjs');
 const {loadHttpTestServer}=require('./helpers/load-http-test-server');
 
-const password='phase7-secret';
-const member={id:7,username:'member',password_hash:bcrypt.hashSync(password,4),nickname:'회원',role:'user',status:'active',is_vendor:false,vendor_id:null};
+const password='phase8-legacy-password';
+const LEGACY_BCRYPT_2_HASH='$2a$04$abcdefghijklmnopqrstuuj5sv3VI9Ozo87p3H12hTbFrekd.v4YK';
+const member={id:7,username:'member',password_hash:LEGACY_BCRYPT_2_HASH,nickname:'회원',role:'user',status:'active',is_vendor:false,vendor_id:null};
+const adminMember={id:8,username:'phase8admin',password_hash:LEGACY_BCRYPT_2_HASH,nickname:'관리자',role:'admin',status:'active',is_vendor:false,vendor_id:null};
 const post={id:11,title:'일반 게시글',user_id:7,status:'visible',slug:'free',layout_type:'list',comment_enabled:true,is_active:true};
 const rows=value=>({rows:value});
 const publicVendorSql=sql=>{
@@ -78,6 +80,48 @@ describe('실제 Express HTTP 통합', {concurrency:false},()=>{
     const {client,response}=await loginMemberClient();
     assert.match(client.lastSetCookie,/connect\.sid=/);assert.match(client.lastSetCookie,/HttpOnly/i);assert.match(client.lastSetCookie,/SameSite=Lax/i);assert.match(client.lastSetCookie,/Path=\//i);assert.doesNotMatch(client.lastSetCookie,/;\s*Secure/i);
     assert.equal(harness.calls.query.length,2);assert.equal(harness.calls.pgSession,0);assert.equal(harness.calls.connect,0);assert.equal(response.status,302);
+  });
+
+  test('잘못된 비밀번호는 legacy hash 사용자 로그인을 거부한다',async()=>{
+    const client=harness.createClient();harness.reset((sql,params)=>{
+      if(sql.includes('SELECT * FROM users WHERE username=$1')){assert.deepEqual(params,['member']);return rows([member]);}
+      throw new Error(`unexpected query: ${sql}`);
+    });
+    const response=await client.request('/login',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:'member',password:`${password}-wrong`})});
+    assert.equal(response.status,200);assert.match(await response.text(),/아이디 또는 비밀번호가 올바르지 않습니다/);
+    assert.equal(client.cookie,'');assert.equal(response.headers.get('location'),null);assert.equal(harness.calls.query.length,1);
+    assert.equal(harness.calls.query.some(call=>call.sql.includes('last_login_at')),false);
+  });
+
+  test('회원가입은 bcryptjs 3으로 rounds 10 hash를 저장한다',async()=>{
+    const client=harness.createClient(),joinPassword='phase8-new-password';let inserted;
+    harness.reset((sql,params)=>{if(sql.includes('INSERT INTO users')){inserted=params;return rows([]);}throw new Error(`unexpected query: ${sql}`);});
+    const response=await client.request('/join',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:'phase8member',password:joinPassword,nickname:'신규회원'})});
+    assert.equal(response.status,302);assert.equal(response.headers.get('location'),'/login');assert.ok(inserted);
+    assert.equal(inserted[0],'phase8member');assert.equal(inserted[2],'신규회원');assert.notEqual(inserted[1],joinPassword);
+    assert.equal(inserted[1].length,60);assert.equal(bcrypt.getRounds(inserted[1]),10);
+    assert.equal(await bcrypt.compare(joinPassword,inserted[1]),true);assert.equal(await bcrypt.compare(`${joinPassword}-wrong`,inserted[1]),false);
+  });
+
+  test('관리자는 bcryptjs 2.4.3 legacy hash로 로그인한다',async()=>{
+    const client=harness.createClient();harness.reset((sql,params)=>{
+      if(sql.includes('SELECT * FROM users WHERE username=$1 AND role=$2 AND status=$3')){assert.deepEqual(params,['phase8admin','admin','active']);return rows([adminMember]);}
+      if(sql.includes('UPDATE users SET last_login_at=now() WHERE id=$1')){assert.deepEqual(params,[8]);return rows([]);}
+      throw new Error(`unexpected query: ${sql}`);
+    });
+    const response=await client.request('/admin/login',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:'phase8admin',password})});
+    assert.equal(response.status,302);assert.equal(response.headers.get('location'),'/admin');assert.match(client.cookie,/^connect\.sid=/);
+    assert.equal(harness.calls.query.length,2);
+    const loginCookie=client.cookie;
+    harness.reset((sql,params)=>{
+      if(sql.includes('SELECT id,username,nickname,role,status,is_vendor,vendor_id FROM users WHERE id=$1')){assert.deepEqual(params,[8]);return rows([adminMember]);}
+      if(sql.includes('FROM vendors v LEFT JOIN users u ON u.vendor_id=v.id WHERE v.id=$1')){assert.deepEqual(params,[1]);return rows([{id:1,name:'관리자 확인 업체'}]);}
+      throw new Error(`unexpected query: ${sql}`);
+    });
+    const adminResponse=await client.request('/admin/api/vendors/1',{headers:{accept:'application/json'}});
+    const body=await adminResponse.json();
+    assert.equal(client.cookie,loginCookie);assert.equal(adminResponse.status,200);assert.equal(body.ok,true);assert.equal(body.vendor.id,1);
+    assert.equal(harness.calls.query.length,2);
   });
 
   test('로그인 쿠키로 현재 사용자의 favorites를 조회한다',async()=>{

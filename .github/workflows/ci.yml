@@ -60,6 +60,7 @@ jobs:
           node --check tests/comment-routes.test.js
           node --check tests/http-integration.test.js
           node --check tests/image-upload.test.js
+          node --check tests/bcrypt-compat.test.js
           node --check tests/helpers/load-test-server.js
           node --check tests/helpers/load-http-test-server.js
 
