@@ -25,6 +25,9 @@ const desktopBlock=selector=>{const index=desktopHomeCss.indexOf(`${selector}{`)
 const mobileHomeCss=phase9HomeCss.slice(phase9HomeCss.indexOf('@media(max-width:760px)'));
 const mobileBlock=selector=>{const index=mobileHomeCss.indexOf(`${selector}{`);assert.notEqual(index,-1,selector);return mobileHomeCss.slice(index+selector.length+1,mobileHomeCss.indexOf('}',index));};
 const specificity=selector=>[(selector.match(/#[\w-]+/g)||[]).length,(selector.match(/\.[\w-]+/g)||[]).length,(selector.match(/(?:^|\s|>)[a-z][\w-]*/gi)||[]).length];
+const phase9Ui4Css=css.slice(css.indexOf('/* Phase 9-UI-4:'));
+const phase9Ui4DesktopCss=phase9Ui4Css.slice(0,phase9Ui4Css.indexOf('@media(max-width:760px)'));
+const phase9Ui4DesktopBlock=selector=>{const index=phase9Ui4DesktopCss.indexOf(`${selector}{`);assert.notEqual(index,-1,selector);return phase9Ui4DesktopCss.slice(index+selector.length+1,phase9Ui4DesktopCss.indexOf('}',index));};
 
 test('core Purple Admin UI design tokens are exact',()=>{
   const tokens={'ui-gradient-start':'#4c1d95','ui-gradient-middle':'#a21caf','ui-gradient-end':'#ec2f8f','ui-primary':'#63489a','ui-nav-active':'#34495e','ui-accent':'#1abc9c','ui-body':'#f5f3f8','ui-surface':'#fff','ui-text':'#111827','ui-line':'#dde1e7','ui-radius-shell':'28px'};
@@ -329,6 +332,9 @@ test('native checkbox and radio controls reset text-input dimensions',()=>{
   assert.match(css,/\.ui-theme input[^}]*min-height:44px/);
   const block=css.match(/\.ui-theme input\[type="checkbox"\],\.ui-theme input\[type="radio"\]\{([^}]*)}/)?.[1]||'';
   for(const declaration of ['width:18px!important','height:18px!important','min-width:18px!important','min-height:18px!important','padding:0!important','accent-color:var(--ui-primary)'])assert.ok(block.includes(declaration),declaration);
+  assert.match(finalBlock('.ui-theme input[type="checkbox"]'),/border-radius:4px/);assert.match(finalBlock('.ui-theme input[type="radio"]'),/border-radius:50%/);
+  const phase=css.slice(css.indexOf('/* Phase 9-UI-4:'));for(const selector of ['body.ui-public-page:not(.ui-home-page) input:not([type="checkbox"]):not([type="radio"]),','.ui-admin-page .admin-content input:not([type="checkbox"]):not([type="radio"]),','body.ui-public-page:not(.ui-home-page) input:not([type="checkbox"]):not([type="radio"]):focus,','.ui-admin-page .admin-content input:not([type="checkbox"]):not([type="radio"]):focus,'])assert.ok(phase.includes(selector),selector);
+  assert.doesNotMatch(phase,/body\.ui-public-page:not\(\.ui-home-page\) input,|\.ui-admin-page \.admin-content input,/);assert.doesNotMatch(phase,/input\[type="radio"\][^{]*\{[^}]*border-radius:4px!important/);
 });
 
 test('choice-control reset follows generic inputs without hiding native interaction',()=>{
@@ -426,4 +432,84 @@ test('premium showcase removes only title spacing from the final CSS',()=>{
 test('home vendor headings use compact desktop and mobile sizes with stronger specificity',()=>{
   const selector='.ui-home-page .content-area > .section-title h2';const ui3=css.slice(css.indexOf('/* Phase 9-UI-3:'));const mediaIndex=ui3.indexOf('@media(max-width:760px)');const desktop=ui3.slice(0,mediaIndex);const mobile=ui3.slice(mediaIndex);const index=fs.readFileSync(path.join(viewRoot,'index.ejs'),'utf8');
   assert.match(desktop,new RegExp(selector.replaceAll('.','\\.')+'\\{[^}]*font-size:22px!important[^}]*line-height:1\\.25!important'));assert.match(mobile,new RegExp(selector.replaceAll('.','\\.')+'\\{[^}]*font-size:20px!important[^}]*line-height:1\\.25!important'));assert.match(index,/<h2>추천업체<\/h2>/);assert.match(index,/<h2>일반업체<\/h2>/);assert.ok(specificity(selector)[1]>specificity('.section-title h2')[1]);assert.match(mobileBrandingCss,/\.section-title h2\s*\{[^}]*font-size:(?:28|26)px!important/s);
+});
+
+test('non-home public body ends on a neutral non-gradient canvas',()=>{
+  const block=phase9Ui4DesktopBlock('body.ui-public-page:not(.ui-home-page)');assert.match(block,/background:#f4f5f7!important/);assert.match(block,/padding:24px 0 48px!important/);assert.match(block,/overflow-x:hidden!important/);assert.doesNotMatch(block,/(?:linear|radial)-gradient/);
+});
+
+test('non-home public header is flat with dark branding',()=>{
+  const header=finalBlock('body.ui-public-page:not(.ui-home-page) > .top');const brand=finalBlock('body.ui-public-page:not(.ui-home-page) > .top .site-brand-center,body.ui-public-page:not(.ui-home-page) > .top .site-brand-center span');assert.match(header,/background:#f4f5f7!important/);assert.match(header,/border-radius:0!important/);assert.match(header,/box-shadow:none!important/);assert.match(header,/border-bottom:1px solid var\(--ui-line\)!important/);assert.match(brand,/color:var\(--ui-text\)!important/);assert.match(brand,/text-shadow:none!important/);
+});
+
+test('non-home public outer wrappers stay bounded but lose card chrome',()=>{
+  const selector='body.ui-public-page:not(.ui-home-page) > .board-wrap,body.ui-public-page:not(.ui-home-page) > .detail,body.ui-public-page:not(.ui-home-page) > .wrap,body.ui-public-page:not(.ui-home-page) > .layout';const block=finalBlock(selector);assert.match(block,/background:#f4f5f7!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);assert.doesNotMatch(block,/max-width:none/);assert.match(css,/\.board-wrap\{width:min\(1180px,calc\(100% - 32px\)\)/);
+});
+
+test('public board top banner is a white square non-gradient surface',()=>{
+  const block=finalBlock('body.ui-public-page:not(.ui-home-page) .board-top-banner');assert.match(block,/background:#fff!important/);assert.match(block,/border:1px solid var\(--ui-line\)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);assert.doesNotMatch(block,/(?:linear|radial)-gradient/);
+});
+
+test('public cards posts comments and forms share the final flat contract',()=>{
+  const selector='body.ui-public-page:not(.ui-home-page) .board-top-banner,body.ui-public-page:not(.ui-home-page) .board-category-card,body.ui-public-page:not(.ui-home-page) .board-gallery-card,body.ui-public-page:not(.ui-home-page) .board-webzine-item,body.ui-public-page:not(.ui-home-page) .faq-item,body.ui-public-page:not(.ui-home-page) .board-table-wrap,body.ui-public-page:not(.ui-home-page) .board-post-view,body.ui-public-page:not(.ui-home-page) .board-comments,body.ui-public-page:not(.ui-home-page) .board-form,body.ui-public-page:not(.ui-home-page) .box,body.ui-public-page:not(.ui-home-page) .hero-detail,body.ui-public-page:not(.ui-home-page) .vendor-hero,body.ui-public-page:not(.ui-home-page) .vendor-section,body.ui-public-page:not(.ui-home-page) .private-board-note,body.ui-public-page:not(.ui-home-page) .ad-inquiry-summary > div,body.ui-public-page:not(.ui-home-page) .panel';const block=finalBlock(selector);assert.match(block,/background:#fff!important/);assert.match(block,/border:1px solid var\(--ui-line\)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);
+});
+
+test('public tables remain full-width and horizontally scrollable',()=>{
+  const wrappers=finalBlock('body.ui-public-page:not(.ui-home-page) .board-table-wrap,body.ui-public-page:not(.ui-home-page) .table-wrap');const table=finalBlock('body.ui-public-page:not(.ui-home-page) table');assert.match(wrappers,/width:100%!important/);assert.match(wrappers,/overflow-x:auto!important/);assert.match(wrappers,/border-radius:0!important/);assert.match(wrappers,/background:#fff!important/);assert.match(table,/width:100%!important/);assert.match(table,/border-collapse:collapse/);
+});
+
+test('public form controls end with compact corners and a primary focus ring',()=>{
+  const selector='body.ui-public-page:not(.ui-home-page) input:not([type="checkbox"]):not([type="radio"]),body.ui-public-page:not(.ui-home-page) select,body.ui-public-page:not(.ui-home-page) textarea';const focusSelector='body.ui-public-page:not(.ui-home-page) input:not([type="checkbox"]):not([type="radio"]):focus,body.ui-public-page:not(.ui-home-page) select:focus,body.ui-public-page:not(.ui-home-page) textarea:focus';const controls=finalBlock(selector);const focus=finalBlock(focusSelector);assert.match(controls,/background:#fff!important/);assert.match(controls,/border:1px solid var\(--ui-line-strong\)!important/);assert.match(controls,/border-radius:4px!important/);assert.match(focus,/border-color:var\(--ui-primary\)!important/);assert.match(focus,/box-shadow:0 0 0 3px rgba\(99,72,154,\.16\)!important/);const phase=css.slice(css.indexOf('/* Phase 9-UI-4:'));assert.doesNotMatch(phase,/body\.ui-public-page:not\(\.ui-home-page\) input,/);assert.doesNotMatch(phase,/body\.ui-public-page:not\(\.ui-home-page\) input:focus,/);
+});
+
+test('public page titles use bounded desktop and mobile scales',()=>{
+  const phase=css.slice(css.indexOf('/* Phase 9-UI-4:'));const media=phase.indexOf('@media(max-width:760px)');const desktop=phase.slice(0,media);const mobile=phase.slice(media,phase.indexOf('@media(max-width:800px)'));assert.match(desktop,/\.board-head h1[^\{]*\{font-size:26px!important;line-height:1\.25!important}/);assert.match(desktop,/\.box > h2[^\{]*\{font-size:21px!important;line-height:1\.3!important}/);assert.match(mobile,/\.board-head h1[^\{]*\{font-size:22px!important;line-height:1\.25!important}/);assert.match(mobile,/\.box > h2[^\{]*\{font-size:19px!important;line-height:1\.3!important}/);
+});
+
+test('admin body fills the neutral viewport without outer padding',()=>{
+  const block=phase9Ui4DesktopBlock('body.ui-admin-page');assert.match(block,/margin:0!important/);assert.match(block,/padding:0!important/);assert.match(block,/width:100%!important/);assert.match(block,/min-height:100vh!important/);assert.match(block,/background:#f4f5f7!important/);assert.match(block,/overflow-x:hidden!important/);assert.doesNotMatch(block,/(?:linear|radial)-gradient/);
+});
+
+test('admin header spans the viewport with flat dark branding',()=>{
+  const header=phase9Ui4DesktopBlock('.ui-admin-page > .top');const brand=phase9Ui4DesktopBlock('.ui-admin-page > .top .site-brand-center,.ui-admin-page > .top .site-brand-center span');assert.match(header,/width:100%!important/);assert.match(header,/max-width:none!important/);assert.match(header,/margin:0!important/);assert.match(header,/background:#f4f5f7!important/);assert.match(header,/border-radius:0!important/);assert.match(header,/box-shadow:none!important/);assert.match(brand,/color:var\(--ui-text\)!important/);
+});
+
+test('admin shell is an unrestricted full-width 260px grid',()=>{
+  const block=phase9Ui4DesktopBlock('.ui-admin-page > .admin-shell');assert.match(block,/width:100%!important/);assert.match(block,/max-width:none!important/);assert.match(block,/margin:0!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);assert.match(block,/grid-template-columns:260px minmax\(0,1fr\)!important/);
+});
+
+test('admin sidebar uses the remaining viewport height and keeps active navigation',()=>{
+  const sidebar=phase9Ui4DesktopBlock('.ui-admin-page .admin-sidebar');const active=phase9Ui4DesktopBlock('.ui-admin-page .admin-sidebar a.active');assert.match(sidebar,/width:260px!important/);assert.match(sidebar,/min-height:calc\(100vh - 68px\)!important/);assert.match(sidebar,/background:#eef0f3!important/);assert.match(sidebar,/border-right:1px solid var\(--ui-line\)!important/);assert.match(sidebar,/border-radius:0!important/);assert.match(active,/background:var\(--ui-nav-active\)!important/);assert.match(active,/color:#fff!important/);
+});
+
+test('admin content and major cards consume full width with flat surfaces',()=>{
+  const content=finalBlock('.ui-admin-page .admin-content');const cards=finalBlock('.ui-admin-page .admin-content .panel,.ui-admin-page .admin-home-box,.ui-admin-page .admin-pending-card,.ui-admin-page .admin-today-card,.ui-admin-page .admin-summary-card,.ui-admin-page .request-summary-card,.ui-admin-page .revenue-card,.ui-admin-page .vendor-summary-card,.ui-admin-page .vendor-request-summary-card,.ui-admin-page .data-management-card,.ui-admin-page .settings-box,.ui-admin-page .admin-account-summary > div,.ui-admin-page .vendor-form-box,.ui-admin-page .integrated-card,.ui-admin-page .admin-dashboard-card,.ui-admin-page .admin-dashboard-recent');const hover=finalBlock('.ui-admin-page .admin-dashboard-card:hover,.ui-admin-page .integrated-card:hover');assert.match(content,/width:100%!important/);assert.match(content,/max-width:none!important/);assert.match(cards,/width:100%!important/);assert.match(cards,/max-width:none!important/);assert.match(cards,/border-radius:0!important/);assert.match(cards,/box-shadow:none!important/);assert.match(hover,/transform:none!important/);
+});
+
+test('admin desktop and mobile contracts prevent a bounded outer frame',()=>{
+  const phase=css.slice(css.indexOf('/* Phase 9-UI-4:'));const mobile=phase.slice(phase.indexOf('@media(max-width:800px)'));assert.match(phase,/body\.ui-admin-page\{[^}]*padding:0!important[^}]*overflow-x:hidden!important/);assert.match(phase,/\.ui-admin-page > \.admin-shell\{[^}]*grid-template-columns:260px minmax\(0,1fr\)!important/);assert.match(mobile,/\.ui-admin-page > \.admin-shell\{[^}]*width:100%!important[^}]*grid-template-columns:1fr!important/);assert.match(mobile,/\.ui-admin-page \.admin-sidebar\{[^}]*position:static!important[^}]*width:100%!important[^}]*min-height:auto!important/);assert.match(mobile,/\.ui-admin-page \.admin-content\{[^}]*width:100%!important[^}]*padding:16px!important/);
+});
+
+test('real admin summary cards and containers receive the final flat contract',()=>{
+  const admin=fs.readFileSync(path.join(viewRoot,'admin.ejs'),'utf8');for(const value of ['dashboard-pending-card','dashboard-metric','ad-payment-summary-grid','ad-payment-table-wrap','board-operation-tabs'])assert.match(admin,new RegExp(`\\b${value}\\b`),value);
+  const cards=finalBlock('.ui-admin-page .dashboard-pending-card,.ui-admin-page .dashboard-metric,.ui-admin-page #adCenter .ad-payment-summary-grid > button,.ui-admin-page .ad-payment-table-wrap,.ui-admin-page .board-operation-tabs');const containers=finalBlock('.ui-admin-page .ad-payment-table-wrap,.ui-admin-page .board-operation-tabs');const hover=finalBlock('.ui-admin-page .dashboard-pending-card:hover,.ui-admin-page #adCenter .ad-payment-summary-grid > button:hover');assert.match(cards,/background:#fff!important/);assert.match(cards,/color:var\(--ui-text\)!important/);assert.match(cards,/border:1px solid var\(--ui-line\)!important/);assert.match(cards,/border-radius:0!important/);assert.match(cards,/box-shadow:none!important/);assert.match(containers,/width:100%!important/);assert.match(containers,/max-width:none!important/);assert.match(hover,/transform:none!important/);assert.match(hover,/box-shadow:none!important/);
+});
+
+test('advertising payment active summary is solid and motionless',()=>{
+  const block=finalBlock('.ui-admin-page .admin-content #adCenter .ad-payment-summary-grid > button.active');assert.match(block,/background:var\(--ui-nav-active\)!important/);assert.match(block,/color:#fff!important/);assert.match(block,/border-color:var\(--ui-nav-active\)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);assert.match(block,/transform:none!important/);assert.doesNotMatch(block,/(?:linear|radial)-gradient|translate/);
+});
+
+test('real administrator modal cards end with explicit square light surfaces',()=>{
+  const admin=fs.readFileSync(path.join(viewRoot,'admin.ejs'),'utf8');for(const value of ['vendor-modal-box','vendor-request-review-modal-card','admin-account-modal-card','admin-password-result-card'])assert.match(admin,new RegExp(`class="[^"]*\\b${value}\\b`),value);
+  const selector='.ui-admin-page .vendor-modal-box,.ui-admin-page .vendor-request-review-modal-card,.ui-admin-page .admin-account-modal-card,.ui-admin-page .admin-password-result-card';const block=finalBlock(selector);assert.match(block,/background:#fff!important/);assert.match(block,/color:var\(--ui-text\)!important/);assert.match(block,/border:1px solid var\(--ui-line\)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:0 18px 50px rgba\(17,24,39,\.18\)!important/);assert.doesNotMatch(block,/border-radius:(?:16|18)px/);assert.ok(css.lastIndexOf(`${selector}{`)>css.lastIndexOf('.ui-admin-page .vendor-modal-box,.ui-admin-page .vendor-request-review-modal-card,.ui-admin-page .admin-account-modal-card,.ui-admin-page .admin-password-result-card,.ui-admin-page .detail-modal'));
+});
+
+test('dashboard metric child colors override the real dark-theme inventory',()=>{
+  const admin=fs.readFileSync(path.join(viewRoot,'admin.ejs'),'utf8');assert.match(admin,/\.dashboard-metric b\{[^}]*color:#8d98b8/);assert.match(admin,/\.dashboard-metric strong\{[^}]*color:#fff/);
+  const label=finalBlock('.ui-admin-page .dashboard-metric b');const value=finalBlock('.ui-admin-page .dashboard-metric strong');assert.match(label,/color:var\(--ui-muted\)!important/);assert.match(value,/color:var\(--ui-text\)!important/);assert.doesNotMatch(value,/(?:#fff|#dfe9ff)/);assert.ok(specificity('.ui-admin-page .dashboard-metric strong')[1]>specificity('.dashboard-metric strong')[1]);assert.doesNotMatch(admin.match(/\.dashboard-metric strong\{[^}]*}/)[0],/!important/);
+});
+
+test('dashboard pending child colors override the real dark-theme inventory',()=>{
+  const admin=fs.readFileSync(path.join(viewRoot,'admin.ejs'),'utf8');assert.match(admin,/\.dashboard-pending-card b\{[^}]*color:#dfe9ff/);assert.match(admin,/\.dashboard-pending-card strong\{[^}]*color:#10d9ff/);
+  const label=finalBlock('.ui-admin-page .dashboard-pending-card b');const value=finalBlock('.ui-admin-page .dashboard-pending-card strong');assert.match(label,/color:var\(--ui-text-soft\)!important/);assert.doesNotMatch(label,/#dfe9ff/);assert.match(value,/color:var\(--ui-primary\)!important/);assert.doesNotMatch(value,/#10d9ff/);assert.ok(specificity('.ui-admin-page .dashboard-pending-card strong')[1]>specificity('.dashboard-pending-card strong')[1]);assert.doesNotMatch(admin.match(/\.dashboard-pending-card strong\{[^}]*}/)[0],/!important/);
 });
