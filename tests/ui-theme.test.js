@@ -10,6 +10,7 @@ const {execFileSync}=require('node:child_process');
 const root=path.resolve(__dirname,'..');
 const css=fs.readFileSync(path.join(root,'public/css/style.css'),'utf8');
 const homeCardCss=fs.readFileSync(path.join(root,'public/css/home-card-layout-v48.css'),'utf8');
+const mobileBrandingCss=fs.readFileSync(path.join(root,'public/css/mobile-branding-v55.css'),'utf8');
 const viewRoot=path.join(root,'views');
 const views=[];
 function collect(directory){for(const entry of fs.readdirSync(directory,{withFileTypes:true})){const target=path.join(directory,entry.name);if(entry.isDirectory())collect(target);else if(entry.name.endsWith('.ejs'))views.push(target);}}
@@ -397,4 +398,32 @@ test('premium slider hover thumbnails and badges keep the flat contract',()=>{
   const hover=finalBlock('.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open:hover,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium:hover,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open:hover');assert.match(hover,/transform:none!important/);assert.match(hover,/box-shadow:none!important/);
   assert.match(finalBlock('.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open .thumb,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium .thumb,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open .thumb'),/border-radius:0!important/);
   assert.match(finalBlock('.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open .ad-card-meta em,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium .ad-card-meta em,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open .ad-card-meta em'),/border-radius:4px!important/);
+});
+
+test('public menu partial retains its accessibility and interaction hooks',()=>{
+  const source=fs.readFileSync(path.join(viewRoot,'partials/public-mobile-menu.ejs'),'utf8');
+  for(const value of ['public-menu-toggle','public-side-menu','data-public-menu-open','data-public-menu-close','aria-controls','aria-expanded','aria-hidden','inert'])assert.match(source,new RegExp(value),value);
+});
+
+test('public menu closed state enters from the right edge',()=>{
+  const block=finalBlock('.ui-public-page > .public-side-menu');assert.match(block,/left:auto!important/);assert.match(block,/right:0!important/);assert.match(block,/transform:translateX\(100%\)!important/);assert.match(block,/border-left:1px solid var\(--ui-line\)!important/);assert.match(block,/border-right:0!important/);assert.match(block,/box-shadow:none!important/);
+});
+
+test('public menu open state rests at zero without left-drawer rules',()=>{
+  const block=finalBlock('.ui-public-page > .public-side-menu.open');assert.match(block,/transform:translateX\(0\)!important/);assert.match(block,/box-shadow:-18px 0 50px rgba\(0,0,0,\.28\)!important/);assert.doesNotMatch(block,/box-shadow:none|translateX\(-100%\)|left:0/);
+});
+
+test('premium showcase starts with the slider and retains premium cards',()=>{
+  const source=fs.readFileSync(path.join(viewRoot,'index.ejs'),'utf8');const section=source.match(/<section class="premium-showcase">([\s\S]*?)<\/section>/)[1];
+  assert.doesNotMatch(section,/showcase-title|<h2>프리미엄<\/h2>/);assert.match(section,/^\s*<div class="premium-row-slider unified-premium-slider">/);assert.match(section,/<em>PREMIUM<\/em>/);
+});
+
+test('premium showcase removes only title spacing from the final CSS',()=>{
+  const showcase=finalBlock('.ui-home-page .premium-showcase');const slider=finalBlock('.ui-home-page .premium-showcase > .premium-row-slider');
+  assert.match(showcase,/margin-top:0!important/);assert.match(showcase,/padding-top:0!important/);assert.match(slider,/margin-top:0!important/);assert.doesNotMatch(`${showcase}${slider}`,/(?:height|animation)\s*:/);
+});
+
+test('home vendor headings use compact desktop and mobile sizes with stronger specificity',()=>{
+  const selector='.ui-home-page .content-area > .section-title h2';const ui3=css.slice(css.indexOf('/* Phase 9-UI-3:'));const mediaIndex=ui3.indexOf('@media(max-width:760px)');const desktop=ui3.slice(0,mediaIndex);const mobile=ui3.slice(mediaIndex);const index=fs.readFileSync(path.join(viewRoot,'index.ejs'),'utf8');
+  assert.match(desktop,new RegExp(selector.replaceAll('.','\\.')+'\\{[^}]*font-size:22px!important[^}]*line-height:1\\.25!important'));assert.match(mobile,new RegExp(selector.replaceAll('.','\\.')+'\\{[^}]*font-size:20px!important[^}]*line-height:1\\.25!important'));assert.match(index,/<h2>추천업체<\/h2>/);assert.match(index,/<h2>일반업체<\/h2>/);assert.ok(specificity(selector)[1]>specificity('.section-title h2')[1]);assert.match(mobileBrandingCss,/\.section-title h2\s*\{[^}]*font-size:(?:28|26)px!important/s);
 });
