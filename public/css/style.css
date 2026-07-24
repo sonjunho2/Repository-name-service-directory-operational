@@ -1256,3 +1256,41 @@ body.ui-public-page.ui-detail-page:has(.apply-hero) .box{background:#fff!importa
 /* Phase 9 UI theme v6: preserve native compact choice controls */
 .ui-theme input[type="checkbox"],.ui-theme input[type="radio"]{width:18px!important;height:18px!important;min-width:18px!important;min-height:18px!important;padding:0!important;margin:0;flex:0 0 auto;accent-color:var(--ui-primary)}
 .ui-theme input[type="checkbox"]{border-radius:4px}.ui-theme input[type="radio"]{border-radius:50%}
+
+/* Phase 9-UI-2: home-only neutral advertising canvas */
+.ui-home-page{--ui-home-bg:#f4f5f7;background:#f4f5f7!important;color:var(--ui-text);padding:24px 0 48px!important}
+.ui-home-page > .top{background:#f4f5f7!important;border:0!important;border-bottom:1px solid var(--ui-line)!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important}
+.ui-home-page > .top .site-brand-center{color:var(--ui-text)!important}
+.ui-home-page > .top .site-brand-center span{color:var(--ui-text)!important;text-shadow:none!important;opacity:1!important}
+.ui-home-page > .top .site-brand-center img{filter:none!important}
+.ui-home-page > .top nav,.ui-home-page > .top nav a{color:var(--ui-text-soft)!important}
+.ui-home-page > .top nav a:hover{color:var(--ui-primary)!important}
+.ui-home-page > .main-hero{background:transparent!important;border:0!important;border-top:1px solid var(--ui-line)!important;border-bottom:1px solid var(--ui-line)!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .hero-filter{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .hero-filter input,.ui-home-page .hero-filter select{background:#fff!important;color:var(--ui-text)!important;border:1px solid var(--ui-line-strong)!important;border-radius:4px!important;box-shadow:none!important}
+.ui-home-page .hero-filter input:focus,.ui-home-page .hero-filter select:focus{border-color:var(--ui-primary)!important;box-shadow:0 0 0 3px rgba(99,72,154,.16)!important}
+.ui-home-page .hero-filter button{background:var(--ui-primary)!important;border:1px solid var(--ui-primary)!important;border-radius:4px!important;box-shadow:none!important;color:#fff!important;filter:none!important}
+.ui-home-page .quick-filter-row a{background:#fff!important;border:1px solid var(--ui-line-strong)!important;border-radius:4px!important;color:var(--ui-text-soft)!important;box-shadow:none!important}
+.ui-home-page .quick-filter-row a.active,.ui-home-page .quick-filter-row a:hover{background:var(--ui-nav-active)!important;border-color:var(--ui-nav-active)!important;color:#fff!important}
+.ui-home-page .premium-showcase{background:#f4f5f7!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .showcase-title h2,.ui-home-page .section-title h2{color:var(--ui-text)!important}
+.ui-home-page .showcase-title span,.ui-home-page .section-title span{color:var(--ui-muted)!important}
+.ui-home-page .premium-row-slider{background:#f4f5f7!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .premium-row-slider:before{background:linear-gradient(90deg,#f4f5f7,transparent)!important}
+.ui-home-page .premium-row-slider:after{background:linear-gradient(270deg,#f4f5f7,transparent)!important}
+.ui-home-page .card.vendor-open{background:#fff!important;border:1px solid var(--ui-line-strong)!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .card.vendor-open.premium,.ui-home-page .card.vendor-open.recommend,.ui-home-page .card.vendor-open.normal-card{background:#fff!important;border:1px solid var(--ui-line-strong)!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .card.vendor-open:hover{transform:none!important;border-color:#aeb6c2!important;box-shadow:none!important}
+.ui-home-page .card.vendor-open .thumb,.ui-home-page .card.vendor-open .thumb.small{border-radius:0!important}
+.ui-home-page .card.vendor-open .ad-card-meta em{border-radius:4px!important}
+.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open{background:#fff!important;border:1px solid var(--ui-line-strong)!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open:hover,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium:hover,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open:hover{transform:none!important;box-shadow:none!important}
+.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open .thumb,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium .thumb,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open .thumb{border-radius:0!important}
+.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open .ad-card-meta em,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium .ad-card-meta em,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open .ad-card-meta em{border-radius:4px!important}
+.ui-home-page > .layout{background:#f4f5f7!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .content-area,.ui-home-page .right-board{background:transparent!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .side-box{background:#fff!important;border:1px solid var(--ui-line)!important;border-radius:0!important;box-shadow:none!important}
+.ui-home-page .side-box h3{color:var(--ui-text)!important}
+.ui-home-page > .public-menu-toggle{background:#fff!important;border:1px solid var(--ui-line-strong)!important;border-radius:4px!important;box-shadow:none!important}
+.ui-home-page > .public-menu-toggle span{background:var(--ui-text)!important}
+@media(max-width:760px){.ui-home-page{background:#f4f5f7!important;padding:0 0 36px!important}.ui-home-page > .main-hero,.ui-home-page .premium-showcase{width:100%!important}.ui-home-page > .main-hero{padding:16px!important;background:transparent!important;border-radius:0!important;box-shadow:none!important}.ui-home-page > .layout{padding-left:16px!important;padding-right:16px!important}.ui-home-page .hero-filter{grid-template-columns:1fr!important;background:transparent!important;border-radius:0!important;box-shadow:none!important}}

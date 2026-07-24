@@ -9,6 +9,7 @@ const {execFileSync}=require('node:child_process');
 
 const root=path.resolve(__dirname,'..');
 const css=fs.readFileSync(path.join(root,'public/css/style.css'),'utf8');
+const homeCardCss=fs.readFileSync(path.join(root,'public/css/home-card-layout-v48.css'),'utf8');
 const viewRoot=path.join(root,'views');
 const views=[];
 function collect(directory){for(const entry of fs.readdirSync(directory,{withFileTypes:true})){const target=path.join(directory,entry.name);if(entry.isDirectory())collect(target);else if(entry.name.endsWith('.ejs'))views.push(target);}}
@@ -16,6 +17,13 @@ collect(viewRoot);views.sort();
 const pages=views.filter(file=>/<body\b/i.test(fs.readFileSync(file,'utf8')));
 const partials=views.filter(file=>!pages.includes(file));
 const relative=file=>path.relative(root,file).replaceAll('\\','/');
+const finalBlock=selector=>{const index=css.lastIndexOf(`${selector}{`);assert.notEqual(index,-1,selector);return css.slice(index+selector.length+1,css.indexOf('}',index));};
+const phase9HomeCss=css.slice(css.indexOf('/* Phase 9-UI-2:'));
+const desktopHomeCss=phase9HomeCss.slice(0,phase9HomeCss.indexOf('@media(max-width:760px)'));
+const desktopBlock=selector=>{const index=desktopHomeCss.indexOf(`${selector}{`);assert.notEqual(index,-1,selector);return desktopHomeCss.slice(index+selector.length+1,desktopHomeCss.indexOf('}',index));};
+const mobileHomeCss=phase9HomeCss.slice(phase9HomeCss.indexOf('@media(max-width:760px)'));
+const mobileBlock=selector=>{const index=mobileHomeCss.indexOf(`${selector}{`);assert.notEqual(index,-1,selector);return mobileHomeCss.slice(index+selector.length+1,mobileHomeCss.indexOf('}',index));};
+const specificity=selector=>[(selector.match(/#[\w-]+/g)||[]).length,(selector.match(/\.[\w-]+/g)||[]).length,(selector.match(/(?:^|\s|>)[a-z][\w-]*/gi)||[]).length];
 
 test('core Purple Admin UI design tokens are exact',()=>{
   const tokens={'ui-gradient-start':'#4c1d95','ui-gradient-middle':'#a21caf','ui-gradient-end':'#ec2f8f','ui-primary':'#63489a','ui-nav-active':'#34495e','ui-accent':'#1abc9c','ui-body':'#f5f3f8','ui-surface':'#fff','ui-text':'#111827','ui-line':'#dde1e7','ui-radius-shell':'28px'};
@@ -95,8 +103,9 @@ test('EJS functional contracts match HEAD exactly apart from body class',()=>{
   for(const file of views){const name=relative(file),before=execFileSync('git',['show',`HEAD:${name}`],{cwd:root,encoding:'utf8'}),after=fs.readFileSync(file,'utf8');assert.deepEqual(tags(after),tags(before),`${name}: EJS tags`);for(const attribute of attributes)assert.deepEqual(values(after,attribute),values(before,attribute),`${name}: ${attribute}`);assert.deepEqual(dataValues(after),dataValues(before),`${name}: data-*`);assert.deepEqual(scripts(after),scripts(before),`${name}: scripts`);}
 });
 
-test('package lock remains byte-identical and no UI dependency was added',()=>{
-  const before=execFileSync('git',['show','HEAD:package-lock.json'],{cwd:root});const after=fs.readFileSync(path.join(root,'package-lock.json'));assert.deepEqual(after,before);
+test('package lock remains content-identical across platform line endings and no UI dependency was added',()=>{
+  const normalizeEol=value=>value.replace(/\r\n?/g,'\n');
+  const before=execFileSync('git',['show','HEAD:package-lock.json'],{cwd:root,encoding:'utf8'});const after=fs.readFileSync(path.join(root,'package-lock.json'),'utf8');assert.equal(normalizeEol(after),normalizeEol(before));assert.deepEqual(JSON.parse(after),JSON.parse(before));
   const manifest=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));assert.equal(manifest.scripts['test:ui-theme'],'node --test tests/ui-theme.test.js');
 });
 
@@ -327,4 +336,65 @@ test('choice-control reset follows generic inputs without hiding native interact
   const resetIndex=css.lastIndexOf(selector);const block=css.slice(resetIndex+selector.length,css.indexOf('}',resetIndex));
   assert.notEqual(genericIndex,-1);assert.ok(resetIndex>genericIndex);
   assert.doesNotMatch(block,/(?:appearance\s*:\s*none|display\s*:\s*none|opacity\s*:\s*0(?:\D|$)|pointer-events\s*:\s*none)/i);
+});
+
+test('home index owns the dedicated home page scope',()=>{
+  assert.match(fs.readFileSync(path.join(viewRoot,'index.ejs'),'utf8'),/<body\b[^>]*class="[^"]*\bui-home-page\b/);
+});
+
+test('home body ends with an important neutral non-gradient background',()=>{
+  for(const block of [desktopBlock('.ui-home-page'),mobileBlock('.ui-home-page')]){assert.match(block,/background:#f4f5f7!important/);assert.doesNotMatch(block,/(?:linear|radial)-gradient/);}
+});
+
+test('home header joins the neutral canvas without radius or shadow',()=>{
+  const block=finalBlock('.ui-home-page > .top');assert.match(block,/background:#f4f5f7!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);
+});
+
+test('home brand title ends as opaque dark text without text shadow',()=>{
+  const block=finalBlock('.ui-home-page > .top .site-brand-center span');assert.match(block,/color:var\(--ui-text\)!important/);assert.match(block,/text-shadow:none!important/);assert.match(block,/opacity:1!important/);
+});
+
+test('home search shells are square light and shadowless',()=>{
+  for(const selector of ['.ui-home-page > .main-hero','.ui-home-page .hero-filter'])for(const block of [desktopBlock(selector),mobileBlock(selector)]){assert.match(block,/background:(?:transparent|#f4f5f7)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);assert.doesNotMatch(block,/#(?:070b15|080d18|101525)|gradient/);}
+});
+
+test('home advertising cards use one neutral square contract',()=>{
+  const block=finalBlock('.ui-home-page .card.vendor-open');assert.match(block,/background:#fff!important/);assert.match(block,/border:1px solid var\(--ui-line-strong\)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);
+});
+
+test('home premium recommend and general card variants remove decorative tiers',()=>{
+  const block=finalBlock('.ui-home-page .card.vendor-open.premium,.ui-home-page .card.vendor-open.recommend,.ui-home-page .card.vendor-open.normal-card');assert.match(block,/background:#fff!important/);assert.match(block,/border:1px solid var\(--ui-line-strong\)!important/);assert.match(block,/border-radius:0!important/);assert.doesNotMatch(block,/(?:gold|cyan|gradient)/i);
+});
+
+test('home advertising thumbnails end with square corners',()=>{
+  const block=finalBlock('.ui-home-page .card.vendor-open .thumb,.ui-home-page .card.vendor-open .thumb.small');assert.match(block,/border-radius:0!important/);
+});
+
+test('home side boxes use a square neutral surface',()=>{
+  const block=finalBlock('.ui-home-page .side-box');assert.match(block,/background:#fff!important/);assert.match(block,/border:1px solid var\(--ui-line\)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);
+});
+
+test('home advertising hover cannot float or cast a shadow',()=>{
+  const block=finalBlock('.ui-home-page .card.vendor-open:hover');assert.match(block,/transform:none!important/);assert.match(block,/box-shadow:none!important/);assert.doesNotMatch(block,/translateY/);
+});
+
+test('premium slider markup includes vendor-linked and direct-admin card classes',()=>{
+  const source=fs.readFileSync(path.join(viewRoot,'index.ejs'),'utf8');assert.match(source,/'vendor-open premium'/);assert.match(source,/'premium banner-direct-open'/);
+});
+
+test('direct-admin premium banners end with the neutral square card contract',()=>{
+  const selector='.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open';
+  const block=finalBlock(selector);assert.match(block,/background:#fff!important/);assert.match(block,/border:1px solid var\(--ui-line-strong\)!important/);assert.match(block,/border-radius:0!important/);assert.match(block,/box-shadow:none!important/);assert.doesNotMatch(block,/(?:gradient|gold|cyan)/i);
+});
+
+test('direct-banner radius override outranks the later home card stylesheet',()=>{
+  const later='.premium-row-slider.unified-premium-slider .card.premium';const direct='.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open';
+  assert.match(homeCardCss,/\.premium-row-slider\.unified-premium-slider \.card\.premium\{[^}]*border-radius:var\(--home-card-radius\)!important/s);
+  assert.ok(specificity(direct)[1]>specificity(later)[1],`${direct} must outrank ${later}`);assert.match(css,new RegExp(direct.replaceAll('.','\\.')+'[^\\{]*\\{[^}]*border-radius:0!important'));
+});
+
+test('premium slider hover thumbnails and badges keep the flat contract',()=>{
+  const hover=finalBlock('.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open:hover,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium:hover,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open:hover');assert.match(hover,/transform:none!important/);assert.match(hover,/box-shadow:none!important/);
+  assert.match(finalBlock('.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open .thumb,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium .thumb,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open .thumb'),/border-radius:0!important/);
+  assert.match(finalBlock('.ui-home-page .premium-row-slider.unified-premium-slider .card.vendor-open .ad-card-meta em,.ui-home-page .premium-row-slider.unified-premium-slider .card.premium .ad-card-meta em,.ui-home-page .premium-row-slider.unified-premium-slider .card.banner-direct-open .ad-card-meta em'),/border-radius:4px!important/);
 });
